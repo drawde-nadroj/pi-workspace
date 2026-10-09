@@ -1,0 +1,18 @@
+{
+  "name": "pi-workspace-source",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Source workspace for Pi Home, Tasks, Ask, and embeddable frames; not an installable Pi package yet",
+  "workspaces": ["packages/pi-frame", "packages/pi-ask"],
+  "devDependencies": {
+    "pi-vim": "0.14.2"
+  },
+  "scripts": {
+    "test": "npm run test:frame && npm run test:ask && npm run test:home && npm run test:tasks",
+    "test:frame": "node --test packages/pi-frame/test/*.test.mjs",
+    "test:ask": "node --test packages/pi-ask/test/host.test.mjs",
+    "test:home": "node --test extensions/pi-home/tests/*.test.mjs",
+    "test:tasks": "node --test extensions/pi-tasks/tests/*.test.mjs",
+    "pack:check": "npm pack --dry-run --workspace=pi-embeddable-frame && npm pack --dry-run --workspace=pi-ask"
+  }
+}

@@ -1,0 +1,95 @@
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { createFrameController, framePresentationDefaults, readFramePresentation, presentationRows,
+  type FramePresentation, type FrameSample, type FrameState } from "../../lib/frame.ts";
+import { cleanText, type DockSnapshot } from "../../lib/home-dock.ts";
+import type { HomeState } from "./state.ts";
+
+export interface TaskPanelPrefs { version: 1; title: string; rows: number; presentation: FramePresentation }
+export function taskPanelDefaults(): TaskPanelPrefs {
+  return { version: 1, title: "Tasks", rows: 3, presentation: framePresentationDefaults() };
+}
+export function readTaskPanel(value: unknown): TaskPanelPrefs {
+  const out = taskPanelDefaults(), raw = value as Partial<TaskPanelPrefs> | undefined;
+  if (raw?.version !== 1) return out;
+  if (typeof raw.title === "string") out.title = Array.from(cleanText(raw.title)).slice(0, 60).join("");
+  if (Number.isInteger(raw.rows)) out.rows = Math.max(1, Math.min(5, raw.rows!));
+  out.presentation = readFramePresentation(raw.presentation);
+  return out;
+}
+export function taskPanelRows(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
+  frame: FrameSample, budget = 7): string[] {
+  const info = dock.overview;
+  const source = info?.rows ?? [...dock.rows].sort((a, b) => {
+    const rank = (tone?: string) => tone === "accent" ? 0 : tone === "warning" || tone === "error" ? 1 : tone === "muted" ? 3 : 2;
+    return rank(a.tone) - rank(b.tone);
+  });
+  const bodyBudget = Math.max(1, budget - 2);
+  const capacity = Math.max(1, Math.min(prefs.rows, bodyBudget));
+  const hidden = Math.max(0, source.length - capacity) + (info?.more ?? dock.more ?? 0);
+  const inner = Math.max(1, width - 4);
+  const content: Array<{ text: string; role: "text" | "active" | "muted" | "warning" | "error" }> = [];
+  const chosen = source.slice(0, capacity);
+  for (const [index, row] of chosen.entries()) {
+    const role = row.tone === "accent" ? "active" : row.tone === "warning" || row.tone === "error" || row.tone === "muted" ? row.tone : "text";
+    let text = cleanText(row.text);
+    if (info && !info.activeId && index === 0 && role === "text") text = `Next · ${text.replace(/^○\s*/, "")}`;
+    const lines = wrapTextWithAnsi(text, inner);
+    const count = index === 0 && bodyBudget > chosen.length ? Math.min(2, lines.length) : 1;
+    for (let i = 0; i < count; i++) content.push({ role,
+      text: i === count - 1 && lines.length > count ? truncateToWidth(lines[i], Math.max(0, inner - 1), "") + "…" : lines[i] });
+  }
+  if (!content.length) content.push({ text: info?.total ? info.done === info.total ? "✓ All tasks complete" : "No open tasks" : "No tasks", role: "muted" });
+  const hint = hidden > 0 ? `+ ${hidden} open · /tasks` : "";
+  let summary = info ? `${info.done}/${info.total} done${info.blocked ? ` · ${info.blocked} blocked` : ""}${info.cancelled ? ` · ${info.cancelled} cancelled` : ""}` : cleanText(dock.summary ?? "");
+  if (info && width < 36) summary = `✓ ${info.done}/${info.total}${info.blocked ? ` · !${info.blocked}` : ""}${info.cancelled ? ` · –${info.cancelled}` : ""}`;
+  if (width < 16) {
+    if (hint && content.length < bodyBudget) content.push({ text: hint, role: "muted" });
+    return content.map(row => truncateToWidth(row.text, width, "…"));
+  }
+  return presentationRows({ theme, width, rows: content, title: prefs.title, summary, hint, presentation: prefs.presentation, frame });
+}
+
+/** Thin data adapter. The package owns effects, state rules and motion lifetime; Home supplies facts and a shared clock. */
+export class TaskPanel {
+  private controller = createFrameController();
+  private dock?: DockSnapshot;
+  private identity?: string;
+  private visible = false;
+  setVisible(value: boolean) { this.visible = value; if (!value) this.reset(); }
+  reset() { this.controller.reset(); this.dock = undefined; this.identity = undefined; }
+  private update(home: HomeState, now: number, focused: boolean) {
+    const dock = this.dock, info = dock?.overview;
+    const busy = home.clock.active || home.compacting;
+    const active = info ? !!info.activeId : dock?.rows.some(r => r.tone === "accent");
+    const state: FrameState = home.promptDepth ? "waiting" : dock?.rows.some(r => r.tone === "error") ? "error"
+      : info?.blocked ? "blocked" : busy && active ? "working" : info && info.done === info.total && info.total > 0 ? "done" : active ? "waiting" : "idle";
+    return this.controller.update({ state, revision: info?.revision ?? JSON.stringify([dock?.summary, dock?.rows]),
+      visible: this.visible && !!dock, reducedMotion: home.prefs.motion === "off" || home.layout?.motion === "off",
+      suspended: home.promptDepth > 0 || !!home.footerPickerOpen || !focused || now - home.lastInputAt < 1200 },
+      home.layout?.tasks?.presentation ?? framePresentationDefaults(), now);
+  }
+  tick(home: HomeState, now: number, focused: boolean): boolean { return this.update(home, now, focused).active; }
+  render(theme: Theme, width: number, dock: DockSnapshot, home: HomeState, now: number, focused: boolean, budget: number) {
+    const identity = `${dock.sessionId}:${dock.overview?.planId ?? "legacy"}`;
+    if (this.identity !== undefined && this.identity !== identity) this.reset();
+    this.identity = identity;
+    this.dock = dock; this.visible = width >= 16 && budget >= 3;
+    const open = dock.rows.filter(row => row.tone !== "muted");
+    const display = !dock.overview && !home.prefs.details && open.length ? { ...dock, rows: open } : dock;
+    return taskPanelRows(theme, width, display, home.layout?.tasks ?? taskPanelDefaults(), this.update(home, now, focused), budget);
+  }
+}
+
+/** Explicitly synthetic settings preview; never published as task state. */
+export function taskDemo(state: FrameState): DockSnapshot {
+  const blocked = state === "blocked", done = state === "done";
+  return { version: 1, sessionId: "demo", id: "pi-tasks", title: "Preview only", rows: [],
+    overview: { revision: `demo-${state}`, total: 7, done: done ? 7 : 3, cancelled: 0, blocked: blocked ? 1 : 0,
+      activeId: state === "working" || state === "waiting" ? "t4" : undefined, more: 0,
+      rows: done ? [] : [
+        { text: state === "error" ? "× Could not load task history" : blocked ? "! Review changes · waiting for approval" : state === "working" ? "▸ Refine task overview" : state === "waiting" ? "▸ Refine task overview · paused" : "○ Refine task overview", tone: state === "error" ? "error" : blocked ? "warning" : state === "working" || state === "waiting" ? "accent" : "text" },
+        { text: "○ Validate narrow and wide layouts", tone: "text" }, { text: "○ Document presentation controls", tone: "text" },
+        { text: "○ Review the finished result", tone: "text" },
+      ] } };
+}

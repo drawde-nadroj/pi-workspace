@@ -1,0 +1,22 @@
+# Local installs, generated output and operating-system files
+node_modules/
+.DS_Store
+coverage/
+dist/
+*.log
+*.tsbuildinfo
+*.tmp
+
+# Pi runtime state and secrets must never enter this source repository
+.pi/
+.env
+.env.*
+auth.json
+mcp-auth.json
+mcp.json
+settings.json
+sessions/
+backups/
+web-search-cache/
+*.pem
+*.key

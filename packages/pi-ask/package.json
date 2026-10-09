@@ -1,0 +1,55 @@
+{
+  "name": "pi-ask",
+  "version": "0.1.1",
+  "description": "Adaptive questions for building precise, token-efficient shared context between Pi agents and users",
+  "license": "MIT",
+  "author": "Jordan (the-sleeping-teemo)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-sleeping-teemo/pi-context-seeker.git"
+  },
+  "homepage": "https://github.com/the-sleeping-teemo/pi-context-seeker#readme",
+  "bugs": {
+    "url": "https://github.com/the-sleeping-teemo/pi-context-seeker/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "questions",
+    "context",
+    "clarification",
+    "ai-agent"
+  ],
+  "type": "module",
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/questions.ts"
+    ]
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "pi-embeddable-frame": "0.1.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "latest",
+    "@earendil-works/pi-tui": "latest",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typebox": "latest",
+    "typescript": "latest"
+  }
+}

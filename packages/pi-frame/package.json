@@ -1,0 +1,26 @@
+{
+  "name": "pi-embeddable-frame",
+  "version": "0.1.0",
+  "description": "Embeddable terminal frames for Pi components and tool surfaces",
+  "type": "module",
+  "keywords": ["pi-package", "pi", "tui", "frame"],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./primitives": {
+      "types": "./primitives.d.ts",
+      "default": "./primitives.js"
+    },
+    "./presentation": {
+      "types": "./presentation.d.ts",
+      "default": "./presentation.js"
+    }
+  },
+  "files": ["index.js", "index.d.ts", "primitives.js", "primitives.d.ts", "presentation.js", "presentation.d.ts", "README.md", "FEATURE-GUIDE.md", "LICENSE"],
+  "pi": { "extensions": [] },
+  "peerDependencies": { "@earendil-works/pi-tui": "*" },
+  "scripts": { "test": "node --test test/*.test.mjs", "pack:check": "npm pack --dry-run" },
+  "license": "MIT"
+}

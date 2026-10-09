@@ -1,0 +1,755 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { resolve, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
+const source = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const install = join(homedir(), ".pi/agent/install");
+const root = process.env.PI_HOME_HOST_MODULES || join(install, "releases", readFileSync(join(install, "current-version"), "utf8").trim(), "node_modules");
+const host = join(root, "@earendil-works/pi-coding-agent/dist");
+const { createJiti } = await import(pathToFileURL(join(root, "jiti/lib/jiti.mjs")));
+const jiti = createJiti(import.meta.url, { alias: {
+  "@earendil-works/pi-coding-agent": join(host, "index.js"),
+  "@earendil-works/pi-tui": join(root, "@earendil-works/pi-tui/dist/index.js"),
+  "@earendil-works/pi-ai": join(root, "@earendil-works/pi-ai/dist/index.js"),
+  "typebox": join(root, "typebox/build/index.mjs"),
+} });
+const { emptyPlan, mutate, restorePlan, counts, dockRows, progressLabel, contextSummary, ENTRY } = await jiti.import(join(source, "state.ts"));
+const { BOOK_ENTRY, COMPLETION_MS, emptyBook, mutateBook, migratePlan, restoreBook, selectedPlan, resultPlan, bookContext, planInfo } = await jiti.import(join(source, "book.ts"));
+const factory = await jiti.import(join(source, "index.ts"), { default: true });
+const homeFactory = await jiti.import(join(source, "../pi-home/index.ts"), { default: true });
+const { TaskPanel } = await jiti.import(join(source, "panel.ts"));
+const { FocusWindow } = await jiti.import(join(source, "focus.ts"));
+const { layoutDock } = await jiti.import(join(source, "../../lib/home-dock.ts"));
+const { createWorkspace } = await jiti.import(join(source, "../pi-home/workspace.ts"));
+const { taskFrame, taskFrameColor } = await jiti.import(join(source, "../../lib/task-frame.ts"));
+const { DEFAULTS, RunClock } = await jiti.import(join(source, "../pi-home/state.ts"));
+const { DOCK, isSnapshot, isHost, fitDock } = await jiti.import(join(source, "../../lib/home-dock.ts"));
+const { initTheme, getEditorTheme, theme, getThemeByName, setThemeInstance } = await import(pathToFileURL(join(host, "modes/interactive/theme/theme.js")));
+const { KeybindingsManager } = await import(pathToFileURL(join(host, "core/keybindings.js")));
+const { visibleWidth, setKeybindings } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
+const { createEventBus } = await import(pathToFileURL(join(host, "core/event-bus.js")));
+const { loadExtensions } = await import(pathToFileURL(join(host, "core/extensions/loader.js")));
+const { ToolExecutionComponent } = await import(pathToFileURL(join(host, "modes/interactive/components/tool-execution.js")));
+initTheme("dark", false);
+const kb = new KeybindingsManager(); setKeybindings(kb);
+const plain = (s) => stripVTControlCharacters(s);
+const add = (p, titles = ["Read requirements", "Implement", "Verify"]) => mutate(p, p.revision, { op: "add", items: titles.map((title) => ({ title })) }, "agent", 1000);
+const update = (p, id, changes, actor = "agent") => mutate(p, p.revision, { op: "update", id, changes }, actor, 2000);
+
+test("focus dial preserves order, freezes on browse, and never mutates plan state", () => {
+  let p = add(emptyPlan(), Array.from({ length: 8 }, (_, i) => `Task ${i + 1}`));
+  const dial = new FocusWindow();
+  const view = (id = "p1", running = true) => {
+    const snapshot = { version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", rows: [] };
+    dial.apply(snapshot, id, p, running); return snapshot;
+  };
+  assert.match(view().summary, /1–3 of 8 · Not started/);
+  p = update(p, "t4", { status: "active" });
+  assert.match(view().summary, /3–5 of 8 · Following/);
+  assert.match(view().rows[1].text, /▸ 4  Task 4/);
+  const before = structuredClone(p);
+  dial.move("p1", p, -1);
+  assert.match(view().summary, /2–4 of 8 · Now working: 4/);
+  assert.deepEqual(p, before);
+  p = update(p, "t4", { status: "done", note: "Done" });
+  assert.match(view().summary, /2–4 of 8 · Last worked on: 4/);
+  p = update(p, "t6", { status: "active" });
+  assert.match(view().summary, /2–4 of 8 · Now working: 6/);
+  assert.match(view("p1", false).summary, /Paused: 6/);
+  dial.follow("p1", p);
+  assert.match(view().summary, /5–7 of 8 · Following/);
+  p = update(p, "t1", { status: "blocked", reason: "External input" });
+  assert.match(view().summary, /5–7 of 8/);
+  for (let i = 0; i < 20; i++) dial.move("p1", p, 1);
+  assert.match(view().summary, /6–8 of 8/);
+  p = update(p, "t6", { status: "pending" });
+  assert.match(view("p2").summary, /1–3 of 8 · No active task/);
+  assert.ok(isSnapshot(view()));
+});
+
+test("focus dock wraps Unicode within its line budget without unused padding", () => {
+  const snapshot = { version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", layout: "focus", rows: [
+    { text: "✓ 1  Done", tone: "muted" },
+    { text: "▸ 2  Long task 界面 é needs enough space to wrap without losing its complete title", tone: "accent" },
+    { text: "○ 3  Test later", tone: "text" },
+  ] };
+  for (const width of [1, 2, 8, 20, 40, 80]) for (const budget of [3, 5, 7]) {
+    const lines = layoutDock(snapshot, width, budget);
+    assert.ok(lines.length <= budget);
+    assert.ok(lines.every(line => visibleWidth(line.text) <= width));
+    if (width === 20 && budget === 3) assert.ok(lines.some(line => line.text.includes("…")));
+  }
+  assert.ok(layoutDock(snapshot, 40, 7).some(line => line.text.startsWith("  ")));
+  assert.equal(layoutDock({ ...snapshot, rows: [{ text: "Short" }] }, 40, 7).length, 1);
+  assert.equal(layoutDock({ ...snapshot, rows: [{ text: "One" }, { text: "Two" }, { text: "Three" }] }, 40, 7).length, 3);
+});
+
+test("standalone task extension loads through the real host with no Home dependency", async () => {
+  const result = await loadExtensions([join(source, "index.ts")], source);
+  assert.deepEqual(result.errors, []);
+  assert.ok(result.extensions[0].commands.has("tasks"));
+});
+test("atomic revisioned updates, stable IDs, explicit start, dependencies and outcomes", () => {
+  const empty = emptyPlan(), p = add(empty);
+  assert.equal(empty.tasks.length, 0);
+  assert.ok(p.tasks.every((t) => t.status === "pending"));
+  let q = update(p, "t1", { status: "active" });
+  assert.throws(() => update(q, "t2", { status: "active" }), /one focus/);
+  assert.throws(() => mutate(q, p.revision, { op: "add", items: [{ title: "stale" }] }, "agent"), /plan changed/);
+  assert.throws(() => update(q, "t1", { status: "done" }), /completion note/);
+  q = update(q, "t2", { dependsOn: ["t1"] });
+  assert.throws(() => update(q, "t2", { status: "done", note: "pretend done" }), /Unfinished dependencies/);
+  assert.throws(() => update(q, "t1", { dependsOn: ["t2"], status: "pending" }), /cycle/);
+  assert.throws(() => update(q, "t3", { dependsOn: ["t99"] }), /Unknown dependency/);
+  assert.throws(() => update(q, "t3", { status: "blocked" }), /reason/);
+  q = update(q, "t1", { title: "Read the actual requirements", status: "done", note: "Reviewed", evidence: "read call #1" });
+  assert.equal(q.tasks[0].id, "t1");
+  assert.equal(q.tasks[1].status, "pending", "no implicit next-task start");
+  q = update(q, "t2", { status: "active" });
+  q = update(q, "t3", { status: "cancelled" });
+  assert.equal(counts(q), "1/3 done · 1 cancelled");
+  assert.deepEqual(restorePlan(q), q);
+  assert.equal(p.tasks[0].title, "Read requirements", "base snapshot not mutated");
+});
+test("user closure/clear cannot be undone by the agent, including via an intervening rename", () => {
+  let p = add(emptyPlan());
+  p = update(p, "t1", { status: "cancelled" }, "user");
+  p = update(p, "t1", { title: "Renamed" });
+  assert.throws(() => update(p, "t1", { status: "pending" }), /Only the user/);
+  p = update(p, "t1", { status: "pending" }, "user");
+  p = update(p, "t1", { status: "done", note: "Passed", evidence: "run #2" });
+  p = update(p, "t1", { status: "pending" });
+  assert.equal(p.tasks[0].note, ""); assert.equal(p.tasks[0].evidence, "");
+  const revision = p.revision;
+  p = mutate(p, revision, { op: "clear" }, "user");
+  assert.throws(() => add(p), /user cleared/);
+  const next = mutate(p, p.revision, { op: "add", items: [{ title: "User-added" }] }, "user");
+  assert.equal(next.tasks[0].id, "t4");
+  assert.equal(next.userCleared, false);
+});
+test("persisted data, bounds and terminal controls are validated; memory is bounded", () => {
+  let p = add(emptyPlan(), ["hello\x1b[31m\n世界"]);
+  assert.equal(p.tasks[0].title, "hello 世界");
+  assert.throws(() => add(p, ["x".repeat(201)]), /200/);
+  assert.throws(() => add(p, Array(101).fill("x")), /100/);
+  assert.throws(() => restorePlan({ ...p, version: 2 }), /invalid|Unsupported/);
+  assert.throws(() => restorePlan({ ...p, tasks: [...p.tasks, ...p.tasks] }), /Duplicate/);
+  p = add(p, Array.from({ length: 90 }, (_, i) => "Task " + i));
+  const summary = contextSummary(p);
+  assert.ok(summary.length < 8000);
+  assert.match(summary, /75 more open/);
+  assert.equal(summary.split('"id":').length - 1, 16);
+  p = update(p, "t91", { status: "blocked", reason: "Needs your answer" });
+  assert.match(contextSummary(p), /Needs your answer/, "late blockers get priority in bounded memory");
+  p = update(p, "t1", { status: "active" });
+  assert.match(dockRows(p, false)[0].text, /paused/);
+  assert.doesNotMatch(dockRows(p, true)[0].text, /paused/);
+});
+
+async function harness({ home = false, order = "home-first", mode = "tui", prefs } = {}) {
+  const scratch = mkdtempSync(join(tmpdir(), "pi-tasks-test-"));
+  const previousDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = scratch;
+  if (prefs !== undefined) writeFileSync(join(scratch, "pi-tasks.json"), typeof prefs === "string" ? prefs : JSON.stringify(prefs));
+  const handlers = new Map(), commands = new Map(), tools = new Map(), entries = [], widgets = new Map(), notices = [], active = new Set(["read", "bash"]);
+  const events = createEventBus();
+  let branch = entries, currentFactory, editor, footer, renderCount = 0, failStorage = false;
+  const tui = { terminal: { rows: 40 }, requestRender() { renderCount++; } };
+  const data = { getGitBranch: () => undefined, getExtensionStatuses: () => new Map(), onBranchChange: () => () => {} };
+  const context = { mode, hasUI: mode === "tui" || mode === "rpc", cwd: scratch, model: { id: "offline-test" },
+    sessionManager: { getLeafId: () => null, getBranch: () => branch, getSessionId: () => "test-session", getSessionName: () => "Forest workshop", getHeader: () => ({ timestamp: new Date().toISOString() }) }, getContextUsage: () => ({ percent: 10 }),
+    ui: { theme, getTheme: getThemeByName, setTheme(value) { setThemeInstance(value); return { success: true }; },
+      getEditorComponent: () => currentFactory, setEditorComponent(f) { const text = editor?.getText() ?? ""; currentFactory = f; editor = f?.(tui, getEditorTheme(), kb); if (editor) { editor.focused = true; editor.setText(text); } },
+      getEditorText: () => editor?.getExpandedText() ?? "", setEditorText: (text) => editor?.setText(text),
+      setWorkingVisible() {}, setHeader() {}, setFooter(f) { footer?.dispose(); footer = f?.(tui, theme, data); },
+      setWidget(key, f) { if (!f) widgets.delete(key); else widgets.set(key, typeof f === "function" ? f(tui, theme) : { render: () => f }); },
+      notify: (text, tone) => notices.push({ text, tone }), confirm: async () => true, input: async () => undefined,
+      custom: async (factory) => { let result; const panel = factory(tui, theme, kb, (value) => result = value); panel.render(100); panel.handleInput("\x1b"); return result; },
+    } };
+  const api = { events,
+    on(name, fn) { if (!handlers.has(name)) handlers.set(name, []); handlers.get(name).push(fn); return () => {}; },
+    registerCommand: (name, command) => commands.set(name, command),
+    registerEntryRenderer() {},
+    registerTool(tool) { tools.set(tool.name, tool); active.delete(tool.name); if (tool.exposure === "direct") active.add(tool.name); },
+    getActiveTools: () => [...active], setActiveTools(names) { active.clear(); names.forEach((n) => active.add(n)); },
+    getThinkingLevel: () => "high",
+    appendEntry(customType, value) { if (failStorage) throw new Error("disk failed"); const entry = { type: "custom", customType, data: structuredClone(value) }; branch.push(entry); },
+  };
+  if (home && order === "home-first") await homeFactory(api);
+  await factory(api);
+  if (home && order !== "home-first") await homeFactory(api);
+  const emit = async (name, value = {}) => { const results = []; for (const fn of handlers.get(name) ?? []) results.push(await fn({ type: name, ...value }, context)); return results; };
+  const command = (name, args = "") => commands.get(name).handler(args, context);
+  const call = (params, signal) => tools.get("tasks").execute("task-test", params, signal, undefined, context);
+  return { scratch, context, tools, handlers, entries, widgets, notices, events, active, tui, emit, command, call,
+    get editor() { return editor; }, get renders() { return renderCount; },
+    branch(value) { branch = value; }, failStorage() { failStorage = true; },
+    async close() { await emit("session_shutdown"); events.clear(); if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir; rmSync(scratch, { recursive: true, force: true }); },
+  };
+}
+
+test("focus browsing stays view-only; Home overview remains independent and preferences persist", async () => {
+  for (const home of [false, true]) {
+    const h = await harness({ home });
+    try {
+      await h.emit("session_start");
+      const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+      let result = await h.call({ op: "create", revision: initial.revision, title: "Focus test", items: Array.from({ length: 8 }, (_, i) => ({ title: `Step ${i + 1} with a long title that must wrap across small terminals 界面` })) });
+      result = await h.call({ op: "update", revision: JSON.parse(result.content[0].text).revision, id: "t4", changes: { status: "active" } });
+      await h.emit("agent_start");
+      const before = structuredClone(h.entries);
+      const render = width => [...h.widgets.values()].flatMap(widget => widget.render(width));
+      assert.match(plain(render(100).join("\n")), home ? /0\/8 done/ : /3–5 of 8 · Following/);
+      const overview = plain(render(100).join("\n"));
+      await h.command("tasks", "prev");
+      assert.match(plain(render(100).join("\n")), home ? /0\/8 done/ : /2–4 of 8 · Now working: 4/);
+      if (home) assert.equal(plain(render(100).join("\n")), overview, "browser paging does not hide active work in the overview");
+      await h.command("tasks", "follow");
+      assert.match(plain(render(100).join("\n")), home ? /0\/8 done/ : /3–5 of 8 · Following/);
+      assert.deepEqual(h.entries, before, "browsing adds no task snapshots");
+      for (const rows of [12, 24, 40]) for (const width of [20, 40, 80]) {
+        h.tui.terminal.rows = rows;
+        assert.ok(render(width).every(line => visibleWidth(line) <= width));
+      }
+      await h.command("tasks", "view compact");
+      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).appearance, "compact");
+      await h.emit("session_start");
+      assert.doesNotMatch(plain(render(100).join("\n")), /Tasks 3–5/);
+      await h.command("tasks", "view focus");
+      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).appearance, "focus");
+    } finally { await h.close(); }
+  }
+});
+
+test("hide/unhide only controls the dock, persists, and leaves tracking and panel available", async () => {
+  for (const home of [false, true]) {
+    const h = await harness({ home });
+    try {
+      await h.emit("session_start");
+      await h.command("tasks", "add Visibility test task");
+      const render = () => plain([...h.widgets.values()].flatMap(w => w.render(100)).join("\n"));
+      assert.match(render(), /Visibility test task/);
+      const before = structuredClone(h.entries);
+      const hiding = h.command("tasks", "hide");
+      assert.doesNotMatch(render(), /Visibility test task/);
+      await hiding;
+      assert.deepEqual(h.entries, before);
+      assert.equal(h.active.has("tasks"), true);
+      assert.equal(h.tools.get("tasks").exposure, "direct");
+      assert.equal((await h.emit("context", { messages: [] }))[0].messages.length, 1);
+      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).hidden, true);
+      const current = JSON.parse((await h.call({ op: "list" })).content[0].text);
+      await h.call({ op: "update", revision: current.revision, id: "t1", changes: { status: "active" } });
+      await h.emit("agent_start");
+      await h.emit("session_compact");
+      await h.emit("agent_settled");
+      assert.doesNotMatch(render(), /Visibility test task/);
+      let opened = false;
+      const custom = h.context.ui.custom;
+      h.context.ui.custom = async (...args) => { opened = true; return custom(...args); };
+      await h.command("tasks", "show");
+      assert.equal(opened, true);
+      assert.doesNotMatch(render(), /Visibility test task/);
+      await h.emit("session_start");
+      assert.doesNotMatch(render(), /Visibility test task/);
+      if (home) {
+        await h.command("home", "off");
+        assert.equal(h.widgets.has("pi-tasks:fallback"), false);
+        await h.command("home", "on");
+        assert.doesNotMatch(render(), /Visibility test task/);
+      }
+      await h.command("tasks", "off");
+      await h.command("tasks", "on");
+      assert.doesNotMatch(render(), /Visibility test task/);
+      await h.command("tasks", "unhide");
+      assert.match(render(), /Visibility test task/);
+      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).hidden, false);
+      await h.command("tasks", "off");
+      await h.command("tasks", "hide");
+      await h.command("tasks", "unhide");
+      assert.equal(h.active.has("tasks"), false, "unhide never enables tracking");
+      assert.doesNotMatch(render(), /Visibility test task/);
+      assert.equal(h.notices.filter(n => n.tone === "warning").length, 0);
+    } finally { await h.close(); }
+  }
+});
+
+test("tasks off is immediate, hides the tool/context/UI, preserves plan, survives reload, has no continuation hooks", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    await h.command("tasks", "add Preserve this task");
+    const before = (await h.call({ op: "list" })).details.plan;
+    assert.ok(h.widgets.has("pi-tasks:fallback"));
+    assert.equal(h.handlers.has("agent_before_settle"), false);
+    assert.equal(h.handlers.has("turn_end"), false);
+    const off = h.command("tasks", "off");
+    assert.equal(h.tools.get("tasks").exposure, "hidden", "off takes effect before filesystem save completes");
+    await assert.rejects(h.call({ op: "update", revision: before.revision, id: "t1", changes: { status: "active" } }), /Tasks are off/);
+    assert.equal(h.active.has("tasks"), false);
+    assert.equal(h.active.has("bash"), true);
+    assert.equal(h.widgets.size, 0);
+    const offContext = (await h.emit("context", { messages: [{ role: "user", content: "hello" }] }))[0];
+    assert.equal(offContext.messages.length, 1);
+    await off;
+    assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).enabled, false);
+    await h.emit("session_start");
+    assert.equal(h.tools.get("tasks").exposure, "hidden");
+    await h.command("tasks", "on");
+    assert.deepEqual((await h.call({ op: "list" })).details.plan, before);
+    assert.ok(h.active.has("tasks"));
+    const first = (await h.emit("context", { messages: [] }))[0];
+    const second = (await h.emit("context", { messages: first.messages }))[0];
+    assert.equal(second.messages.length, 1, "no growing reminder history");
+  } finally { await h.close(); }
+});
+test("tool lists are paginated and completion-note attribution survives unrelated edits", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    const p = (await h.call({ op: "list" })).details.plan;
+    const added = await h.call({ op: "add", revision: p.revision, items: Array.from({ length: 25 }, (_, i) => ({ title: "Task " + i })) });
+    assert.equal(JSON.parse(added.content[0].text).tasks.length, 20);
+    const nextPage = JSON.parse((await h.call({ op: "list", offset: 20 })).content[0].text);
+    assert.equal(nextPage.tasks.length, 5);
+    let q = update(added.details.plan, "t1", { status: "done", note: "I accepted this" }, "user");
+    q = update(q, "t1", { title: "Renamed by agent" });
+    assert.equal(q.tasks[0].noteBy, "user");
+    assert.equal(q.tasks[0].updatedBy, "agent");
+  } finally { await h.close(); }
+});
+
+test("Home and Tasks remain independent in both extension startup orders", async () => {
+  for (const order of ["home-first", "tasks-first"]) {
+    const h = await harness({ home: true, order });
+    try {
+      await h.emit("session_start");
+      await h.command("tasks", "add A real task");
+      const editor = h.editor; editor.setText("draft stays intact");
+      assert.equal(h.widgets.has("pi-tasks:fallback"), false);
+      let workspace = h.widgets.get("pi-home:identity").render(100).map(plain).join("\n");
+      assert.match(workspace, /A real task/); assert.match(workspace, /Forest workshop/);
+      assert.match(workspace, /╭ Tasks .*╮[\s\S]*╰─/);
+      await h.command("tasks", "off");
+      assert.equal(h.editor, editor);
+      assert.equal(h.editor.getText(), "draft stays intact");
+      workspace = h.widgets.get("pi-home:identity").render(100).map(plain).join("\n");
+      assert.doesNotMatch(workspace, /A real task/); assert.match(workspace, /Forest workshop/);
+      await h.command("tasks", "on");
+      await h.command("home", "off");
+      assert.ok(h.widgets.has("pi-tasks:fallback"));
+      assert.match(h.widgets.get("pi-tasks:fallback").render(100).map(plain).join("\n"), /^╭ Tasks .*╮[\s\S]*╰─/);
+      assert.ok(h.active.has("tasks"));
+      assert.equal(h.widgets.has("pi-home:identity"), false);
+      await h.command("home", "on");
+      assert.equal(h.widgets.has("pi-tasks:fallback"), false);
+      assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join("\n"), /A real task/);
+      await h.command("home", "scene off");
+      assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join("\n"), /A real task/);
+      await h.command("tasks", "show");
+      assert.equal(h.notices.filter((n) => n.tone === "warning").length, 0);
+    } finally { await h.close(); }
+  }
+});
+test("active-branch restoration, compaction, abort and failed storage preserve truthful state", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); await h.command("tasks", "add Original branch");
+    const initial = (await h.call({ op: "list" })).details.plan;
+    const branchPoint = structuredClone(h.entries);
+    await h.call({ op: "update", revision: initial.revision, id: "t1", changes: { status: "active" } });
+    await h.emit("agent_start"); await h.emit("agent_settled");
+    assert.match(h.widgets.get("pi-tasks:fallback").render(120).map(plain).join("\n"), /paused/);
+    h.branch(branchPoint); await h.emit("session_tree");
+    assert.deepEqual((await h.call({ op: "list" })).details.plan, initial);
+    await h.command("tasks", "add Fork only");
+    assert.equal((await h.call({ op: "list" })).details.plan.tasks.length, 2);
+    h.branch(h.entries); await h.emit("session_tree");
+    assert.equal((await h.call({ op: "list" })).details.plan.tasks.length, 1);
+    await h.emit("session_compact");
+    const p = (await h.call({ op: "list" })).details.plan;
+    assert.equal(p.tasks[0].title, "Original branch");
+    const controller = new AbortController(); controller.abort();
+    await assert.rejects(h.call({ op: "list" }, controller.signal), /cancelled/);
+    h.failStorage();
+    await assert.rejects(h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "done", note: "done" } }), /disk failed/);
+    assert.deepEqual((await h.call({ op: "list" })).details.plan, p);
+  } finally { await h.close(); }
+});
+test("non-TUI tasks work, off works, corrupt preferences fail closed and corrupt snapshots are not overwritten", async () => {
+  for (const mode of ["print", "json", "rpc"]) {
+    const h = await harness({ mode });
+    try {
+      await h.emit("session_start"); await h.command("tasks", "add Headless task");
+      assert.equal((await h.call({ op: "list" })).details.plan.tasks.length, 1);
+      assert.equal(h.widgets.size, 0);
+      await h.command("tasks", "off");
+      await assert.rejects(h.call({ op: "list" }), /off/);
+    } finally { await h.close(); }
+  }
+  const h = await harness({ prefs: "not JSON" });
+  try {
+    await h.emit("session_start");
+    assert.equal(h.tools.get("tasks").exposure, "hidden");
+    await h.command("tasks", "on");
+    h.entries.push({ type: "custom", customType: ENTRY, data: { version: 99 } });
+    await h.emit("session_tree");
+    await assert.rejects(h.call({ op: "list" }), /unreadable/);
+    assert.equal(h.entries.length, 1);
+    await h.command("tasks", "clear");
+    assert.equal(h.entries.length, 2);
+  } finally { await h.close(); }
+});
+test("task panel clips Unicode, shows cancelled separately, uses committed data and handles keyboard navigation", () => {
+  let p = add(emptyPlan(), ["Unicode 界面 🪴", "Check the result", "Cancel this"]);
+  p = update(p, "t1", { status: "done", note: "Reviewed", evidence: "user acceptance" }, "user");
+  p = update(p, "t3", { status: "cancelled" });
+  let result;
+  for (const rows of [12, 24, 40]) {
+    const b = migratePlan(p);
+    const panel = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, (r) => result = r);
+    for (const width of [1, 2, 8, 20, 40, 80, 120]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
+    panel.handleInput("d");
+    for (const width of [1, 2, 8, 20, 80]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
+    panel.handleInput("\x1b");
+    panel.handleInput("\x1b[B"); panel.handleInput("\r"); assert.deepEqual(result, { op: "edit", planId: "p1", revision: b.revision, id: "t2" });
+    panel.handleInput("\x1b"); assert.equal(result, undefined);
+  }
+});
+test("short checklists retain all three tasks and completed steps; longer plans have exact overflow counts", () => {
+  let p = add(emptyPlan());
+  assert.equal(progressLabel(p), "", "no redundant 0/3 label");
+  p = update(p, "t1", { status: "done", note: "Read" });
+  p = update(p, "t2", { status: "active" });
+  const rows = dockRows(p, false);
+  assert.deepEqual(rows.map((r) => r.text), ["✓ Read requirements", "▸ Implement · paused", "○ Verify"]);
+  const snapshot = { version: 1, sessionId: "s", id: "test", title: "Plan", rows, hint: "/tasks" };
+  assert.equal(fitDock(snapshot, 3).length, 3);
+  assert.equal(progressLabel(p), "1 of 3 complete");
+  const big = add(emptyPlan(), Array.from({ length: 20 }, (_, i) => `Step ${i + 1}`));
+  const compact = fitDock({ ...snapshot, rows: dockRows(big, false), more: 8 }, 6);
+  assert.equal(compact.length, 6);
+  assert.equal(compact.at(-1).text, "+ 15 more · /tasks");
+  assert.equal(isSnapshot({ ...snapshot, more: -1 }), false);
+  assert.equal(isSnapshot({ ...snapshot, summary: 123 }), false);
+});
+test("tool results show committed checklist state without raw revisions, and updates avoid reprinting the entire plan", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    const initial = await h.call({ op: "list" });
+    const result = await h.call({ op: "add", revision: initial.details.plan.revision, items: [{ title: "One" }, { title: "Two" }, { title: "Three" }] });
+    const tool = h.tools.get("tasks");
+    const render = (args) => tool.renderResult(result, { expanded: false }, theme, { args }).render(80).map(plain).join("\n");
+    assert.match(render({ op: "add" }), /^╭ Tasks /);
+    assert.doesNotMatch(render({ op: "add" }).split("\n")[0], /\bresult\b/);
+    assert.match(render({ op: "add" }), /One.*\n.*Two.*\n.*Three/);
+    assert.doesNotMatch(render({ op: "add" }), /revision|t1|0\/3/);
+    assert.match(render({ op: "add" }), /Added task · pending: One/);
+    assert.match(render({ op: "update", id: "t2" }), /Updated task · pending: Two/);
+    assert.doesNotMatch(render({ op: "update", id: "t2" }), /pending: One|pending: Three/);
+    const emptyHistory = tool.renderResult({ content: [], details: { plan: result.details.plan, plans: [] } }, {}, theme, { args: { op: "plans" } }).render(80).map(plain).join("\n");
+    assert.match(emptyHistory, /No saved plans/);
+    const error = tool.renderResult({ content: [{ type: "text", text: "Update rejected" }] }, {}, theme, { args: { op: "update" } }).render(80);
+    assert.match(plain(error.join("\n")), /Update rejected/);
+    assert.ok(error[1].includes(theme.fg("error", "Update rejected")));
+  } finally { await h.close(); }
+});
+test("task transcript cards wrap full titles and show status without a row cutoff", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const title = "Review Unicode 界面 and all the long implementation details through the final acceptance checkpoint";
+    const args = { op: "create", revision: initial.revision, title: "Full card", items: Array.from({ length: 15 }, (_, i) => ({ title: `${i} ${title}` })) };
+    const result = await h.call(args);
+    const tool = h.tools.get("tasks");
+    for (const width of [12, 30, 80]) {
+      const lines = tool.renderResult(result, { expanded: false }, theme, { args }).render(width).map(plain);
+      assert.ok(lines.every(line => visibleWidth(line) <= width));
+      const joined = lines.slice(1, -1).map(line => line.slice(1, -1).trimEnd()).join("").replace(/\s+/g, "");
+      for (let i = 0; i < 15; i++) assert.ok(joined.includes(`Added task · pending: ${i} ${title}`.replace(/\s+/g, "")));
+      assert.doesNotMatch(joined, /…/);
+    }
+    const updateArgs = { op: "update", revision: JSON.parse(result.content[0].text).revision, id: "t15", changes: { status: "active" } };
+    const updated = await h.call(updateArgs);
+    for (const selected of [getThemeByName("dark"), getThemeByName("light")]) {
+      const pending = tool.renderCall(updateArgs, selected, { isPartial: true }).render(80);
+      assert.doesNotMatch(plain(pending[0]), /\bcall\b/);
+      assert.ok(pending[1].includes(selected.fg("accent", "◇ Mark task active")));
+      assert.ok(pending[1].includes(selected.fg("muted", " · in progress…")));
+      assert.deepEqual(tool.renderCall(updateArgs, selected, { isPartial: false }).render(80), [], "completed call yields to result");
+      assert.deepEqual(tool.renderCall(updateArgs, selected, { isPartial: false, isError: true }).render(80), [], "failed call yields to error");
+      for (const width of [8, 12, 30, 80]) {
+        const lines = tool.renderCall(updateArgs, selected, { isPartial: true }).render(width);
+        assert.ok(lines.every(line => visibleWidth(line) <= width));
+      }
+    }
+    const text = tool.renderResult(updated, { expanded: false }, theme, { args: updateArgs }).render(30).map(plain).slice(1, -1).map(line => line.slice(1, -1).trimEnd()).join("").replace(/\s+/g, "");
+    assert.ok(text.includes(`Task active: 14 ${title}`.replace(/\s+/g, "")));
+    assert.doesNotMatch(text, /pending/);
+  } finally { await h.close(); }
+});
+
+test("Pi transcript replaces a pending Tasks call with its final result, including restored results and failures", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    const tool = h.tools.get("tasks");
+    const args = { op: "update", id: "t1", changes: { status: "active" } };
+    const component = () => new ToolExecutionComponent("tasks", "test-call", args, {}, tool, h.tui, h.scratch);
+    const card = component();
+    assert.match(plain(card.render(80).join("\n")), /Mark task active · in progress…/);
+    const result = { content: [], details: { plan: { tasks: [{ id: "t1", title: "Check the outcome", status: "active" }] } }, isError: false };
+    card.updateResult(result);
+    const completed = plain(card.render(80).join("\n"));
+    assert.match(completed, /Task active: Check the outcome/);
+    assert.doesNotMatch(completed, /Mark task active|in progress…/);
+    const restored = component();
+    restored.updateResult(result);
+    assert.equal(plain(restored.render(80).join("\n")), completed);
+    const failed = component();
+    failed.updateResult({ content: [{ type: "text", text: "Revision expired" }], isError: true });
+    const failure = plain(failed.render(80).join("\n"));
+    assert.match(failure, /Revision expired/);
+    assert.doesNotMatch(failure, /Mark task active|in progress…/);
+  } finally { await h.close(); }
+});
+
+test("Tasks frame matches assistant lavender in dark/light themes, while body remains its own color", () => {
+  for (const name of ["dark", "light"]) {
+    const selected = getThemeByName(name), color = taskFrameColor(selected);
+    const frame = taskFrame(selected, 40, [selected.fg("warning", "Blocked task")], "Tasks", "1 blocked");
+    assert.ok(frame[0].includes(selected.style("╭", { fg: color })));
+    assert.ok(frame[0].includes(selected.style(" Tasks ", { fg: color })));
+    assert.ok(frame[1].includes(selected.fg("warning", "Blocked task")), "frame does not recolor task contents");
+    assert.ok(frame.every(line => visibleWidth(line) === 40));
+    assert.deepEqual(taskFrame(selected, 8, ["Narrow"], "Tasks"), ["Narrow"]);
+  }
+});
+
+const bookWrite = (b, action, actor = "agent", now = 1000) => mutateBook(b, b.revision, action, actor, now);
+const create = (b, title, titles = ["Read", "Build", "Check"], actor = "agent") => bookWrite(b, { op: "create", title, items: titles.map((title) => ({ title })) }, actor);
+const taskWrite = (b, id, changes, actor = "agent", now = 2000) => bookWrite(b, { op: "task", planId: b.selectedId, mutation: { op: "update", id, changes } }, actor, now);
+
+test("selected outcome preview wraps and marks height overflow explicitly", () => {
+  let b = create(emptyBook(), "Preview");
+  b = taskWrite(b, "t1", { status: "done", note: "Inspected task state, dock hosts, question theme and rendering. Confirmed the final words remain visible." });
+  const tui = { terminal: { rows: 40 }, requestRender() {} };
+  const panel = new TaskPanel(tui, theme, () => b, () => undefined, () => {});
+  const lines = panel.render(60);
+  assert.match(plain(lines.join("\n")), /remain visible\./);
+  assert.ok(lines.every(line => visibleWidth(line) <= 60));
+  b = taskWrite(b, "t1", { note: "Long finding with Unicode 界面. ".repeat(35) });
+  tui.terminal.rows = 24;
+  const clipped = panel.render(40);
+  assert.match(plain(clipped.join("\n")), /D for full details/);
+  assert.ok(clipped.length <= Math.floor(24 * .85));
+});
+
+test("legacy migration is deterministic, lossless, read-only until a mutation and branch-local", async () => {
+  let legacy = add(emptyPlan(), ["Original accepted task", "Original blocker"]);
+  legacy = update(legacy, "t1", { status: "done", note: "Accepted by user", evidence: "artifact 界面" }, "user");
+  legacy = update(legacy, "t2", { status: "blocked", reason: "Waiting for approval", dependsOn: ["t1"] });
+  assert.deepEqual(migratePlan(legacy), migratePlan(legacy));
+  assert.deepEqual(migratePlan(legacy).plans[0].state, legacy);
+  const h = await harness();
+  try {
+    h.entries.push({ type: "custom", customType: ENTRY, data: legacy });
+    await h.emit("session_start");
+    assert.equal(h.entries.length, 1, "opening a legacy session does not rewrite history");
+    assert.deepEqual((await h.call({ op: "list" })).details.plan, legacy);
+    const forkPoint = structuredClone(h.entries);
+    await h.command("tasks", "new Next request");
+    const entry = h.entries.at(-1); assert.equal(entry.customType, BOOK_ENTRY);
+    assert.equal(entry.data.plans.length, 2); assert.deepEqual(entry.data.plans[0].state, legacy);
+    assert.equal(entry.data.plans[1].title, "Next request");
+    await h.emit("session_compact"); assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).plans.length, 2);
+    h.branch(forkPoint); await h.emit("session_tree");
+    assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).plans.length, 1);
+    assert.deepEqual((await h.call({ op: "list" })).details.plan, legacy);
+  } finally { await h.close(); }
+});
+
+test("plans have stable identities, isolated tasks and an optimistic revision covering selection", () => {
+  let b = create(emptyBook(), "First 界面 request");
+  b = taskWrite(b, "t1", { status: "active" });
+  const first = structuredClone(b.plans[0]), oldRevision = b.revision;
+  b = create(b, "Second request");
+  assert.equal(b.selectedId, "p2"); assert.deepEqual(b.plans[0], first);
+  assert.equal(b.plans[1].state.tasks[0].id, "t1", "task IDs are local to their plan");
+  assert.throws(() => mutateBook(b, oldRevision, { op: "task", planId: "p1", mutation: { op: "update", id: "t1", changes: { title: "stale" } } }, "agent"), /plan changed/);
+  assert.throws(() => bookWrite(b, { op: "task", planId: "p1", mutation: { op: "update", id: "t1", changes: { title: "wrong plan" } } }), /Select this plan/);
+  assert.match(bookContext(b), /Other unfinished plans \(paused/);
+  const beforeSecond = structuredClone(b.plans[1]);
+  b = bookWrite(b, { op: "select", planId: "p1" });
+  b = taskWrite(b, "t1", { title: "Resume the first request" });
+  assert.deepEqual(b.plans[1], beforeSecond);
+  assert.equal(b.plans[0].state.tasks[0].status, "active", "select does not mutate task statuses or auto-start anything");
+  assert.deepEqual(restoreBook(b), b);
+});
+
+test("archives are reversible, user-owned, and cannot be bypassed by agent writes or restore", () => {
+  let b = create(emptyBook(), "Paused work");
+  assert.throws(() => bookWrite(b, { op: "archive", planId: "p1" }), /Only the user/);
+  b = bookWrite(b, { op: "archive", planId: "p1" }, "user");
+  assert.equal(b.selectedId, null); assert.equal(b.plans[0].archivedBy, "user");
+  assert.throws(() => bookWrite(b, { op: "select", planId: "p1" }), /archived/);
+  assert.throws(() => bookWrite(b, { op: "restore", planId: "p1" }), /Only the user/);
+  assert.throws(() => bookWrite(b, { op: "task", planId: "p1", mutation: { op: "add", items: [{ title: "Recreated" }] } }), /Archived/);
+  const old = structuredClone(b.plans[0].state);
+  b = create(b, "An unrelated request"); assert.deepEqual(b.plans[0].state, old);
+  b = bookWrite(b, { op: "restore", planId: "p1" }, "user");
+  assert.equal(b.selectedId, "p1"); assert.equal(b.plans[0].archivedAt, null); assert.deepEqual(b.plans[0].state, old);
+  b = bookWrite(b, { op: "task", mutation: { op: "clear" } }, "user");
+  assert.throws(() => create(b, "Bypass the clear"), /user cleared/);
+  b = create(b, "Explicit fresh start", [], "user"); assert.equal(b.userCleared, false);
+});
+
+test("completion time persists, survives edits, resets on reopening and does not mislabel cancellations", () => {
+  let b = create(emptyBook(), "Finish this", ["Only task"]);
+  assert.equal(selectedPlan(b).closedAt, null);
+  b = taskWrite(b, "t1", { status: "done", note: "Verified" }, "agent", 2000);
+  assert.equal(selectedPlan(b).closedAt, 2000);
+  b = taskWrite(b, "t1", { evidence: "test log" }, "agent", 9000); assert.equal(selectedPlan(b).closedAt, 2000);
+  b = taskWrite(b, "t1", { status: "pending" }); assert.equal(selectedPlan(b).closedAt, null);
+  b = taskWrite(b, "t1", { status: "cancelled" }); assert.equal(planInfo(selectedPlan(b), b).state, "closed");
+  assert.equal(bookWrite(b, { op: "archive", planId: "p1" }).plans[0].archivedBy, "agent");
+});
+
+test("library restore rejects invalid IDs, selection, archives and limits without partial mutation", () => {
+  const b = create(emptyBook(), "Valid");
+  assert.throws(() => restoreBook({ ...b, selectedId: "p999" }), /current plan/);
+  assert.throws(() => restoreBook({ ...b, plans: [...b.plans, ...b.plans] }), /Duplicate/);
+  assert.throws(() => restoreBook({ ...b, plans: [{ ...b.plans[0], closedAt: 2000 }] }), /completion state/);
+  assert.throws(() => restoreBook({ ...b, plans: [{ ...b.plans[0], archivedBy: "user" }] }), /Invalid saved/);
+  assert.throws(() => create(b, "x".repeat(121)), /120/);
+  assert.throws(() => create(b, "Atomic failure", ["okay", "x".repeat(201)]), /200/);
+  assert.equal(b.plans.length, 1);
+  let many = emptyBook();
+  for (let i = 0; i < 100; i++) many = create(many, "Plan " + i, []);
+  assert.throws(() => create(many, "Over capacity", []), /100 saved plans/);
+  assert.equal(many.plans.length, 100);
+});
+
+test("tool creates and reads plan history without switching it; stale cross-plan edits are rejected", async () => {
+  const h = await harness();
+  const payload = async (args) => JSON.parse((await h.call(args)).content[0].text);
+  try {
+    await h.emit("session_start");
+    let current = await payload({ op: "plans" });
+    current = await payload({ op: "create", revision: current.revision, title: "First request", items: [{ title: "First item" }] });
+    assert.equal(current.planId, "p1"); assert.deepEqual(current.addedIds, ["t1"]);
+    current = await payload({ op: "create", revision: current.revision, title: "Second request", items: [{ title: "Second item" }] });
+    const history = await payload({ op: "list", planId: "p1" });
+    assert.equal(history.selectedId, "p2"); assert.equal(history.tasks[0].title, "First item");
+    await assert.rejects(h.call({ op: "update", planId: "p1", revision: history.revision, id: "t1", changes: { title: "Don't update the wrong plan" } }), /Select this plan/);
+    current = await payload({ op: "select", planId: "p1", revision: current.revision });
+    await assert.rejects(h.call({ op: "update", planId: "p1", revision: history.revision, id: "t1", changes: { title: "stale" } }), /plan changed/);
+    current = await payload({ op: "update", planId: "p1", revision: current.revision, id: "t1", changes: { status: "done", note: "Finished" } });
+    const archived = await payload({ op: "archive", revision: current.revision });
+    assert.equal(archived.planId, "p1", "archive returns the identity it changed even when it deselects it");
+    assert.equal(archived.selectedId, null);
+    const firstPage = await payload({ op: "plans", limit: 1 }); assert.equal(firstPage.nextOffset, 1); assert.equal(firstPage.total, 2);
+    const secondPage = await payload({ op: "plans", offset: 1 }); assert.equal(secondPage.plans[0].state, "archived");
+    assert.equal(h.handlers.has("agent_before_settle"), false);
+  } finally { await h.close(); }
+});
+
+test("completed plans leave both dock implementations on schedule, remain in history, and do not flash again on resume", async (t) => {
+  const h = await harness({ home: true });
+  const snapshot = () => h.widgets.get("pi-home:identity").render(110).map(plain).join("\n");
+  try {
+    await h.emit("session_start"); await h.command("tasks", "new Ephemeral checklist"); await h.command("tasks", "add One task");
+    const p = (await h.call({ op: "list" })).details.plan;
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+    await h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "done", note: "Done" } });
+    const saved = h.entries.length;
+    assert.match(snapshot(), /Plan closed/); assert.doesNotMatch(snapshot(), /✓ One task/);
+    t.mock.timers.tick(COMPLETION_MS + 10);
+    assert.doesNotMatch(snapshot(), /Ephemeral checklist|Plan closed/);
+    assert.equal(h.entries.length, saved, "expiry is UI-only, not a persistent plan edit");
+    assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).plans[0].state, "completed");
+    await h.emit("session_tree"); assert.doesNotMatch(snapshot(), /Plan closed/);
+    await h.command("home", "off"); assert.equal(h.widgets.has("pi-tasks:fallback"), false);
+    const current = (await h.call({ op: "list" })).details.plan;
+    await h.call({ op: "update", revision: current.revision, id: "t1", changes: { status: "pending" } });
+    assert.ok(h.widgets.has("pi-tasks:fallback"));
+    const reopened = (await h.call({ op: "list" })).details.plan;
+    await h.call({ op: "update", revision: reopened.revision, id: "t1", changes: { status: "done", note: "Done again" } });
+    t.mock.timers.tick(COMPLETION_MS + 10); assert.equal(h.widgets.has("pi-tasks:fallback"), false);
+    await h.close(); t.mock.timers.tick(10_000); assert.equal(h.widgets.size, 0);
+  } finally { t.mock.timers.reset(); if (process.env.PI_CODING_AGENT_DIR === h.scratch) await h.close(); }
+});
+
+test("manual new preserves earlier plans, stale dialogs cannot overwrite them, and off/on retains the whole library", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); await h.command("tasks", "new User named plan"); await h.command("tasks", "add User item");
+    let answer;
+    h.context.ui.input = () => new Promise((resolve) => answer = resolve);
+    const pending = h.command("tasks", "new");
+    const revision = JSON.parse((await h.call({ op: "plans" })).content[0].text).revision;
+    await h.call({ op: "create", revision, title: "Agent plan" });
+    answer("Stale dialog plan"); await pending;
+    assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).total, 2);
+    assert.match(h.notices.at(-1).text, /plan changed/);
+    await h.command("tasks", "archive p1");
+    await h.command("tasks", "restore p1");
+    assert.equal((await h.call({ op: "list" })).details.plan.tasks[0].title, "User item");
+    const before = h.entries.at(-1).data;
+    await h.command("tasks", "off"); await h.emit("session_start"); await h.command("tasks", "on");
+    assert.deepEqual(h.entries.at(-1).data, before);
+    assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).total, 2);
+  } finally { await h.close(); }
+});
+
+test("raised panel history is browse-only, actions are explicit and stale rendered task edits are ignored", async () => {
+  let b = create(emptyBook(), "First plan"); b = create(b, "Second plan");
+  const { PINE } = await jiti.import(join(source, "../pi-home/biolume.ts"));
+  let result, paints = 0;
+  const nav = {};
+  const panel = new TaskPanel({ terminal: { rows: 40 }, requestRender() { paints++; } }, theme, () => b, () => PINE, (r) => result = r, nav);
+  const lines = panel.render(90), revision = b.revision;
+  assert.match(plain(lines[0]), /╭.*Tasks.*╮/);
+  for (const line of lines) { assert.equal(visibleWidth(line), 90); assert.match(line, /\x1b\[48;/, "every modal row has an explicit surface"); }
+  panel.handleInput("h"); panel.render(90); panel.handleInput("\x1b[B"); panel.handleInput("\r");
+  assert.equal(nav.viewId, "p1"); assert.equal(b.selectedId, "p2"); assert.equal(b.revision, revision);
+  assert.match(panel.render(90).map(plain).join("\n"), /History · S to make current/);
+  panel.handleInput("\r"); assert.equal(result, undefined, "historical plan cannot be edited by accidental Enter");
+  panel.handleInput("s"); assert.deepEqual(result, { op: "select", planId: "p1", revision, id: undefined });
+  b = bookWrite(b, { op: "select", planId: "p1" }, "user"); panel.render(90); result = undefined;
+  b = taskWrite(b, "t1", { title: "Changed since last paint" }); panel.handleInput("\r");
+  assert.equal(result, undefined); assert.ok(paints > 0);
+  panel.render(90); panel.handleInput("\r"); assert.equal(result.revision, b.revision);
+  for (const rows of [8, 12, 24, 40]) for (const width of [1, 2, 8, 20, 48, 90, 140]) {
+    const p = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => PINE, () => {});
+    for (const mode of ["", "d", "h"]) { if (mode) p.handleInput(mode); const rendered = p.render(width); assert.ok(rendered.length <= Math.max(4, Math.floor(rows * .85))); for (const line of rendered) assert.ok(visibleWidth(line) <= width); }
+  }
+});
+
+test("production forest is responsive, motion-off freezes art, and uses real identity/tasks without sample data", () => {
+  const state = { prefs: { ...DEFAULTS, look: "biolume", motion: "off" }, clock: new RunClock(), phase: "thinking", tools: new Map(), promptDepth: 0, compacting: false, lastInputAt: 0 };
+  const tui = { terminal: { rows: 40 }, requestRender() {} };
+  const ctx = { ui: { theme }, sessionManager: { getSessionName: () => "My 界面 forest" } };
+  const docks = new Map([["test", { title: "Plan", rows: [{ text: "○ Real work" }], hint: "/tasks" }]]);
+  let now = 1000;
+  const workspace = createWorkspace(tui, () => ctx, state, docks, () => true, () => now);
+  const first = workspace.render(100); now = 5000;
+  assert.deepEqual(workspace.render(100), first);
+  assert.match(first.map(plain).join("\n"), /Real work/);
+  assert.doesNotMatch(first.map(plain).join("\n"), /DEMO|Finding the shape|mission/i);
+  for (const height of [16, 24, 30, 40]) {
+    tui.terminal.rows = height;
+    for (const width of [1, 2, 8, 20, 48, 80, 140]) for (const line of workspace.render(width)) assert.ok(visibleWidth(line) <= width);
+  }
+  tui.terminal.rows = 40;
+  state.prefs.scene = false;
+  assert.equal(workspace.render(100).length, 5);
+  assert.ok(workspace.render(100).length < first.length, "scene-off keeps the plan, not the illustration");
+  assert.equal(isSnapshot({ version: 1, sessionId: "test", id: "id", title: "Okay", rows: [{ text: "x", tone: "invalid" }] }), false);
+  assert.equal(isHost({ version: 1, sessionId: "test", available: true, colors: {} }), false);
+});
