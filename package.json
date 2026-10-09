@@ -21,7 +21,9 @@
     "CONTRIBUTING.md",
     "CHANGELOG.md",
     "docs/ARCHITECTURE.md",
-    "docs/MIGRATION.md"
+    "docs/MIGRATION.md",
+    "docs/SURFACE-WORKSPACE.md",
+    "docs/POSITIONING.md"
   ],
   "pi": {
     "extensions": [
