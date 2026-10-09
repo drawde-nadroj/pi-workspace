@@ -9,7 +9,7 @@ Source for four related Pi components in **one Git repository**:
 | Home | [`extensions/pi-home`](extensions/pi-home/README.md) | Editor, footer, transcript surfaces and workspace host |
 | Tasks | [`extensions/pi-tasks`](extensions/pi-tasks/README.md) | Plans, task tool, history, and independent fallback |
 
-**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. A packed suite was installed and cold-loaded in an isolated Pi agent directory. This is **not published or enabled in your live Pi installation**: it still loads the original copies in `~/.pi/agent`. Do not install the suite there alongside them, as that would double-register resources.
+**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. A packed suite was installed and cold-loaded in an isolated Pi agent directory; a partial interactive terminal review and rollback-settings drill are recorded in [acceptance](docs/ACCEPTANCE.md). Physical IME and human visual checks remain open. This is **not published or enabled in your live Pi installation**: it still loads the original copies in `~/.pi/agent`. Do not install the suite there alongside them, as that would double-register resources.
 
 ## Develop
 
@@ -25,4 +25,4 @@ npm run pack:check
 
 The root is private and uses npm workspaces for the existing Frame and Ask packages. Tests for Home and Tasks remain in their source directories and preserve their relative imports from `lib/`. This repository intentionally contains **no** authentication, sessions, personal preferences or machine configuration. Before committing, check `git status --short` and `git diff --cached --name-only`.
 
-See [architecture](docs/ARCHITECTURE.md), the [surface workspace specification](docs/SURFACE-WORKSPACE.md), [project language for sharing and teaching](docs/POSITIONING.md), [migration plan](docs/MIGRATION.md), and [contributing](CONTRIBUTING.md). End-user usage remains documented in each component's README, with [footer customization](extensions/pi-home/FOOTER.md) and [Frame feature guide](packages/pi-frame/FEATURE-GUIDE.md) as the current visual-design references.
+See [architecture](docs/ARCHITECTURE.md), the [surface workspace specification](docs/SURFACE-WORKSPACE.md), [isolated acceptance and remaining human checks](docs/ACCEPTANCE.md), [project language for sharing and teaching](docs/POSITIONING.md), [migration plan](docs/MIGRATION.md), and [contributing](CONTRIBUTING.md). End-user usage remains documented in each component's README, with [footer customization](extensions/pi-home/FOOTER.md) and [Frame feature guide](packages/pi-frame/FEATURE-GUIDE.md) as the current visual-design references.

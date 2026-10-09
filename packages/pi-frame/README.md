@@ -93,7 +93,9 @@ Home supplies sourced task counts and open-work rows through the dock bridge. Th
 
 Default motion is a quiet accent border with a near-white travelling highlight while an actual run and active task are present. Progress changes can sweep once. Waiting, typing, lost editor focus, blocking prompts, hidden/narrow frames, settings interactions and motion-off stop live motion. Explicit settings demos have their own disposable controller; reduced-motion settings still apply.
 
-## Verification for the Tasks integration
+## Historical verification for the first Tasks integration
+
+The figures below describe that earlier increment, not the current integrated suite. In the monorepo, see `docs/ACCEPTANCE.md` for the isolated Pi 1.0 terminal review and outstanding human checks.
 
 - Frame + Home + Tasks suite: **217/217 passed**, `/tmp/pi-frame-final-tests.log`.
 - Scoped strict TypeScript (new presentation/settings/workspace code, footer and Tasks integration): passed, `/tmp/pi-frame-scoped-tsc.log`.

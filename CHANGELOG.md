@@ -13,3 +13,4 @@ This file records source-workspace changes. It does not announce an installable 
 - Made Input & footer and Tasks the first focused rooms of the existing `/footer` workspace; Tasks now synchronizes its element list with hit-tested, display-only preview labels and rows while retaining the existing settings, Save/Undo/Discard, and native editor.
 - Added an Ask room backed by Ask's versioned visual contract and synthetic shell preview; standalone Ask reads saved appearance at question opening and retains answer/input ownership.
 - Added a Transcript room with versioned chat/tool rail preferences, clickable synthetic chat and tool samples, sourced Sent placement, and guarded native fallback for unsupported tool renderers.
+- Recorded isolated Pi 1.0 terminal acceptance and a settings rollback drill, clarified unverified human checks and reversible live migration, and added a Frame adapter example for third-party tool surfaces. Live Pi remains unchanged.

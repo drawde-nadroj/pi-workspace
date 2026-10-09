@@ -97,6 +97,29 @@ Home already has a scheduler. It uses `createFrameController()` without `automat
 
 Do not infer work from frame animation, parse display labels back into application state, or change tool results to achieve a visual effect. Keep state, stored content, input ownership and presentation separate.
 
+### Example: a separate tool extension's presentation adapter
+
+For a tool you own, keep the original result renderer and compute a small visual header from your **sourced** state. This pure adapter can be called by your own component at its real width; it does not register a tool or replace Pi's editor:
+
+```ts
+import { frameRows, statusPreset } from "pi-embeddable-frame/primitives";
+
+function renderMyTool(theme, width, resultRows, toolState) {
+  // toolState comes from the tool's execution lifecycle, not from a label or demo.
+  const status = statusPreset({ state: toolState, appearance: theme.appearance });
+  return frameRows({
+    theme, width, rows: resultRows, inset: 1,
+    color: theme.colors.borderAccent,
+    corners: {
+      topLeft: theme.style(` ${status.marker} My tool `, { fg: status.color }),
+      bottomRight: theme.style(` ${status.label} `, { fg: status.color }),
+    },
+  });
+}
+```
+
+Call it only for renderers whose text rows you can safely wrap; pass through graphical, self-rendering or incompatible results untouched. Preserve the original component's expansion and mouse coordinates. On resize, render with the new width. For a future shared settings room, define your surface's own validated visual slots and preference authority first; Frame does not create a global workspace registration or store your tool data.
+
 ### Persisting settings
 
 Store a `FramePresentation` as versioned JSON and validate it with `readFramePresentation` when reading it. Do not persist controller instances, frame timestamps or demo state. Keep one preference authority per surface; Home uses `pi-footer.json` → `tasks` for this integration.
@@ -114,7 +137,7 @@ Store a `FramePresentation` as versioned JSON and validate it with `readFramePre
 ## Using the first integration
 
 1. Run `/reload` after the code update.
-2. Open `/footer` and choose **Tasks**. Keyboard: Tab cycles Elements → Properties → Other options → Tasks; arrows and Enter navigate.
+2. Open `/footer` and choose **Tasks**. Keyboard: Tab cycles Elements → Properties → Other options → Tasks → Ask → Transcript; arrows and Enter navigate.
 3. Choose **Demo state** to inspect working, waiting, blocked, error, idle or done without starting real work. Use **Replay progress sweep** for a one-shot demonstration.
 4. Scroll through controls for colors, text, timing, placement and state overrides. Each state has its own override controls.
 5. **Save** commits; **Undo** reverses edits; **Discard** restores the original settings. Demo state is never saved. Escape backs out before discarding.
