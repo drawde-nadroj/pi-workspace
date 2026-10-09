@@ -1,6 +1,6 @@
 # 0001: One source repository, separate runtime owners
 
-**Status:** Accepted for the source baseline; suite packaging remains proposed.
+**Status:** Accepted; private suite packaging implemented in the repository root. Live installation remains unchanged.
 
 ## Context
 
@@ -8,8 +8,8 @@ Frame and Ask were local Pi packages, Home and Tasks auto-discovered extensions,
 
 ## Decision
 
-Import the existing source into one private npm-workspace Git repository outside `~/.pi`, retaining the agent-like `packages/`, `extensions/`, and `lib/` paths so current relative imports and tests remain meaningful. Keep Frame and Ask separately packaged. Do not change the live installation or claim the root is an installable Pi package at this stage. Work toward an explicit suite manifest and per-surface customization adapters instead of a universal renderer or merged domain state.
+Import the existing source into one private npm-workspace Git repository outside `~/.pi`, retaining the agent-like `packages/`, `extensions/`, and `lib/` paths so current relative imports and tests remain meaningful. Keep Frame and Ask separately packaged. Do not change the live installation. The root has an explicit private Pi suite manifest listing Home, Tasks and Ask; Frame is a bundled runtime library with no extension entry. Work toward per-surface customization adapters instead of a universal renderer or merged domain state.
 
 ## Consequences
 
-Development gets one history, lockfile, common tests and docs without a disruptive runtime migration. The user continues to run the original extension copies until a separately verified installation switch. Layout settings may be unified in the UI without forcing Tasks plans, Ask answers, editor state, or Frame primitives into one persistence file. An eventual suite must handle dependency/resource packaging, compatibility, old export caches, double-loading and rollback explicitly.
+Development gets one history, lockfile, common tests and docs without a disruptive runtime migration. The user continues to run the original extension copies until a separately verified installation switch. Layout settings may be unified in the UI without forcing Tasks plans, Ask answers, editor state, or Frame primitives into one persistence file. The private suite packs its Frame dependency and tests duplicate registrations and isolated cold loads. An eventual live switch still needs interactive compatibility, old export-cache/reload acceptance, visual review, double-loading prevention and rollback.

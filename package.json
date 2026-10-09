@@ -1,18 +1,55 @@
 {
-  "name": "pi-workspace-source",
-  "version": "0.0.0",
+  "name": "pi-workspace-suite",
+  "version": "0.1.0",
   "private": true,
-  "description": "Source workspace for Pi Home, Tasks, Ask, and embeddable frames; not an installable Pi package yet",
+  "type": "module",
+  "description": "Private Pi suite for Home, Tasks, Ask, and embeddable frames",
   "workspaces": ["packages/pi-frame", "packages/pi-ask"],
+  "files": [
+    "extensions/pi-home/*.ts",
+    "extensions/pi-home/lab/*.ts",
+    "extensions/pi-tasks/*.ts",
+    "lib/*.ts",
+    "packages/pi-ask/extensions/**/*.ts",
+    "packages/pi-ask/README.md",
+    "packages/pi-frame/README.md",
+    "packages/pi-frame/FEATURE-GUIDE.md",
+    "extensions/pi-home/README.md",
+    "extensions/pi-home/FOOTER.md",
+    "extensions/pi-tasks/README.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "docs/ARCHITECTURE.md",
+    "docs/MIGRATION.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-home/index.ts",
+      "./extensions/pi-tasks/index.ts",
+      "./packages/pi-ask/extensions/questions.ts"
+    ]
+  },
+  "dependencies": {
+    "pi-embeddable-frame": "0.1.0"
+  },
+  "bundleDependencies": ["pi-embeddable-frame"],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
   "devDependencies": {
     "pi-vim": "0.14.2"
   },
   "scripts": {
-    "test": "npm run test:frame && npm run test:ask && npm run test:home && npm run test:tasks",
+    "test": "npm run test:frame && npm run test:ask && npm run test:home && npm run test:tasks && npm run test:suite",
     "test:frame": "node --test packages/pi-frame/test/*.test.mjs",
     "test:ask": "node --test packages/pi-ask/test/host.test.mjs",
     "test:home": "node --test extensions/pi-home/tests/*.test.mjs",
     "test:tasks": "node --test extensions/pi-tasks/tests/*.test.mjs",
-    "pack:check": "npm pack --dry-run --workspace=pi-embeddable-frame && npm pack --dry-run --workspace=pi-ask"
+    "test:suite": "node --test tests/suite-package.test.mjs",
+    "pack:check": "npm pack --dry-run --workspace=pi-embeddable-frame && npm pack --dry-run --workspace=pi-ask && npm pack --dry-run"
   }
 }

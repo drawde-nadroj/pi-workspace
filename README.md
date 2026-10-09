@@ -9,7 +9,7 @@ Source for four related Pi components in **one Git repository**:
 | Home | [`extensions/pi-home`](extensions/pi-home/README.md) | Editor, footer, transcript surfaces and workspace host |
 | Tasks | [`extensions/pi-tasks`](extensions/pi-tasks/README.md) | Plans, task tool, history, and independent fallback |
 
-**Status:** This is a source and test baseline, **not yet a single installable suite**. The running Pi installation still loads the original copies in `~/.pi/agent`; editing this checkout does not change it. Frame and Ask retain their existing package manifests. Do not install this root directory as a Pi package until an explicit suite manifest and migration tests exist.
+**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. A packed suite was installed and cold-loaded in an isolated Pi agent directory. This is **not published or enabled in your live Pi installation**: it still loads the original copies in `~/.pi/agent`. Do not install the suite there alongside them, as that would double-register resources.
 
 ## Develop
 
@@ -20,6 +20,8 @@ npm ci
 npm test
 npm run pack:check
 ```
+
+`npm test` includes a package smoke test that packs the root, installs it into a temporary npm prefix without network access, then asks a separate `PI_CODING_AGENT_DIR` to load it. The test cleans up its temporary directory. For a local source installation in another isolated agent directory, run `npm ci` first: Pi does not install dependencies for local packages. For a packed installation, Frame is already bundled; Pi host modules remain peers and are not packaged. The root is intentionally private and cannot be published by accident.
 
 The root is private and uses npm workspaces for the existing Frame and Ask packages. Tests for Home and Tasks remain in their source directories and preserve their relative imports from `lib/`. This repository intentionally contains **no** authentication, sessions, personal preferences or machine configuration. Before any first commit, check `git status --short` and `git diff --cached --name-only`.
 

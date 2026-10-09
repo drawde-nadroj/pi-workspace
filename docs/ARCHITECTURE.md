@@ -1,6 +1,6 @@
 # Architecture and ownership
 
-This document describes the **current source baseline**, not an implemented suite API.
+This document describes the current ownership boundaries. The repository root is now a **private installable Pi package**, but a shared visual-customization API has not yet been implemented.
 
 ```text
 Tasks plan/history state ── versioned data-only dock events ──> Home UI host
@@ -26,4 +26,4 @@ Start by extracting only proven common mechanics. Composer has six rail position
 
 ## Dependency and installation rules
 
-A future suite manifest must explicitly list only its intended extension entry points. Pi host modules (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `typebox`) are peers, not bundled runtime dependencies. Frame and Ask can remain separate versioned packages in this monorepo; avoid duplicate copies or double-loading Ask through both the suite and personal package settings. Keep one authoritative source file for each module and test cold startup **and** reload after an upgrade. The current working installation has not been switched.
+The private root `pi-workspace-suite` manifest explicitly lists `extensions/pi-home/index.ts`, `extensions/pi-tasks/index.ts` and `packages/pi-ask/extensions/questions.ts`, once each. The packed root bundles only `pi-embeddable-frame` under its own `node_modules`; Frame registers no extension. The host packages actually imported by suite sources (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `@earendil-works/pi-ai`, `typebox`) are peers, not bundled runtime dependencies. Frame and Ask retain their separate versioned package manifests, but must not be loaded a second time alongside the suite. Keep one authoritative source file for each module. Packed install, a real Pi RPC cold-start, and repeat loader tests now pass; an interactive `/reload` and visual acceptance check remain before a live switch. The current working installation has not been switched.
