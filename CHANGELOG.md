@@ -10,4 +10,5 @@ This file records source-workspace changes. It does not announce an installable 
 - Added a private root Pi suite manifest that loads Home, Tasks and Ask once, bundles Frame for packed installs, and keeps Pi host packages as peers.
 - Added an isolated offline pack/install/cold-load test and a proposed live switch/rollback procedure; no live installation was changed.
 - Documented the current and proposed surface-workspace boundaries, navigation alternatives, and accurate project terminology for sharing and teaching.
-- Made Input & footer and Tasks the first focused rooms of the existing `/footer` workspace; Tasks now synchronizes its element list with hit-tested, display-only preview labels and rows while retaining the existing settings, Save/Undo/Discard, and native editor. Ask and transcript/tool appearance rooms remain planned.
+- Made Input & footer and Tasks the first focused rooms of the existing `/footer` workspace; Tasks now synchronizes its element list with hit-tested, display-only preview labels and rows while retaining the existing settings, Save/Undo/Discard, and native editor.
+- Added an Ask room backed by Ask's versioned visual contract and synthetic shell preview; standalone Ask reads saved appearance at question opening and retains answer/input ownership. Transcript/tool appearance rooms remain planned.

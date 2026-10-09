@@ -211,7 +211,7 @@ export function addActionHints(lines: string[], width: number, theme: any, token
 	const budget = Math.max(1, width);
 	let packed = "";
 	const flush = () => {
-		if (packed) lines.push(truncateToWidth(theme.fg("dim", " ".repeat(Math.max(0, Math.floor((width - visibleWidth(packed)) / 2))) + packed), width));
+		if (packed) lines.push(truncateToWidth(theme.fg(theme.askAppearance?.hints === "muted" ? "muted" : "dim", " ".repeat(Math.max(0, Math.floor((width - visibleWidth(packed)) / 2))) + packed), width));
 		packed = "";
 	};
 	for (const raw of tokens) {

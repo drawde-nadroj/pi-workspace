@@ -30,7 +30,7 @@ export const OPTIONS = {
   selectionShimmer: ["on", "off"],
 } as const;
 export type FooterOption = keyof typeof OPTIONS;
-export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { appearance?: Appearance; tasks?: TaskPanelPrefs };
+export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { appearance?: Appearance; tasks?: TaskPanelPrefs; ask?: unknown };
 export const FOOTER_DEFAULTS: FooterPrefs = {
   style: "quiet", color: "semantic", layout: "paired", shape: "rail", icons: "nerd", directory: "path", git: "detailed", gitLabels: "symbols",
   session: "on", model: "on", thinking: "on", context: "adaptive", bar: "blocks",
@@ -48,6 +48,8 @@ export function footerPrefs(value: unknown): FooterPrefs {
   const appearance = readAppearance((value as FooterPrefs | undefined)?.appearance, result);
   if (appearance) result.appearance = appearance;
   if ((value as FooterPrefs | undefined)?.tasks) result.tasks = readTaskPanel((value as FooterPrefs).tasks);
+  // Retain even an unknown future Ask version unchanged; only Ask validates its own section.
+  if (value && typeof value === "object" && Object.hasOwn(value, "ask")) result.ask = (value as FooterPrefs).ask;
   return result;
 }
 export function clean(value: string): string {

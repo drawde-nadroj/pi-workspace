@@ -958,7 +958,7 @@ export class TabbedQuestions {
 		}
 
 		// Question header
-		addWrapped(lines, th.fg("text", th.bold(sanitizeDisplayText(q.question))), width);
+		addWrapped(lines, th.fg("text", th.askAppearance?.questionText === "normal" ? sanitizeDisplayText(q.question) : th.bold(sanitizeDisplayText(q.question))), width);
 		if (q.details) addWrapped(lines, th.fg("muted", ` ${sanitizeDisplayText(q.details)}`), width);
 		if (!compactHeight) lines.push("");
 

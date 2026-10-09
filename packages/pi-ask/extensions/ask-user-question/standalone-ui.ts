@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, type KeybindingsManager, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
 import type { AskAnswer, AskOption, AnswerWithNote, ClarificationRequest, SkipRequest } from "./domain.ts";
 import { frameQuestion, questionViewport, questionTheme } from "./question-surface.ts";
+import { savedAskAppearance } from "./appearance.ts";
 import { answerSelectionKey, getOtherLabel, sortAnswers } from "./domain.ts";
 import { handleFileCompletion, addActionHints, addWrapped, constrainFrameHeight, createNoteEditor, createQuestionEditor, isAskAgentKey, isSubmitEnter, normalizeFocusCycleKey, renderOptionalNote, sanitizeDisplayText, sanitizeEditorDisplay, WrappedChoiceList, type WrappedChoiceItem } from "./tui-primitives.ts";
 
@@ -18,7 +19,7 @@ export function customWithAbort<T>(ctx: ExtensionContext, signal: AbortSignal | 
 		const abort = () => finish(null as T);
 		removeAbort = () => signal?.removeEventListener("abort", abort);
 		signal?.addEventListener("abort", abort, { once: true });
-		const palette = questionTheme(theme);
+		const palette = questionTheme(theme, savedAskAppearance());
 		const component = factory(questionViewport(tui), palette, keybindings, finish);
 		if (signal?.aborted) abort();
 		return frameQuestion(component, palette, tui);
@@ -121,7 +122,7 @@ export function askText(
 				const lines: string[] = [];
 				const add = (text: string) => lines.push(truncateToWidth(text, width));
 				add(theme.fg("accent", "─".repeat(width)));
-				addWrapped(lines, theme.fg("text", theme.bold(sanitizeDisplayText(question))), width, " ");
+				addWrapped(lines, theme.fg("text", theme.askAppearance?.questionText === "normal" ? sanitizeDisplayText(question) : theme.bold(sanitizeDisplayText(question))), width, " ");
 				if (context) {
 					lines.push("");
 					addWrapped(lines, theme.fg("muted", sanitizeDisplayText(context)), width, " ");
@@ -310,7 +311,7 @@ export function askSingleChoice(
 				const lines: string[] = [];
 				const add = (text: string) => lines.push(truncateToWidth(text, width));
 				add(theme.fg("accent", "─".repeat(width)));
-				addWrapped(lines, theme.fg("text", theme.bold(sanitizeDisplayText(question))), width, " ");
+				addWrapped(lines, theme.fg("text", theme.askAppearance?.questionText === "normal" ? sanitizeDisplayText(question) : theme.bold(sanitizeDisplayText(question))), width, " ");
 				if (context) { lines.push(""); addWrapped(lines, theme.fg("muted", sanitizeDisplayText(context)), width, " "); }
 				lines.push("");
 				const tail: string[] = feedback ? [theme.fg("warning", ` ${feedback}`), ""] : [""];
@@ -545,7 +546,7 @@ export function askMultiChoice(
 				const lines: string[] = [];
 				const add = (text: string) => lines.push(truncateToWidth(text, width));
 				add(theme.fg("accent", "─".repeat(width)));
-				addWrapped(lines, theme.fg("text", theme.bold(sanitizeDisplayText(question))), width, " ");
+				addWrapped(lines, theme.fg("text", theme.askAppearance?.questionText === "normal" ? sanitizeDisplayText(question) : theme.bold(sanitizeDisplayText(question))), width, " ");
 				if (context) { lines.push(""); addWrapped(lines, theme.fg("muted", sanitizeDisplayText(context)), width, " "); }
 				lines.push("");
 				add(selected.size > 0 ? theme.fg("success", ` ✓ ${selected.size} selected`) : theme.fg("dim", " ○ Select options below"));

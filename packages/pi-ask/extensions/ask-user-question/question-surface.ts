@@ -1,16 +1,15 @@
 import { stripVTControlCharacters } from "node:util";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { savedAskAppearance, type AskAppearance } from "./appearance.ts";
 import { frameRows } from "./frame.ts";
 import { backgroundAnsi, foregroundAnsi, Key, matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 export const questionAccent = (theme: any) => parseColor(theme.appearance === "light" ? "#ad4a10" : "#f2a45f");
 
 /** Question-local orange identity; independent of global warning colors. */
-export function questionTheme(theme: any): any {
+export function questionTheme(theme: any, appearance?: AskAppearance): any {
   return new Proxy(theme, {
     get(target, property) {
+      if (property === "askAppearance") return appearance;
       if (property === "fg") return (role: string, text: string) => (role === "accent" || role === "borderAccent") && target.style ? target.style(text, { fg: questionAccent(target) }) : target.fg(role, text);
       if (property === "bg") return (role: string, text: string) => {
         if (role !== "selectedBg" || !target.colors || !target.getColorMode) return target.bg(role, text);
@@ -76,14 +75,9 @@ export function questionViewport(tui: any): any {
 /** Quiet while waiting for a person. No timer, animation loop, or changed answer semantics. */
 export interface MoreAction { label: string; key?: string; hint?: string; run?: () => void }
 
-export function frameQuestion(component: any, theme: any, tui: any): any {
-  // Home owns the settings screen; pi-ask reads only its own persisted visual
-  // choice at interaction start. No dependency on Home's runtime or input state.
-  let labelTreatment: "hierarchy" | "matched" = "matched";
-  try {
-    const saved = JSON.parse(readFileSync(join(getAgentDir(), "pi-footer.json"), "utf8"));
-    if (saved?.questionLabels === "hierarchy") labelTreatment = "hierarchy";
-  } catch { /* An absent or invalid preference must not block a question. */ }
+export function frameQuestion(component: any, theme: any, tui: any, previewAppearance?: AskAppearance): any {
+  // Preview injection is display-only; live interactions read their own settings once.
+  const appearance = previewAppearance ?? theme.askAppearance ?? savedAskAppearance();
   let disposed = false, framed = false, removedHeader = false;
   let menu: MoreAction[] | undefined, selected = 0, focused = false;
   const closeMenu = () => { menu = undefined; component.focused = focused; component.invalidate?.(); tui.requestRender(); };
@@ -147,14 +141,14 @@ export function frameQuestion(component: any, theme: any, tui: any): any {
       const limit = Math.max(0, questionHeight(tui) - 2);
       // A small stable body avoids jumps between short tabs. Pad after content, never move the cursor.
       while (lines.length < Math.min(12, limit)) lines.push("");
-      const title = truncateToWidth(menu ? " More actions " : " Questions ", Math.max(0, width - 2), "");
+      const title = truncateToWidth(menu ? " More actions " : ` ${appearance.title} `, Math.max(0, width - 2), "");
       const position = menu ? "" : truncateToWidth(` ${component.getHeaderLabel?.() ?? "1 of 1"} `, Math.max(0, width - 2), "");
       const accent = questionAccent(theme);
-      const progress = labelTreatment === "matched" ? accent
+      const progress = appearance.labels === "matched" ? accent
         : theme.colors?.muted ? mixColors(accent, theme.colors.muted, .55) : accent;
       return frameRows({ theme, width, rows: lines, inset: 1, color: accent,
-        corners: { topLeft: theme.style ? theme.style(title, { fg: accent, bold: true }) : theme.fg("accent", title),
-          bottomLeft: theme.style ? theme.style(position, { fg: progress }) : theme.fg(labelTreatment === "matched" ? "accent" : "muted", position) },
+        corners: { [appearance.titlePosition]: theme.style ? theme.style(title, { fg: accent, bold: true }) : theme.fg("accent", title),
+          [appearance.progressPosition]: theme.style ? theme.style(position, { fg: progress }) : theme.fg(appearance.labels === "matched" ? "accent" : "muted", position) },
         surface: (text, cells) => surface(theme, text, cells) });
     },
   };
