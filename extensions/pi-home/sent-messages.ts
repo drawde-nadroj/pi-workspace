@@ -5,6 +5,7 @@ import { mixColors, truncateToWidth, visibleWidth, type Component } from "@earen
 import { composerSurface, quietFrameLabel, userFrameColor } from "./composer-style.ts";
 import { clean, stamp, type FooterPrefs } from "./footer-state.ts";
 import { taskFrameColor } from "../../lib/task-frame.ts";
+import { activeTranscript, assistantIdentity } from "./transcript-presentation.ts";
 type MessageComponent = UserMessageComponent | AssistantMessageComponent;
 
 /** Remove background paint without consuming foreground payloads, OSC links or zones. */
@@ -86,15 +87,15 @@ export class SentMessageFrames {
         const t = theme(), assistant = node instanceof AssistantMessageComponent;
         const color = assistant ? taskFrameColor(t) : userFrameColor(t);
         const label = truncateToWidth(assistant ? clean(modelName()) || "Assistant" : "jordan", width - 6, "…");
-        const options = this.presentation;
+        const options = this.presentation, style = activeTranscript(options?.prefs);
         const timestamp = assistant ? (node as AssistantMessageComponent).lastMessage?.timestamp : this.timestamps.get(node);
-        const time = options?.prefs?.messageTime === "on" && Number.isFinite(timestamp) && timestamp! >= 0
-          ? stamp(timestamp, options.prefs.timestamps === "12h" ? "12h" : "24h", Date.now()) : "";
+        const time = style.chat.showSent && Number.isFinite(timestamp) && timestamp! >= 0
+          ? stamp(timestamp, options?.prefs?.timestamps === "12h" ? "12h" : "24h", Date.now()) : "";
         const motion = assistant && (node as unknown as { isStreaming?: boolean }).isStreaming === true
           ? thinkingMotion?.() : undefined;
         return frameRows({ theme: t, width, rows: lines.map(terminalBackground), color,
-          corners: { topLeft: t.style(` ${label} `, { fg: color }),
-            bottomRight: time ? assistant ? quietFrameLabel(t, ` Sent ${time} `, color)
+          corners: { topLeft: assistant ? assistantIdentity(t, ` ${label} `, color, style) : t.style(` ${label} `, { fg: color }),
+            [style.chat.sentPosition]: time ? assistant ? quietFrameLabel(t, ` Sent ${time} `, color)
               : t.style(` Sent ${time} `, { fg: color }) : "" }, surface: (text, cells) => composerSurface(t, text, cells),
           motion: motion ? { ...motion, accent: mixColors(color, t.colors.text, .35) } : undefined });
       };

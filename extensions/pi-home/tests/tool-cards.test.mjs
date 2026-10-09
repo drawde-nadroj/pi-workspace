@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { writeFileSync } from "node:fs";
 import { jiti, source, root, theme, plain, visibleWidth } from "./host.mjs";
 const { ActivityBlocks, toolStateStyle } = await jiti.import(join(source, "activity-blocks.ts"));
+const { transcriptDefaults } = await jiti.import(join(source, "transcript-presentation.ts"));
 const host = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/index.js")));
 const { ToolExecutionComponent } = host;
 const { Container, Text } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
@@ -14,12 +15,12 @@ definitions.codemode = codemodeRenderers;
 let id = 0;
 const output = (node, width = 90) => node.render(width).map(plain).join("\n");
 const textResult = (text, details) => ({ content: [{ type: "text", text }], details, isError: false });
-function fixture(name, args, result, definition = definitions[name], selectedTheme = theme) {
+function fixture(name, args, result, definition = definitions[name], selectedTheme = theme, presentation = () => undefined) {
   const root = new Container();
   const node = new ToolExecutionComponent(name, `test-${++id}`, args, { showImages: false }, definition, { requestRender() {} }, "/tmp");
   if (result) node.updateResult(result);
   root.addChild(node);
-  const blocks = new ActivityBlocks(() => selectedTheme, () => {});
+  const blocks = new ActivityBlocks(() => selectedTheme, () => {}, () => 'semantic', () => false, presentation);
   blocks.sync(root);
   return { node, blocks, root };
 }
@@ -206,6 +207,25 @@ test('web access adapter frames existing custom call/progress/result components 
     assert.doesNotMatch(output(f.node), /╭ Web · Search/, 'image output stays native');
     f.blocks.dispose();
     assert.doesNotMatch(output(f.node), /╭ Web · Search/, 'dispose restores original renderer');
+  } finally { f.blocks.dispose(); }
+});
+
+test('web tool uses transcript identity/status treatment but never matches failed or cancelled states', () => {
+  const definition = { renderCall: () => new Text('custom search'), renderResult: () => new Text('native result') };
+  let style = { ...transcriptDefaults(), tools: { identity: 'quiet', status: 'semantic' } };
+  const f = fixture('web_search', { query: 'sample' }, textResult('unchanged'), definition, theme, () => style);
+  try {
+    const initial = f.node.render(90)[0];
+    style = { ...style, tools: { identity: 'matched', status: 'matched' } };
+    const updated = f.node.render(90)[0];
+    assert.notEqual(initial, updated);
+    assert.match(output(f.node), /Web · Search/);
+    assert.match(output(f.node), /✓/);
+    f.node.updateResult({ ...textResult('failed'), isError: true });
+    assert.match(output(f.node), /× failed/);
+    f.node.updateResult({ ...textResult('stopped', { cancelled: true }), isError: true });
+    assert.match(output(f.node), /■ cancelled/);
+    assert.equal(f.node.result.content[0].text, 'stopped');
   } finally { f.blocks.dispose(); }
 });
 

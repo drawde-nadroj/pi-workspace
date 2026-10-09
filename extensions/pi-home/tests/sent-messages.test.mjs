@@ -75,6 +75,15 @@ test("chat frames show only sourced fixed creation times; repeated user text map
     assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent /, "unsourced user messages have no invented time");
     const assistantTime = stamp(Date.UTC(2024, 0, 2, 15, 42), "24h", Date.now());
     assert.ok(plain(assistant.render(70).at(-1)).includes(`Sent ${assistantTime}`));
+    prefs.transcript = { version: 1, chat: { assistantLabel: "quiet", showSent: true, sentPosition: "bottomLeft" }, tools: { identity: "quiet", status: "semantic" } };
+    frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
+    assert.ok(plain(first.render(70).at(-1)).startsWith(`╰ Sent ${firstTime}`), "user creation time moves left without losing its red identity");
+    assert.ok(first.render(70).at(-1).includes(theme.style(` Sent ${firstTime} `, { fg: userFrameColor(theme) })));
+    assert.ok(plain(assistant.render(70).at(-1)).includes(`Sent ${assistantTime}`));
+    assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent /);
+    prefs.transcript.chat.showSent = false;
+    assert.ok(!plain(first.render(70).at(-1)).includes(firstTime), "saved transcript section takes precedence over legacy field");
+    delete prefs.transcript;
     prefs.messageTime = "off";
     frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
     assert.ok(!plain(first.render(70).at(-1)).includes(firstTime));

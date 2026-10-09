@@ -5,6 +5,7 @@ import { taskPanelDefaults, taskPanelPreview, taskDemo, type TaskElementId } fro
 import { taskControls, taskControlElement, TASK_ELEMENTS } from "./task-settings.ts";
 import { readAskAppearance, safeAskTitle, type AskAppearance } from "../../packages/pi-ask/extensions/ask-user-question/appearance.ts";
 import { questionPreview, type AskElementId } from "../../packages/pi-ask/extensions/ask-user-question/question-preview.ts";
+import { readTranscript, transcriptPreview, type TranscriptAppearance, type TranscriptElementId } from "./transcript-presentation.ts";
 import { OPTIONS, type FooterPrefs, type FooterOption } from "./footer-state.ts";
 import { ELEMENTS, POSITIONS, STATES, STATE_TEXT, COLORS, appearanceDefaults, clonePrefs, safeText, validColor,
   type ElementId, type AppearanceState, type AppearanceColor, type AppearanceHit } from "./appearance.ts";
@@ -23,7 +24,7 @@ interface Control { label: string; value: string; help: string; activate(): void
 interface Target { x: number; y: number; width: number; action(): void }
 // Visibility/position now have one authority: the element inspector. Keep the
 // other existing capabilities, rather than exposing duplicate switches that do nothing.
-const REPLACED = new Set<FooterOption>(["layout", "topOrder", "bottomOrder", "session", "model", "thinking", "railTitle", "railDetails", "railHint", "composerContext", "questionLabels"]);
+const REPLACED = new Set<FooterOption>(["layout", "topOrder", "bottomOrder", "session", "model", "thinking", "railTitle", "railDetails", "railHint", "composerContext", "questionLabels", "messageTime", "toolLabels"]);
 export const OTHER_OPTIONS: FooterOption[] = ["selectionShimmer", ...(Object.keys(OPTIONS) as FooterOption[]).filter(id => id !== "selectionShimmer" && !REPLACED.has(id))];
 const INFO: Record<Selection, string> = {
   frame: "The border around your input. Its color can stay the same or change with the assistant's state.",
@@ -48,7 +49,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
   const undo: FooterPrefs[] = [];
   let release = () => {};
   try { return await ctx.ui.custom<FooterPrefs | undefined>((tui, theme, _kb, done) => {
-    let selected: Selection = "status", state: AppearanceState | undefined, pane: "elements" | "properties" | "other" | "tasks" | "ask" = "elements";
+    let selected: Selection = "status", state: AppearanceState | undefined, pane: "elements" | "properties" | "other" | "tasks" | "ask" | "transcript" = "elements";
     let elementIndex = 0, propertyIndex = 0, otherIndex = 0, more = false, query = "", message = "";
     let targets: Target[] = [], inputY = -1, inputX = 0, inputWidth = 0;
     let edit: { input: Input; title: string; help: string; accept(value: string): boolean } | undefined;
@@ -63,6 +64,15 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       { id: "hint", name: "Action hints", help: "Keys and actions stay unchanged; only text tone changes." },
     ];
     let askSelected: AskElementId = "title", askIndex = 0, askFocus: "elements" | "properties" = "properties";
+    const transcriptElements: Array<{ id: TranscriptElementId; name: string; help: string }> = [
+      { id: "chatFrame", name: "Chat frame", help: "User stays red; assistant stays accent purple. Native message content remains untouched." },
+      { id: "chatIdentity", name: "Chat identity", help: "User identity stays red. Assistant identity may match or quiet its purple rail." },
+      { id: "chatSent", name: "Sourced Sent time", help: "Only a reliably recorded creation time can appear; no reply-completion time is implied." },
+      { id: "toolFrame", name: "Tool frame", help: "Only supported native/allowlisted tools use this look; self-renderers retain their own UI." },
+      { id: "toolIdentity", name: "Tool identity", help: "Change secondary rail emphasis, not the tool name, result or expansion behavior." },
+      { id: "toolStatus", name: "Tool status", help: "Failure and cancellation always keep their distinct semantic colors and words." },
+    ];
+    let transcriptSelected: TranscriptElementId = "chatIdentity", transcriptIndex = 0, transcriptFocus: "elements" | "properties" = "properties";
     let demoState: FrameState = "working", demoRevision = 0;
     const demoMotion = createFrameController({ automatic: true, requestRender: () => {
       if (!closed && focused && pane === "tasks") tui.requestRender(); else demoMotion.reset();
@@ -71,10 +81,10 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") { pulse.stop(); return; }
       tui.requestRender();
     });
-    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${pane === "tasks" ? `${taskSelected}:${taskFocus}:${taskIndex}` : pane === "ask" ? `${askSelected}:${askFocus}:${askIndex}` : `${selected}:${pane === "properties" ? propertyIndex : pane === "other" ? otherIndex : elementIndex}`}`;
-    const afterInteraction = (before: string, previous: Selection, previousTask: TaskElementId, previousAsk: AskElementId) => {
+    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${pane === "tasks" ? `${taskSelected}:${taskFocus}:${taskIndex}` : pane === "ask" ? `${askSelected}:${askFocus}:${askIndex}` : pane === "transcript" ? `${transcriptSelected}:${transcriptFocus}:${transcriptIndex}` : `${selected}:${pane === "properties" ? propertyIndex : pane === "other" ? otherIndex : elementIndex}`}`;
+    const afterInteraction = (before: string, previous: Selection, previousTask: TaskElementId, previousAsk: AskElementId, previousTranscript: TranscriptElementId) => {
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") pulse.stop();
-      else if (previous !== selected || before !== focusKey()) pulse.start(previous !== selected || previousTask !== taskSelected || previousAsk !== askSelected ? "element" : "focus");
+      else if (previous !== selected || before !== focusKey()) pulse.start(previous !== selected || previousTask !== taskSelected || previousAsk !== askSelected || previousTranscript !== transcriptSelected ? "element" : "focus");
       if (!closed) tui.requestRender();
     };
     const dirty = () => JSON.stringify(draft) !== baseline;
@@ -96,6 +106,21 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
     };
     const selectAsk = (id: AskElementId) => { askSelected = id; askFocus = "properties"; askIndex = 0; pane = "ask"; tui.requestRender(); };
     const askStyle = () => readAskAppearance(draft.ask, draft.questionLabels);
+    const transcriptStyle = () => readTranscript(draft.transcript, draft);
+    const selectTranscript = (id: TranscriptElementId) => { transcriptSelected = id; transcriptFocus = "properties"; transcriptIndex = 0; pane = "transcript"; tui.requestRender(); };
+    const transcriptControls = (): Control[] => {
+      const style = transcriptStyle();
+      if (!style) return [{ label: "Transcript settings unavailable", value: "Read-only", help: "Unknown version; preserve the saved value.", activate() {} }];
+      const change = (patch: Partial<TranscriptAppearance>) => changed(() => { draft.transcript = { ...style, ...patch }; });
+      if (transcriptSelected === "chatSent") return [
+        { label: "Show sourced Sent time", value: style.chat.showSent ? "On" : "Off", help: "Unsourced times stay hidden even when On.", activate: () => change({ chat: { ...style.chat, showSent: !style.chat.showSent } }) },
+        { label: "Sent position", value: style.chat.sentPosition, help: "Move recorded creation time along the lower rail.", activate: () => choose("Sent position", ["bottomLeft", "bottomRight"].map(value => ({ value, label: value })), style.chat.sentPosition, value => change({ chat: { ...style.chat, sentPosition: value as TranscriptAppearance["chat"]["sentPosition"] } })) },
+      ];
+      if (transcriptSelected === "chatIdentity") return [{ label: "Assistant identity", value: style.chat.assistantLabel, help: "The user frame and user identity remain red.", activate: () => choose("Assistant identity tone", ["matched", "quiet"].map(value => ({ value, label: value })), style.chat.assistantLabel, value => change({ chat: { ...style.chat, assistantLabel: value as TranscriptAppearance["chat"]["assistantLabel"] } })) }];
+      if (transcriptSelected === "toolIdentity") return [{ label: "Tool identity", value: style.tools.identity, help: "Applies to eligible ordinary, grouped and web tool rails only.", activate: () => choose("Tool identity tone", ["matched", "quiet"].map(value => ({ value, label: value })), style.tools.identity, value => change({ tools: { ...style.tools, identity: value as TranscriptAppearance["tools"]["identity"] } })) }];
+      if (transcriptSelected === "toolStatus") return [{ label: "Successful status tone", value: style.tools.status, help: "Failed, cancelled and child-error states always use semantic status color.", activate: () => choose("Successful status tone", ["semantic", "matched"].map(value => ({ value, label: value })), style.tools.status, value => change({ tools: { ...style.tools, status: value as TranscriptAppearance["tools"]["status"] } })) }];
+      return [{ label: "Frame identity", value: transcriptSelected === "chatFrame" ? "User red · assistant purple" : "Sourced tool state", help: "Fixed semantic identity; native fallbacks remain in effect.", activate() {} }];
+    };
     const askControls = (): Control[] => {
       const style = askStyle();
       if (!style) return [{ label: "Ask settings unavailable", value: "Read-only", help: "Unknown Ask settings version. Preserve the saved value; no automatic migration.", activate() {} }];
@@ -202,6 +227,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
     const close = (save: boolean) => {
       if (closed) return;
       if (save && draft.ask !== undefined && !askStyle()) { message = "Unknown Ask settings version; Save is blocked to preserve it."; tui.requestRender(); return; }
+      if (save && draft.transcript !== undefined && !transcriptStyle()) { message = "Unknown transcript settings version; Save is blocked to preserve it."; tui.requestRender(); return; }
       if (save && edit) { if (!edit.accept(edit.input.getValue())) return; edit = undefined; }
       closed = true; release(); surface?.select(selected, undefined); done(save ? clonePrefs(draft) : undefined);
     };
@@ -232,7 +258,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             const text = `[${label}]`;
             if (visibleWidth(line) + visibleWidth(text) > inner) break;
             targets.push({ x: visibleWidth(line) + 1, y, width: visibleWidth(text), action });
-            const active = !edit && !choices && !discardConfirm && (label === "Elements" && (pane === "elements" || pane === "properties") || label === "Tasks" && pane === "tasks" || label === "Ask" && pane === "ask" || label === "Other options" && pane === "other");
+            const active = !edit && !choices && !discardConfirm && (label === "Elements" && (pane === "elements" || pane === "properties") || label === "Tasks" && pane === "tasks" || label === "Ask" && pane === "ask" || label === "Transcript" && pane === "transcript" || label === "Other options" && pane === "other");
             line += (active ? selectionHighlight(theme, theme.style(text, { fg: theme.colors.text, bold: true })) : theme.fg("accent", text)) + " ";
           }
           return line;
@@ -242,8 +268,9 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           suspended: !focused || !!edit || discardConfirm, reducedMotion: draft.motion === "off" || surface?.reducedMotion, visible: width >= 16 && height >= 12 }, draft.tasks!.presentation) : undefined;
         const taskView = pane === "tasks" ? taskPanelPreview(theme, width, taskDemo(demoState), draft.tasks!, demoFrame!, Math.max(3, Math.min(8, Math.floor(height * .45)))) : undefined;
         const askView = pane === "ask" && askStyle() ? questionPreview(theme, width, askStyle()!) : undefined;
-        const live = taskView || askView ? { editor: [], footer: [], hits: [], above: (taskView ?? askView)!.rows }
-          : pane === "ask" ? { editor: [], footer: [], hits: [], above: [] }
+        const transcriptView = pane === "transcript" && transcriptStyle() ? transcriptPreview(theme, width, transcriptStyle()!, transcriptSelected.startsWith("chat") ? "chat" : "tools") : undefined;
+        const live = taskView || askView || transcriptView ? { editor: [], footer: [], hits: [], above: (taskView ?? askView ?? transcriptView)!.rows }
+          : pane === "ask" || pane === "transcript" ? { editor: [], footer: [], hits: [], above: [] }
           : surface?.render(width, pulse.kind === "element" ? phase : undefined) ?? { editor: [], footer: [], hits: [] };
         const native = live.editor.map(row => row.replaceAll(CURSOR_MARKER, ""));
         const bottom = native.findLastIndex(row => /^[\s\u001b\[\d;m]*╰/.test(row) || row.replace(/\x1b\[[0-9;]*m/g, "").startsWith("╰"));
@@ -260,8 +287,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         const previewHeight = aboveRows.length + editorRows.length + footerRows.length;
         const controlsHeight = Math.max(5, Math.min(wide ? 20 : 18, height - previewHeight - 1));
         const rows: string[] = [];
-        rows.push(buttonLine([["Elements", () => { pane = "elements"; }], ["Tasks", () => { pane = "tasks"; }], ["Ask", () => { pane = "ask"; }], ["Other options", () => { pane = "other"; }], ["Undo", undoChange]], 1));
-        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : pane === "tasks" || pane === "ask" ? `${pane === "ask" ? "Ask" : "Tasks"} room · ← elements · → settings · ↑↓ select · Tab switch` : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
+        rows.push(buttonLine([["Elements", () => { pane = "elements"; }], ["Tasks", () => { pane = "tasks"; }], ["Ask", () => { pane = "ask"; }], ["Transcript", () => { pane = "transcript"; }], ["Other options", () => { pane = "other"; }], ["Undo", undoChange]], 1));
+        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : pane === "tasks" || pane === "ask" || pane === "transcript" ? `${pane === "ask" ? "Ask" : pane === "tasks" ? "Tasks" : "Transcript"} room · ← elements · → settings · ↑↓ select · Tab switch` : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
         const capacity = Math.max(1, controlsHeight - 6);
         const helpLines: string[] = [];
         const addControl = (control: Control, row: number, x: number, cells: number, active: boolean) => {
@@ -269,6 +296,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           targets.push({ x, y: row, width: cells, action: () => {
             if (pane === "tasks") { taskIndex = Math.max(0, taskProperties().findIndex(c => c.label === control.label)); taskSelected = taskControlElement(control); taskFocus = "properties"; }
             else if (pane === "ask") { askIndex = Math.max(0, askControls().findIndex(c => c.label === control.label)); askFocus = "properties"; }
+            else if (pane === "transcript") { transcriptIndex = Math.max(0, transcriptControls().findIndex(c => c.label === control.label)); transcriptFocus = "properties"; }
             else if (pane !== "other") { pane = "properties"; propertyIndex = Math.max(0, propertyControls().findIndex(c => c.label === control.label)); }
             else otherIndex = Math.max(0, otherControls().findIndex(c => c.label === control.label));
             control.activate();
@@ -335,6 +363,26 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             rows.push(wide ? left + " ".repeat(Math.max(0, listWidth - visibleWidth(left))) + "│ " + right : askFocus === "elements" ? left : right);
           }
           helpLines.push(askFocus === "elements" ? askElements[selectedIndex].help : controls[askIndex].help);
+        } else if (pane === "transcript") {
+          const controls = transcriptControls(); transcriptIndex = Math.min(transcriptIndex, controls.length - 1);
+          const listWidth = wide ? Math.min(28, Math.floor(inner * .3)) : inner;
+          const selectedIndex = transcriptElements.findIndex(item => item.id === transcriptSelected);
+          const start = Math.max(0, selectedIndex - Math.floor(capacity / 2));
+          for (let n = 0; n < capacity; n++) {
+            let left = "", right = "";
+            const item = transcriptElements[start + n];
+            if (item && (wide || transcriptFocus === "elements")) {
+              left = selectionRow(theme, item.name, listWidth, { selected: item.id === transcriptSelected,
+                focused: focused && transcriptFocus === "elements" && item.id === transcriptSelected,
+                phase: item.id === transcriptSelected && pulse.kind === "element" ? phase : undefined });
+              targets.push({ x: 1, y: rows.length + 1, width: listWidth, action: () => selectTranscript(item.id) });
+            }
+            const control = controls[n];
+            if (control && (wide || transcriptFocus === "properties")) right = addControl(control, rows.length + 1,
+              wide ? listWidth + 3 : 1, wide ? inner - listWidth - 2 : inner, transcriptFocus === "properties" && n === transcriptIndex);
+            rows.push(wide ? left + " ".repeat(Math.max(0, listWidth - visibleWidth(left))) + "│ " + right : transcriptFocus === "elements" ? left : right);
+          }
+          helpLines.push(transcriptFocus === "elements" ? transcriptElements[selectedIndex].help : controls[transcriptIndex].help);
         } else if (pane === "other") {
           const controls = otherControls(); otherIndex = Math.min(otherIndex, controls.length - 1);
           const start = Math.max(0, otherIndex - Math.floor(capacity / 2));
@@ -361,18 +409,20 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           helpLines.push(pane === "elements" ? INFO[selected] : controls[propertyIndex].help);
         }
         while (rows.length < controlsHeight - 4) rows.push("");
-        const unavailable = !edit && !choices && !discardConfirm && pane !== "other" && pane !== "tasks" && pane !== "ask" && selected !== "frame" && design().elements[selected].visible && !live.hits.some(hit => hit.id === selected);
+        const unavailable = !edit && !choices && !discardConfirm && pane !== "other" && pane !== "tasks" && pane !== "ask" && pane !== "transcript" && selected !== "frame" && design().elements[selected].visible && !live.hits.some(hit => hit.id === selected);
         rows.push(theme.fg("muted", clip(unavailable ? `Not visible now. ${INFO[selected]}` : message || helpLines[0] || "Changes are previews until you Save.", inner)));
         rows.push(buttonLine([["Discard", discard], ["Save", () => close(true)]], rows.length + 1) + theme.fg("dim", " Ctrl+S save · Esc back"));
         const panel = frameRows({ theme, width, rows: rows.slice(0, controlsHeight - 2), color: theme.colors.accent,
           corners: { topLeft: theme.fg("accent", pane === "tasks" ? ` Workspace · Tasks · ${TASK_ELEMENTS.find(item => item.id === taskSelected)?.name} `
             : pane === "ask" ? ` Workspace · Ask · ${askElements.find(item => item.id === askSelected)?.name} `
+            : pane === "transcript" ? ` Workspace · Transcript · ${transcriptElements.find(item => item.id === transcriptSelected)?.name} `
             : pane === "properties" ? ` Workspace · Input & footer · ${nameOf(selected)} ` : " Workspace · Input & footer "),
             topRight: theme.fg(dirty() ? "warning" : "muted", dirty() ? " Unsaved changes " : " Saved settings ") } });
         while (panel.length < controlsHeight) panel.push(cover(""));
         const previewLabel = state ? `Previewing: ${STATES[state]} · appearance only` : "Live input box and footer · select a label to edit";
         const label = pane === "tasks" ? `Demo Tasks · ${demoState} · display only · Selected: ${TASK_ELEMENTS.find(item => item.id === taskSelected)?.name}${height < 12 ? " · enlarge terminal for preview" : ""}`
           : pane === "ask" ? `Demo question · display only · Selected: ${askElements.find(item => item.id === askSelected)?.name}${!askView ? " · Ask settings unavailable or newer version" : height < 12 ? " · enlarge terminal for preview" : ""}`
+          : pane === "transcript" ? `Demo chat / tool · display only · Selected: ${transcriptElements.find(item => item.id === transcriptSelected)?.name}${!transcriptView ? " · transcript settings unavailable or newer version" : height < 12 ? " · enlarge terminal for preview" : ""}`
           : !native.length ? "Native input preview unavailable; settings still support Save / Discard"
           : height < 12 ? "Enlarge the terminal to see your input preview" : previewLabel + (omitted ? " · shortened vertically" : surface?.temporary ? " · temporary Composer view" : "");
         const previewTop = panel.length + 1 + aboveRows.length;
@@ -386,6 +436,12 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           }
           if (width >= 16 && aboveRows.length >= 2) for (const y of [top, top + aboveRows.length - 1]) {
             targets.push({ x: 0, y, width, action: () => selectTask("frame") });
+          }
+        }
+        if (transcriptView && aboveRows.length && height >= 12) {
+          const top = panel.length + 1;
+          for (const hit of transcriptView.hits) if (hit.y < aboveRows.length) {
+            targets.push({ x: hit.x, y: top + hit.y, width: hit.width, action: () => selectTranscript(hit.id) });
           }
         }
         if (askView && aboveRows.length && height >= 12) {
@@ -409,7 +465,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       },
       handleInput(data: string) {
         if (closed || !focused) return;
-        const before = focusKey(), previous = selected, previousTask = taskSelected, previousAsk = askSelected;
+        const before = focusKey(), previous = selected, previousTask = taskSelected, previousAsk = askSelected, previousTranscript = transcriptSelected;
         message = "";
         if (matchesKey(data, Key.ctrl("s")) && !discardConfirm) close(true);
         else if (discardConfirm) {
@@ -432,7 +488,9 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           if (elements()[0]) { selected = elements()[0]; surface?.select(selected, state); }
           return true;
         });
-        else if (matchesKey(data, Key.tab)) pane = pane === "elements" ? "properties" : pane === "properties" ? "other" : pane === "other" ? "tasks" : pane === "tasks" ? "ask" : "elements";
+        else if (matchesKey(data, Key.tab)) pane = pane === "elements" ? "properties" : pane === "properties" ? "other" : pane === "other" ? "tasks" : pane === "tasks" ? "ask" : pane === "ask" ? "transcript" : "elements";
+        else if (pane === "transcript" && matchesKey(data, Key.left)) transcriptFocus = "elements";
+        else if (pane === "transcript" && matchesKey(data, Key.right)) transcriptFocus = "properties";
         else if (pane === "ask" && matchesKey(data, Key.left)) askFocus = "elements";
         else if (pane === "ask" && matchesKey(data, Key.right)) askFocus = "properties";
         else if (pane === "tasks" && matchesKey(data, Key.left)) taskFocus = "elements";
@@ -441,6 +499,10 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           const delta = matchesKey(data, Key.up) ? -1 : 1;
           if (pane === "elements") { const ids = elements(); elementIndex = Math.max(0, Math.min(ids.length - 1, elementIndex + delta)); if (ids[elementIndex]) { selected = ids[elementIndex]; propertyIndex = 0; surface?.select(selected, state); } }
           else if (pane === "properties") propertyIndex = Math.max(0, Math.min(propertyControls().length - 1, propertyIndex + delta));
+          else if (pane === "transcript" && transcriptFocus === "elements") {
+            transcriptSelected = transcriptElements[Math.max(0, Math.min(transcriptElements.length - 1, transcriptElements.findIndex(item => item.id === transcriptSelected) + delta))].id;
+            transcriptIndex = 0;
+          } else if (pane === "transcript") transcriptIndex = Math.max(0, Math.min(transcriptControls().length - 1, transcriptIndex + delta));
           else if (pane === "ask" && askFocus === "elements") {
             askSelected = askElements[Math.max(0, Math.min(askElements.length - 1, askElements.findIndex(item => item.id === askSelected) + delta))].id;
             askIndex = 0;
@@ -454,22 +516,24 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         } else if (matchesKey(data, Key.enter) || data === " ") {
           if (pane === "elements") pane = "properties";
           else if (pane === "properties") propertyControls()[propertyIndex]?.activate();
+          else if (pane === "transcript" && transcriptFocus === "elements") selectTranscript(transcriptSelected);
+          else if (pane === "transcript") transcriptControls()[transcriptIndex]?.activate();
           else if (pane === "ask" && askFocus === "elements") selectAsk(askSelected);
           else if (pane === "ask") askControls()[askIndex]?.activate();
           else if (pane === "tasks" && taskFocus === "elements") selectTask(taskSelected);
           else if (pane === "tasks") taskProperties()[taskIndex]?.activate();
           else otherControls()[otherIndex]?.activate();
         }
-        afterInteraction(before, previous, previousTask, previousAsk);
+        afterInteraction(before, previous, previousTask, previousAsk, previousTranscript);
       },
       handleMouse(event: TuiMouseEvent) {
         if (closed || !focused) return { handled: true };
         if (event.type === "wheel") { component.handleInput(event.wheelDelta! < 0 ? "\x1b[A" : "\x1b[B"); return { handled: true, render: true }; }
         if (edit && event.y === inputY) return edit.input.handleMouse({ ...event, x: event.x - inputX, y: 0, width: inputWidth, height: 1 });
         if (event.type === "click" && event.button === "left") {
-          const before = focusKey(), previous = selected, previousTask = taskSelected, previousAsk = askSelected;
+          const before = focusKey(), previous = selected, previousTask = taskSelected, previousAsk = askSelected, previousTranscript = transcriptSelected;
           targets.find(target => target.y === event.y && event.x >= target.x && event.x < target.x + target.width)?.action();
-          afterInteraction(before, previous, previousTask, previousAsk);
+          afterInteraction(before, previous, previousTask, previousAsk, previousTranscript);
         }
         return { handled: true, render: true };
       },

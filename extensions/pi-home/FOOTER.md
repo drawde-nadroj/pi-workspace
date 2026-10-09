@@ -18,8 +18,8 @@ The **Input & footer room** shows the actual native input editor and footer at f
 | --- | --- |
 | Up / Down | Select an element, property or choice |
 | Enter / Space | Open properties or change a control |
-| Tab | Switch between Input elements, properties, Other options, Tasks and Ask |
-| Left / Right in Tasks or Ask | Move between its element list and settings; Enter on an element opens its controls |
+| Tab | Switch between Input elements, properties, Other options, Tasks, Ask and Transcript |
+| Left / Right in Tasks, Ask or Transcript | Move between its element list and settings; Enter on an element opens its controls |
 | `/` | Find an element by name, including hidden elements |
 | **More options** | Reveal emphasis, group order, narrow-width priority and text formatting |
 | **Undo** / Ctrl+Z | Undo the last settings change; never changes draft undo |
@@ -29,7 +29,7 @@ The **Input & footer room** shows the actual native input editor and footer at f
 
 Text fields use the native single-line input. Enter keeps the field edit in the preview; Esc cancels that field edit. **Save is separate.** Ctrl+S also accepts a valid open text field before saving. Invalid custom colors stay editable rather than being silently accepted.
 
-The normal view exposes the common properties first. **Other options** retains footer style, icons, context format, Git detail, timing, message timestamps and tool labels. Ask's question-label treatment now belongs to the Ask room; the old `questionLabels` preference remains a read-only fallback until an Ask section is saved. Visibility, position and group order for the native input belong to each element rather than duplicate global switches. Message/tool settings affect transcript frames, not the input preview; Ask reads saved visual settings at the next interaction.
+The normal view exposes the common properties first. **Other options** retains footer style, icons, context format, Git detail, timing and timestamp format. Question labels belong to Ask and message Sent visibility/tool label treatment belong to Transcript; the old `questionLabels`, `messageTime` and `toolLabels` preferences remain read-only fallbacks until their respective sections are saved. Visibility, position and group order for the native input belong to each element rather than duplicate global switches. Transcript settings affect eligible chat/tool frames, not the native input preview.
 
 Mouse selection is available in Pi fullscreen mode. Regular/scrollback mode remains keyboard-accessible; Home does not turn on mouse reporting there.
 
@@ -73,13 +73,13 @@ States include thinking, writing, working, tools running, waiting for an answer,
 
 ## Persistent Tasks presentation
 
-Open the **Tasks room** in this same workspace. Its element list names the border/motion, title, progress count, more-work hint, task rows and active row. At wide widths the list and existing controls appear side by side; at narrow widths use Left/Right to switch between them. Select an element from the list or click a **fully rendered** label or row in the display-only preview to jump to its relevant control. When a narrow rail omits a label, the element remains available in the keyboard list; there is no invisible click target. Arrow keys navigate, Enter edits, and Tab cycles Input elements → properties → Other options → Tasks → Ask. Existing controls, including per-state settings, remain available by scrolling.
+Open the **Tasks room** in this same workspace. Its element list names the border/motion, title, progress count, more-work hint, task rows and active row. At wide widths the list and existing controls appear side by side; at narrow widths use Left/Right to switch between them. Select an element from the list or click a **fully rendered** label or row in the display-only preview to jump to its relevant control. When a narrow rail omits a label, the element remains available in the keyboard list; there is no invisible click target. Arrow keys navigate, Enter edits, and Tab cycles Input elements → properties → Other options → Tasks → Ask → Transcript. Existing controls, including per-state settings, remain available by scrolling.
 
 The preview has explicitly labelled idle, working, waiting, done, blocked and error examples. **Replay progress sweep** simulates a revision change without changing a real plan.
 
 Controls cover border and highlight colors, shimmer/pulse, speed, intensity, direction, progress sweeps, label/body/active colors, gentle text-color effects, bold, six title/count/more-work rail positions, visible-task count and per-state overrides. The package owns these presentation rules; Home supplies sourced task state and its shared clock. Default text stays still; the soft near-white border highlight runs only during actual active work. Global motion-off, typing, lost focus, blocking dialogs and hidden/narrow panels stop live motion. The explicit demo uses its own disposable controller and respects motion-off.
 
-The rooms share Save/Discard/Undo in this existing workspace and are saved only under their established sections of `pi-footer.json` (Tasks under `tasks`, Ask under `ask`). There is no new preference file. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
+The rooms share Save/Discard/Undo in this existing workspace and are saved only under their established sections of `pi-footer.json` (Tasks under `tasks`, Ask under `ask`, chat/tools under `transcript`). There is no new preference file. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
 
 The Home overview shows active work, blockers and pending work with sourced done/total counts in the rail. Completed items no longer occupy the default body. Narrow rails use `✓ done/total`, `!blocked`, and `–cancelled`. `/tasks` retains the full plan/history browser; its legacy focus-window paging and appearance settings still apply to the independent no-Home fallback, not this overview. Tool acknowledgements and other frames are not restyled or animated by these controls.
 
@@ -88,6 +88,14 @@ The Home overview shows active work, blockers and pending work with sourced done
 Open **Ask** in `/footer`. Select the question frame, title, sourced progress, question text, or action hints from the keyboard list or the **synthetic, display-only** preview. The sample does not open an answer dialog or send an answer. The title can be renamed (30 safe characters) or moved between upper-left and upper-center; progress can occupy one of the three lower positions and use matched orange or quieter hierarchy coloring. Question text emphasis and hint tone are visual only. Orange question identity, actions, actual question wording, cursor, choice state and focus remain Ask-owned.
 
 Ask validates its own version-1 `pi-footer.json` → `ask` visual section and reads it **once when a new question opens**, even without Home. The legacy `questionLabels` setting is only a fallback before the Ask section is saved. An unknown future Ask section is read-only and blocks Save rather than silently replacing it. All rooms share the same `pi-footer.json` transaction; changes in other Pi processes become visible on reload/new question. At narrow widths the list remains keyboard accessible when a preview label cannot fit.
+
+## Chat and tool appearance (Transcript)
+
+Open **Transcript** in `/footer`. Select the chat border, identity, sourced **Sent** time, tool border, identity, or status in the element list or click a visible label in the **synthetic, display-only** preview. The examples do not send a message, call a tool, or record a time. User chat stays red and assistant chat stays accent purple. You can quiet the assistant identity label, show/hide a reliably recorded creation time and place `Sent` at lower-left or lower-right. The user identity and time remain red; missing or unsourced times never appear. A creation timestamp is not a reply-completion time.
+
+Eligible ordinary cards, grouped-tool frames, and allowlisted web-tool frames can match or quiet their identity label. Successful status labels on ordinary and web cards can use semantic or rail-matched treatment; grouped child-call statuses stay semantic. **Failed, cancelled and child-error status still uses its semantic marker/color.** Unknown, graphical, self-rendering or unsupported tool shapes keep their native UI; settings do not change their results, expansion or mouse mapping. The preview samples show only representative frames, not an execution.
+
+Home validates the version-1 `pi-footer.json` → `transcript` section and reads it for live frames. The old `messageTime` and `toolLabels` preferences are fallbacks until the section is saved; they are not duplicate controls. An unknown future section is read-only and blocks Save instead of replacing it. Composer, Tasks, Ask and Transcript share **one atomic Save/Discard transaction for `pi-footer.json`**, not independent per-room saves. Narrow windows retain a keyboard path even when a sample label or the Transcript tab cannot fit on the screen.
 
 For API examples and a feature-request template, see [`pi-frame/FEATURE-GUIDE.md`](../../packages/pi-frame/FEATURE-GUIDE.md).
 

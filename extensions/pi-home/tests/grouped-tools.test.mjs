@@ -14,11 +14,11 @@ const message = (ids, at = timestamp) => ({ role: "assistant", timestamp: at, st
 const tool = (name, id, definition) => new ToolExecutionComponent(name, id, { path: `${id}.txt` }, { showImages: false }, definition, ui, "/tmp");
 const click = (node, width, y, x = 4) => node.handleMouse({ type: "click", button: "left", x, y, width, height: node.render(width).length, screenX: x, screenY: y, shift: false, alt: false, ctrl: false });
 const printed = rows => rows.map(plain).join("\n");
-function setup(ids = [["a", "read"], ["b", "write"]], at = timestamp) {
+function setup(ids = [["a", "read"], ["b", "write"]], at = timestamp, prefs = FOOTER_DEFAULTS) {
   const root = new Container(), owner = new AssistantMessageComponent(message(ids, at)), defs = { read: createReadToolDefinition("/tmp"), write: createWriteToolDefinition("/tmp") };
   const calls = ids.map(([id, name]) => tool(name, id, defs[name]));
   root.addChild(owner); for (const node of calls) root.addChild(node);
-  const groups = new GroupedTools(() => theme, () => FOOTER_DEFAULTS);
+  const groups = new GroupedTools(() => theme, () => prefs);
   const blocks = new ActivityBlocks(() => theme, () => {}, () => "semantic", groups.isGrouped);
   return { root, owner, calls, groups, blocks };
 }
@@ -40,6 +40,20 @@ test("replay groups adjacent call IDs under their issuing assistant's fixed Sent
     assert.doesNotMatch(printed(root.render(24)), /Tools ·/);
   } finally { groups.dispose(); blocks.dispose(); }
   assert.deepEqual(root.children, [owner, ...calls]);
+});
+
+test("grouped tool identity and sourced Sent placement follow transcript appearance without changing children", () => {
+  const prefs = { ...FOOTER_DEFAULTS, transcript: { version: 1, chat: { assistantLabel: "quiet", showSent: true, sentPosition: "bottomLeft" }, tools: { identity: "matched", status: "matched" } } };
+  const { root, calls, groups, blocks } = setup(undefined, timestamp, prefs);
+  try {
+    groups.sync(root); blocks.sync(root);
+    assert.deepEqual(root.children[1].children, calls);
+    const rows = root.children[1].render(90);
+    assert.ok(plain(rows.at(-1)).startsWith(`╰ Sent ${stamp(timestamp, "24h", Date.now())}`));
+    assert.match(plain(rows[0]), /Tools · 2 calls/);
+    prefs.transcript.chat.showSent = false;
+    assert.doesNotMatch(plain(root.children[1].render(90).at(-1)), /Sent /);
+  } finally { groups.dispose(); blocks.dispose(); }
 });
 
 test("live streaming extends the same group and results, errors and expansion stay independent", () => {

@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { stripVTControlCharacters } from "node:util";
 import { readAppearance, type Appearance } from "./appearance.ts";
 import { readTaskPanel, type TaskPanelPrefs } from "./task-presentation.ts";
+import type { TranscriptAppearance } from "./transcript-presentation.ts";
 
 export const FOOTER_ENTRY = "pi-footer:timing-v1";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
@@ -30,7 +31,7 @@ export const OPTIONS = {
   selectionShimmer: ["on", "off"],
 } as const;
 export type FooterOption = keyof typeof OPTIONS;
-export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { appearance?: Appearance; tasks?: TaskPanelPrefs; ask?: unknown };
+export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { appearance?: Appearance; tasks?: TaskPanelPrefs; ask?: unknown; transcript?: TranscriptAppearance | unknown };
 export const FOOTER_DEFAULTS: FooterPrefs = {
   style: "quiet", color: "semantic", layout: "paired", shape: "rail", icons: "nerd", directory: "path", git: "detailed", gitLabels: "symbols",
   session: "on", model: "on", thinking: "on", context: "adaptive", bar: "blocks",
@@ -50,6 +51,7 @@ export function footerPrefs(value: unknown): FooterPrefs {
   if ((value as FooterPrefs | undefined)?.tasks) result.tasks = readTaskPanel((value as FooterPrefs).tasks);
   // Retain even an unknown future Ask version unchanged; only Ask validates its own section.
   if (value && typeof value === "object" && Object.hasOwn(value, "ask")) result.ask = (value as FooterPrefs).ask;
+  if (value && typeof value === "object" && Object.hasOwn(value, "transcript")) result.transcript = (value as FooterPrefs).transcript;
   return result;
 }
 export function clean(value: string): string {

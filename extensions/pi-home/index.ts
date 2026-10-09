@@ -9,6 +9,7 @@ import { installPaintGuard } from "./paint-guard.ts";
 import { ActivityBlocks } from "./activity-blocks.ts";
 import { SentMessageFrames } from "./sent-messages.ts";
 import { GroupedTools } from "./grouped-tools.ts";
+import { readTranscript, transcriptDefaults } from "./transcript-presentation.ts";
 import { dressComposerEditor, isEditorComponent } from "./composer-editor.ts";
 import { createFooter, createHeader, HomeEditor } from "./ui.ts";
 import { createWorkspace } from "./workspace.ts";
@@ -90,7 +91,8 @@ export default function home(pi: ExtensionAPI) {
   const sentFrames = new SentMessageFrames();
   const groupedTools = new GroupedTools(() => current().ui.theme, () => state.layout);
   const activityBlocks = new ActivityBlocks(() => current().ui.theme, () => tui?.requestRender(),
-    () => state.layout?.toolLabels ?? "semantic", groupedTools.isGrouped);
+    () => state.layout?.toolLabels ?? "semantic", groupedTools.isGrouped,
+    () => readTranscript(state.layout?.transcript, state.layout) ?? transcriptDefaults());
   let paintCleanup: (() => void) | undefined;
   let lastMessageScan = 0;
   function syncSentFrames(now = Date.now(), beforePaint = false) {

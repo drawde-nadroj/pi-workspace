@@ -7,6 +7,7 @@ import { clean } from "./footer-state.ts";
 import { codeRows, compactLines, lineCount, parseStructured, renderStructured, safeText, structuredSummary } from "./output-preview.ts";
 import { isWebTool, renderWebToolFrame } from "./web-tool-frames.ts";
 import { compactToolStatus } from "./tool-status.ts";
+import { matchedToolStatus, toolIdentity, type TranscriptAppearance } from "./transcript-presentation.ts";
 // Compare renderer identities, not just the tool name: custom self-rendering
 // overrides named "edit" must still keep their own UI. Factory does not execute.
 const nativeEdit = createEditToolDefinition("");
@@ -84,7 +85,8 @@ export class ActivityBlocks {
   }
   constructor(private theme: () => Theme, private repaint: () => void,
     private labels: () => "semantic" | "matched" = () => "semantic",
-    private grouped: (node: ToolExecutionComponent) => boolean = () => false) {}
+    private grouped: (node: ToolExecutionComponent) => boolean = () => false,
+    private presentation: () => TranscriptAppearance | undefined = () => undefined) {}
   record(name: string, args: unknown, parent?: string, id?: string): void {
     if (!parent) return;
     let children = this.nested.get(parent);
@@ -132,7 +134,7 @@ export class ActivityBlocks {
       const builtInRenderer = !!expected && definition?.renderCall === expected.renderCall && definition?.renderResult === expected.renderResult;
       if (active && meta && !customBuiltIn && isWebTool(meta.toolName)) {
         const native = fallback();
-        const web = renderWebToolFrame(meta, this.theme(), width, native, this.labels());
+        const web = renderWebToolFrame(meta, this.theme(), width, native, this.labels(), this.presentation());
         if (web) { framedWidth = width; expandable = !!meta.result; webRows = web.length; return web; }
         return native;
       }
@@ -145,7 +147,9 @@ export class ActivityBlocks {
       if (!native.length || hasGraphics(native)) return native;
       const theme = this.theme(), children = this.nested.get(meta.toolCallId), state = phase(meta), expanded = meta.expanded === true;
       const version = children?.version ?? -1;
-      if (cache && cache.args === meta.args && cache.result === meta.result && cache.expanded === expanded && cache.width === width && cache.theme === theme && cache.version === version && cache.state === state && cache.labels === this.labels()) {
+      const appearance = this.presentation(), labels = appearance?.tools.status ?? this.labels();
+      const styleKey = `${appearance?.tools.identity ?? "quiet"}:${labels}`;
+      if (cache && cache.args === meta.args && cache.result === meta.result && cache.expanded === expanded && cache.width === width && cache.theme === theme && cache.version === version && cache.state === state && cache.labels === styleKey) {
         framedWidth = width; expandable = cache.expandable; rawRow = cache.rawRow; return cache.rows;
       }
       const a = record(meta.args), details = record(meta.result?.details), inner = width - 4;
@@ -295,13 +299,14 @@ export class ActivityBlocks {
       // Status color belongs on the symbol/header, not every successful row/edge.
       const rail = error || attention ? color : parseColor(theme.appearance === "light" ? "#a6acb8" : "#46505a");
       const rows = [composerRail(theme, width, theme.style(` ${statusMarker} `, { fg: color, bold: true })
-        + quietFrameLabel(theme, `${title} `, rail),
-        this.labels() === "matched" ? quietFrameLabel(theme, ` ${disclosure}${headerStatus} `, rail)
+        + (appearance ? toolIdentity(theme, `${title} `, rail, appearance) : quietFrameLabel(theme, `${title} `, rail)),
+        (appearance ? matchedToolStatus(appearance, error || attention) : labels === "matched" && !error && !attention)
+          ? quietFrameLabel(theme, ` ${disclosure}${headerStatus} `, rail)
           : theme.style(` ${disclosure}${headerStatus} `, { fg: color, bold: !!error }), true, rail)];
       for (const line of body) rows.push(composerSurface(theme, theme.style("│", { fg: rail }) + composerSurface(theme, " " + truncateToWidth(line, inner, "…") + " ", width - 2) + theme.style("│", { fg: rail }), width));
       rows.push(composerRail(theme, width, "", "", false, rail));
       framedWidth = width;
-      cache = { args: meta.args, result: meta.result, expanded, width, theme, version, state, labels: this.labels(), rows, expandable, rawRow };
+      cache = { args: meta.args, result: meta.result, expanded, width, theme, version, state, labels: styleKey, rows, expandable, rawRow };
       return rows;
     };
     const handleMouse: ToolExecutionComponent["handleMouse"] = event => {
