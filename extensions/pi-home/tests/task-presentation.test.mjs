@@ -4,7 +4,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { jiti, source, theme, initTheme, plain, visibleWidth } from './host.mjs';
 import { workspace } from './workspace-harness.mjs';
-const { TaskPanel, taskPanelDefaults, readTaskPanel, taskPanelRows, taskDemo } = await jiti.import(join(source, 'task-presentation.ts'));
+const { TaskPanel, taskPanelDefaults, readTaskPanel, taskPanelRows, taskPanelPreview, taskDemo } = await jiti.import(join(source, 'task-presentation.ts'));
+const { TASK_ELEMENTS, taskControlElement } = await jiti.import(join(source, 'task-settings.ts'));
 const { DEFAULTS, RunClock } = await jiti.import(join(source, 'state.ts'));
 const { footerPrefs, FOOTER_DEFAULTS } = await jiti.import(join(source, 'footer-state.ts'));
 const { taskOverview } = await jiti.import(join(source, '../pi-tasks/state.ts'));
@@ -93,6 +94,88 @@ test('demo state is not persisted; discard, focus loss, abort and disposal are s
   const h2 = workspace(); h2.click('[Tasks]'); h2.click('Border effect'); h2.pick('pulse');
   assert.equal(await h2.discard(), undefined); assert.equal(h2.editor.getText(), 'Unsent native draft 界面');
 });
+test('Tasks room synchronizes list and rendered preview selection without editing a plan or native draft', async () => {
+  const h = workspace();
+  const before = JSON.stringify(h.home.clock);
+  h.click('[Tasks]');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Border and motion/);
+  h.click('Progress count');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Progress count/);
+  assert.match(h.rows().join('\n'), /Demo Tasks · working · display only · Selected: Progress count/);
+  assert.match(h.rows().join('\n'), /› Count position/);
+  h.click('Title');
+  h.click('3/7 done');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Progress count/);
+  h.click('+ 1 open · /tasks');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · More-work hint/);
+  h.click('▸ Refine task overview');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Active task/);
+  h.click('○ Validate narrow and wide layouts');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Task rows/);
+  h.clickAt(0, h.rows().findIndex(row => row.includes('╭ Tasks')));
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Border and motion/);
+  h.panel.handleInput('\x1b[D'); // Keyboard path into the element list.
+  h.panel.handleInput('\x1b[B');
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Title/);
+  h.panel.handleInput('\x1b[C');
+  assert.match(h.rows().join('\n'), /› Title position/);
+  assert.equal(JSON.stringify(h.home.clock), before);
+  assert.equal(h.editor.getText(), 'Unsent native draft 界面');
+  assert.equal(await h.discard(), undefined);
+});
+
+test('Tasks positions keep clickable labels on all six rails; omitted narrow labels have no phantom targets', async () => {
+  const p = taskPanelDefaults(); p.title = 'Tasks 界面';
+  const dock = taskDemo('working');
+  for (const appearance of ['dark', 'light']) {
+    initTheme(appearance, false);
+    for (const position of ['topLeft', 'topCenter', 'topRight', 'bottomLeft', 'bottomCenter', 'bottomRight']) {
+      p.presentation.positions = { title: position, summary: position, hint: position };
+      const { rows, hits } = taskPanelPreview(theme, 120, dock, p, frame('working'), 7);
+      for (const id of ['title', 'summary', 'hint']) assert.ok(hits.some(hit => hit.id === id), `${appearance} ${position} ${id}`);
+      for (const hit of hits) {
+        assert.ok(hit.x >= 0 && hit.x + hit.width <= 120 && hit.y >= 0 && hit.y < rows.length);
+        assert.ok(visibleWidth(rows[hit.y]) <= 120);
+      }
+    }
+    for (const width of [1, 12, 16, 24, 40]) {
+      const { rows, hits } = taskPanelPreview(theme, width, dock, p, frame('working'), 7);
+      assert.ok(rows.every(row => visibleWidth(row) <= width));
+      assert.ok(hits.every(hit => hit.x >= 0 && hit.x + hit.width <= width && hit.y < rows.length));
+      if (width < 16) assert.deepEqual(hits, []);
+    }
+    p.rows = 5; // Nothing overflows; no invisible hint can be clicked.
+    assert.equal(taskPanelPreview(theme, 120, dock, p, frame('working'), 9).hits.some(hit => hit.id === 'hint'), false);
+    p.rows = 3;
+  }
+  initTheme('dark', false);
+  assert.equal(taskControlElement({ label: 'Any display name', element: 'summary' }), 'summary');
+  assert.equal(TASK_ELEMENTS.length, 6);
+  const h = workspace(); h.click('[Tasks]'); h.click('Progress count');
+  h.click('Count position'); h.pick('bottomCenter');
+  const countRow = h.rows().findIndex(row => row.startsWith('╰') && row.includes('3/7 done'));
+  assert.ok(countRow > 0);
+  h.clickAt(visibleWidth(h.rows()[countRow].split('3/7 done')[0]), countRow);
+  assert.match(h.rows().join('\n'), /Workspace · Tasks · Progress count/);
+  await h.discard();
+});
+
+test('narrow Tasks room keeps a keyboard path and restores native input when returning to Elements', async () => {
+  const h = workspace(undefined, 24, 22);
+  assert.match(h.rows().join('\n'), /\[Tasks\]/);
+  h.click('[Tasks]'); h.panel.handleInput('\x1b[D');
+  h.panel.handleInput('\x1b[B'); h.panel.handleInput('\x1b[B');
+  h.panel.handleInput('\x1b[C');
+  assert.match(h.rows().join('\n'), /Count position/);
+  for (const width of [16, 24, 40, 90]) {
+    h.tui.terminal.columns = width;
+    assert.ok(h.panel.render(width).every(row => visibleWidth(row) <= width));
+  }
+  h.click('[Elements]');
+  assert.equal(h.editor.getText(), 'Unsent native draft 界面');
+  await h.discard();
+});
+
 test('representative task panel captures show real hierarchy at narrow/wide widths and both themes', () => {
   const captures = [];
   for (const appearance of ['dark', 'light']) {

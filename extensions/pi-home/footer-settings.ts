@@ -1,8 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, Input, Key, matchesKey, truncateToWidth, visibleWidth, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { frameRows, createFrameController, type FrameState } from "../../lib/frame.ts";
-import { taskPanelDefaults, taskPanelRows, taskDemo } from "./task-presentation.ts";
-import { taskControls } from "./task-settings.ts";
+import { taskPanelDefaults, taskPanelPreview, taskDemo, type TaskElementId } from "./task-presentation.ts";
+import { taskControls, taskControlElement, TASK_ELEMENTS } from "./task-settings.ts";
 import { OPTIONS, type FooterPrefs, type FooterOption } from "./footer-state.ts";
 import { ELEMENTS, POSITIONS, STATES, STATE_TEXT, COLORS, appearanceDefaults, clonePrefs, safeText, validColor,
   type ElementId, type AppearanceState, type AppearanceColor, type AppearanceHit } from "./appearance.ts";
@@ -52,7 +52,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
     let edit: { input: Input; title: string; help: string; accept(value: string): boolean } | undefined;
     let choices: { title: string; items: Array<{ label: string; value: string }>; index: number; current: string; accept(value: string): void } | undefined;
     let discardConfirm = false, closed = false, focused = true, dimensions = "";
-    let taskIndex = 0, demoState: FrameState = "working", demoRevision = 0;
+    let taskIndex = 0, taskSelected: TaskElementId = "frame", taskFocus: "elements" | "properties" = "properties";
+    let demoState: FrameState = "working", demoRevision = 0;
     const demoMotion = createFrameController({ automatic: true, requestRender: () => {
       if (!closed && focused && pane === "tasks") tui.requestRender(); else demoMotion.reset();
     } });
@@ -60,10 +61,10 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") { pulse.stop(); return; }
       tui.requestRender();
     });
-    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${selected}:${pane === "properties" ? propertyIndex : pane === "other" ? otherIndex : pane === "tasks" ? taskIndex : elementIndex}`;
-    const afterInteraction = (before: string, previous: Selection) => {
+    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${pane === "tasks" ? `${taskSelected}:${taskFocus}:${taskIndex}` : `${selected}:${pane === "properties" ? propertyIndex : pane === "other" ? otherIndex : elementIndex}`}`;
+    const afterInteraction = (before: string, previous: Selection, previousTask: TaskElementId) => {
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") pulse.stop();
-      else if (previous !== selected || before !== focusKey()) pulse.start(previous !== selected ? "element" : "focus");
+      else if (previous !== selected || before !== focusKey()) pulse.start(previous !== selected || previousTask !== taskSelected ? "element" : "focus");
       if (!closed) tui.requestRender();
     };
     const dirty = () => JSON.stringify(draft) !== baseline;
@@ -76,6 +77,12 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
     const select = (id: Selection) => {
       selected = id; propertyIndex = 0; pane = "properties"; query = "";
       elementIndex = elements().indexOf(id); surface?.select(id, state); tui.requestRender();
+    };
+    const selectTask = (id: TaskElementId) => {
+      taskSelected = id; pane = "tasks"; taskFocus = "properties";
+      const controls = taskProperties(), preferred = TASK_ELEMENTS.find(item => item.id === id)?.control;
+      taskIndex = Math.max(0, controls.findIndex(control => control.label === preferred));
+      tui.requestRender();
     };
     const elements = () => ([...Object.keys(ELEMENTS), "frame"] as Selection[]).filter(id => nameOf(id).toLowerCase().includes(query.toLowerCase()));
     const choose = (title: string, items: Array<{ label: string; value: string }>, value: string, accept: (value: string) => void) => {
@@ -196,7 +203,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             const text = `[${label}]`;
             if (visibleWidth(line) + visibleWidth(text) > inner) break;
             targets.push({ x: visibleWidth(line) + 1, y, width: visibleWidth(text), action });
-            const active = !edit && !choices && !discardConfirm && (label === "Elements" && pane === "elements" || label === "Other options" && pane === "other" || label === "Tasks" && pane === "tasks");
+            const active = !edit && !choices && !discardConfirm && (label === "Elements" && (pane === "elements" || pane === "properties") || label === "Tasks" && pane === "tasks" || label === "Other options" && pane === "other");
             line += (active ? selectionHighlight(theme, theme.style(text, { fg: theme.colors.text, bold: true })) : theme.fg("accent", text)) + " ";
           }
           return line;
@@ -204,8 +211,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         if (pane !== "tasks") demoMotion.reset();
         const demoFrame = pane === "tasks" ? demoMotion.update({ state: demoState, revision: demoRevision,
           suspended: !focused || !!edit || discardConfirm, reducedMotion: draft.motion === "off" || surface?.reducedMotion, visible: width >= 16 && height >= 12 }, draft.tasks!.presentation) : undefined;
-        const live = pane === "tasks" ? { editor: [], footer: [], hits: [],
-          above: taskPanelRows(theme, width, taskDemo(demoState), draft.tasks!, demoFrame!, Math.max(3, Math.min(8, Math.floor(height * .45)))) }
+        const taskView = pane === "tasks" ? taskPanelPreview(theme, width, taskDemo(demoState), draft.tasks!, demoFrame!, Math.max(3, Math.min(8, Math.floor(height * .45)))) : undefined;
+        const live = taskView ? { editor: [], footer: [], hits: [], above: taskView.rows }
           : surface?.render(width, pulse.kind === "element" ? phase : undefined) ?? { editor: [], footer: [], hits: [] };
         const native = live.editor.map(row => row.replaceAll(CURSOR_MARKER, ""));
         const bottom = native.findLastIndex(row => /^[\s\u001b\[\d;m]*╰/.test(row) || row.replace(/\x1b\[[0-9;]*m/g, "").startsWith("╰"));
@@ -223,13 +230,13 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         const controlsHeight = Math.max(5, Math.min(wide ? 20 : 18, height - previewHeight - 1));
         const rows: string[] = [];
         rows.push(buttonLine([["Elements", () => { pane = "elements"; }], ["Tasks", () => { pane = "tasks"; }], ["Other options", () => { pane = "other"; }], ["Undo", undoChange]], 1));
-        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : pane === "tasks" ? "Tasks" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
+        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : pane === "tasks" ? "Tasks room · ← elements · → settings · ↑↓ select · Tab switch" : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
         const capacity = Math.max(1, controlsHeight - 6);
         const helpLines: string[] = [];
         const addControl = (control: Control, row: number, x: number, cells: number, active: boolean) => {
           const label = `${control.label}  ${control.value}`;
           targets.push({ x, y: row, width: cells, action: () => {
-            if (pane === "tasks") taskIndex = Math.max(0, taskProperties().findIndex(c => c.label === control.label));
+            if (pane === "tasks") { taskIndex = Math.max(0, taskProperties().findIndex(c => c.label === control.label)); taskSelected = taskControlElement(control); taskFocus = "properties"; }
             else if (pane !== "other") { pane = "properties"; propertyIndex = Math.max(0, propertyControls().findIndex(c => c.label === control.label)); }
             else otherIndex = Math.max(0, otherControls().findIndex(c => c.label === control.label));
             control.activate();
@@ -258,8 +265,24 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         } else if (pane === "tasks") {
           const controls = taskProperties(); taskIndex = Math.min(taskIndex, controls.length - 1);
           const start = Math.max(0, taskIndex - Math.floor(capacity / 2));
-          for (let i = start; i < Math.min(controls.length, start + capacity); i++) rows.push(addControl(controls[i], rows.length + 1, 1, inner, i === taskIndex));
-          helpLines.push(controls[taskIndex].help);
+          const listWidth = wide ? Math.min(28, Math.floor(inner * .3)) : inner;
+          const selectedIndex = TASK_ELEMENTS.findIndex(item => item.id === taskSelected);
+          const listStart = Math.max(0, selectedIndex - Math.floor(capacity / 2));
+          for (let n = 0; n < capacity; n++) {
+            let left = "", right = "";
+            const item = TASK_ELEMENTS[listStart + n];
+            if (item && (wide || taskFocus === "elements")) {
+              left = selectionRow(theme, item.name, listWidth, { selected: item.id === taskSelected,
+                focused: focused && taskFocus === "elements" && item.id === taskSelected,
+                phase: item.id === taskSelected && pulse.kind === "element" ? phase : undefined });
+              targets.push({ x: 1, y: rows.length + 1, width: listWidth, action: () => selectTask(item.id) });
+            }
+            const control = controls[start + n];
+            if (control && (wide || taskFocus === "properties")) right = addControl(control, rows.length + 1,
+              wide ? listWidth + 3 : 1, wide ? inner - listWidth - 2 : inner, taskFocus === "properties" && start + n === taskIndex);
+            rows.push(wide ? left + " ".repeat(Math.max(0, listWidth - visibleWidth(left))) + "│ " + right : taskFocus === "elements" ? left : right);
+          }
+          helpLines.push(taskFocus === "elements" ? TASK_ELEMENTS[selectedIndex].help : controls[taskIndex].help);
         } else if (pane === "other") {
           const controls = otherControls(); otherIndex = Math.min(otherIndex, controls.length - 1);
           const start = Math.max(0, otherIndex - Math.floor(capacity / 2));
@@ -290,16 +313,27 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         rows.push(theme.fg("muted", clip(unavailable ? `Not visible now. ${INFO[selected]}` : message || helpLines[0] || "Changes are previews until you Save.", inner)));
         rows.push(buttonLine([["Discard", discard], ["Save", () => close(true)]], rows.length + 1) + theme.fg("dim", " Ctrl+S save · Esc back"));
         const panel = frameRows({ theme, width, rows: rows.slice(0, controlsHeight - 2), color: theme.colors.accent,
-          corners: { topLeft: theme.fg("accent", pane === "properties" ? ` Customize · ${nameOf(selected)} ` : " Customize your workspace "), topRight: theme.fg(dirty() ? "warning" : "muted", dirty() ? " Unsaved changes " : " Saved settings ") } });
+          corners: { topLeft: theme.fg("accent", pane === "tasks" ? ` Workspace · Tasks · ${TASK_ELEMENTS.find(item => item.id === taskSelected)?.name} `
+            : pane === "properties" ? ` Workspace · Input & footer · ${nameOf(selected)} ` : " Workspace · Input & footer "),
+            topRight: theme.fg(dirty() ? "warning" : "muted", dirty() ? " Unsaved changes " : " Saved settings ") } });
         while (panel.length < controlsHeight) panel.push(cover(""));
         const previewLabel = state ? `Previewing: ${STATES[state]} · appearance only` : "Live input box and footer · select a label to edit";
-        const label = pane === "tasks" ? `Demo Tasks · ${demoState} · display only${height < 12 ? " · enlarge terminal for preview" : ""}`
+        const label = pane === "tasks" ? `Demo Tasks · ${demoState} · display only · Selected: ${TASK_ELEMENTS.find(item => item.id === taskSelected)?.name}${height < 12 ? " · enlarge terminal for preview" : ""}`
           : !native.length ? "Native input preview unavailable; settings still support Save / Discard"
           : height < 12 ? "Enlarge the terminal to see your input preview" : previewLabel + (omitted ? " · shortened vertically" : surface?.temporary ? " · temporary Composer view" : "");
         const previewTop = panel.length + 1 + aboveRows.length;
         const lines = [...panel, theme.fg("muted", clip(label)), ...aboveRows, ...editorRows, ...footerRows];
         const previewBottom = editorRows.findLastIndex(line => line.replace(/\x1b\[[0-9;]*m/g, "").startsWith("╰"));
         const footerPositions = ["footer1", "footer2"].filter(prefix => live.hits.some(hit => hit.position.startsWith(prefix)));
+        if (taskView && aboveRows.length && height >= 12) {
+          const top = panel.length + 1;
+          for (const hit of taskView.hits) if (hit.y < aboveRows.length) {
+            targets.push({ x: hit.x, y: top + hit.y, width: hit.width, action: () => selectTask(hit.id) });
+          }
+          if (width >= 16 && aboveRows.length >= 2) for (const y of [top, top + aboveRows.length - 1]) {
+            targets.push({ x: 0, y, width, action: () => selectTask("frame") });
+          }
+        }
         for (const hit of live.hits) {
           const y = hit.position.startsWith("top") ? previewTop : hit.position.startsWith("bottom") ? previewTop + previewBottom
             : previewTop + editorRows.length + footerPositions.indexOf(hit.position.startsWith("footer1") ? "footer1" : "footer2");
@@ -314,7 +348,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       },
       handleInput(data: string) {
         if (closed || !focused) return;
-        const before = focusKey(), previous = selected;
+        const before = focusKey(), previous = selected, previousTask = taskSelected;
         message = "";
         if (matchesKey(data, Key.ctrl("s")) && !discardConfirm) close(true);
         else if (discardConfirm) {
@@ -338,28 +372,35 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           return true;
         });
         else if (matchesKey(data, Key.tab)) pane = pane === "elements" ? "properties" : pane === "properties" ? "other" : pane === "other" ? "tasks" : "elements";
+        else if (pane === "tasks" && matchesKey(data, Key.left)) taskFocus = "elements";
+        else if (pane === "tasks" && matchesKey(data, Key.right)) selectTask(taskSelected);
         else if (matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
           const delta = matchesKey(data, Key.up) ? -1 : 1;
           if (pane === "elements") { const ids = elements(); elementIndex = Math.max(0, Math.min(ids.length - 1, elementIndex + delta)); if (ids[elementIndex]) { selected = ids[elementIndex]; propertyIndex = 0; surface?.select(selected, state); } }
           else if (pane === "properties") propertyIndex = Math.max(0, Math.min(propertyControls().length - 1, propertyIndex + delta));
-          else if (pane === "tasks") taskIndex = Math.max(0, Math.min(taskProperties().length - 1, taskIndex + delta));
-          else otherIndex = Math.max(0, Math.min(OTHER_OPTIONS.length - 1, otherIndex + delta));
+          else if (pane === "tasks" && taskFocus === "elements") {
+            taskSelected = TASK_ELEMENTS[Math.max(0, Math.min(TASK_ELEMENTS.length - 1, TASK_ELEMENTS.findIndex(item => item.id === taskSelected) + delta))].id;
+          } else if (pane === "tasks") {
+            taskIndex = Math.max(0, Math.min(taskProperties().length - 1, taskIndex + delta));
+            taskSelected = taskControlElement(taskProperties()[taskIndex]);
+          } else otherIndex = Math.max(0, Math.min(OTHER_OPTIONS.length - 1, otherIndex + delta));
         } else if (matchesKey(data, Key.enter) || data === " ") {
           if (pane === "elements") pane = "properties";
           else if (pane === "properties") propertyControls()[propertyIndex]?.activate();
+          else if (pane === "tasks" && taskFocus === "elements") selectTask(taskSelected);
           else if (pane === "tasks") taskProperties()[taskIndex]?.activate();
           else otherControls()[otherIndex]?.activate();
         }
-        afterInteraction(before, previous);
+        afterInteraction(before, previous, previousTask);
       },
       handleMouse(event: TuiMouseEvent) {
         if (closed || !focused) return { handled: true };
         if (event.type === "wheel") { component.handleInput(event.wheelDelta! < 0 ? "\x1b[A" : "\x1b[B"); return { handled: true, render: true }; }
         if (edit && event.y === inputY) return edit.input.handleMouse({ ...event, x: event.x - inputX, y: 0, width: inputWidth, height: 1 });
         if (event.type === "click" && event.button === "left") {
-          const before = focusKey(), previous = selected;
+          const before = focusKey(), previous = selected, previousTask = taskSelected;
           targets.find(target => target.y === event.y && event.x >= target.x && event.x < target.x + target.width)?.action();
-          afterInteraction(before, previous);
+          afterInteraction(before, previous, previousTask);
         }
         return { handled: true, render: true };
       },

@@ -8,7 +8,7 @@ Implemented against Pi 1.0.0. Run `/reload`, then `/footer`.
 2. Change **Show this element**, **Position**, **Text color**, or its label. Your changes are temporary.
 3. Choose **Save** to keep the changes, or **Discard** to return to the configuration from before you opened the editor. Discard asks for confirmation when there are unsaved changes.
 
-The workspace shows the **actual native input editor and footer at full terminal width**, not a fabricated sample. It covers the transcript while open, keeps the controls next to the preview, and does not replace the native editor instance or modify its draft, undo, Vim mode, paste storage, or completion state. Close settings to resume typing your draft.
+The **Input & footer room** shows the actual native input editor and footer at full terminal width, not a fabricated sample. It covers the transcript while open, keeps the controls next to the preview, and does not replace the native editor instance or modify its draft, undo, Vim mode, paste storage, or completion state. Close settings to resume typing your draft.
 
 `/footer` also works when another Home look is selected or Home is off. In that case the input is temporarily dressed as Composer for this workspace; closing restores the previous look. Saving appearance settings does **not** silently enable Home or change your selected look. Saved input-border layouts apply to `/home composer`; other Home looks retain their existing editor and footer layouts.
 
@@ -18,7 +18,8 @@ The workspace shows the **actual native input editor and footer at full terminal
 | --- | --- |
 | Up / Down | Select an element, property or choice |
 | Enter / Space | Open properties or change a control |
-| Tab | Switch between Elements, properties and Other options |
+| Tab | Switch between Input elements, properties, Other options and the Tasks room |
+| Left / Right in Tasks | Move between its element list and settings; Enter on an element opens its controls |
 | `/` | Find an element by name, including hidden elements |
 | **More options** | Reveal emphasis, group order, narrow-width priority and text formatting |
 | **Undo** / Ctrl+Z | Undo the last settings change; never changes draft undo |
@@ -72,11 +73,13 @@ States include thinking, writing, working, tools running, waiting for an answer,
 
 ## Persistent Tasks presentation
 
-Open **Tasks** in this same workspace. It has an explicitly labelled, display-only preview with idle, working, waiting, done, blocked and error examples. **Replay progress sweep** simulates a revision change without changing a real plan. Keyboard Tab cycles Elements → Properties → Other options → Tasks; arrows/Enter edit controls.
+Open the **Tasks room** in this same workspace. Its element list names the border/motion, title, progress count, more-work hint, task rows and active row. At wide widths the list and existing controls appear side by side; at narrow widths use Left/Right to switch between them. Select an element from the list or click a **fully rendered** label or row in the display-only preview to jump to its relevant control. When a narrow rail omits a label, the element remains available in the keyboard list; there is no invisible click target. Arrow keys navigate, Enter edits, and Tab cycles Input elements → properties → Other options → Tasks. Existing controls, including per-state settings, remain available by scrolling.
+
+The preview has explicitly labelled idle, working, waiting, done, blocked and error examples. **Replay progress sweep** simulates a revision change without changing a real plan.
 
 Controls cover border and highlight colors, shimmer/pulse, speed, intensity, direction, progress sweeps, label/body/active colors, gentle text-color effects, bold, six title/count/more-work rail positions, visible-task count and per-state overrides. The package owns these presentation rules; Home supplies sourced task state and its shared clock. Default text stays still; the soft near-white border highlight runs only during actual active work. Global motion-off, typing, lost focus, blocking dialogs and hidden/narrow panels stop live motion. The explicit demo uses its own disposable controller and respects motion-off.
 
-Tasks settings share Save/Discard/Undo and are saved only under `pi-footer.json` → `tasks`. There is no new preference file. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
+Both rooms share Save/Discard/Undo in this existing workspace and are saved only under their established sections of `pi-footer.json` (Tasks under `tasks`). There is no new preference file. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
 
 The Home overview shows active work, blockers and pending work with sourced done/total counts in the rail. Completed items no longer occupy the default body. Narrow rails use `✓ done/total`, `!blocked`, and `–cancelled`. `/tasks` retains the full plan/history browser; its legacy focus-window paging and appearance settings still apply to the independent no-Home fallback, not this overview. Tool acknowledgements and other frames are not restyled or animated by these controls.
 

@@ -1,11 +1,14 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { stripVTControlCharacters } from "node:util";
+import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createFrameController, framePresentationDefaults, readFramePresentation, presentationRows,
   type FramePresentation, type FrameSample, type FrameState } from "../../lib/frame.ts";
 import { cleanText, type DockSnapshot } from "../../lib/home-dock.ts";
 import type { HomeState } from "./state.ts";
 
 export interface TaskPanelPrefs { version: 1; title: string; rows: number; presentation: FramePresentation }
+export type TaskElementId = "frame" | "title" | "summary" | "hint" | "body" | "active";
+export interface TaskPreviewHit { id: TaskElementId; x: number; y: number; width: number }
 export function taskPanelDefaults(): TaskPanelPrefs {
   return { version: 1, title: "Tasks", rows: 3, presentation: framePresentationDefaults() };
 }
@@ -17,8 +20,8 @@ export function readTaskPanel(value: unknown): TaskPanelPrefs {
   out.presentation = readFramePresentation(raw.presentation);
   return out;
 }
-export function taskPanelRows(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
-  frame: FrameSample, budget = 7): string[] {
+function taskPanelLayout(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
+  frame: FrameSample, budget = 7, withHits = false): { rows: string[]; hits: TaskPreviewHit[] } {
   const info = dock.overview;
   const source = info?.rows ?? [...dock.rows].sort((a, b) => {
     const rank = (tone?: string) => tone === "accent" ? 0 : tone === "warning" || tone === "error" ? 1 : tone === "muted" ? 3 : 2;
@@ -45,9 +48,45 @@ export function taskPanelRows(theme: Theme, width: number, dock: DockSnapshot, p
   if (info && width < 36) summary = `✓ ${info.done}/${info.total}${info.blocked ? ` · !${info.blocked}` : ""}${info.cancelled ? ` · –${info.cancelled}` : ""}`;
   if (width < 16) {
     if (hint && content.length < bodyBudget) content.push({ text: hint, role: "muted" });
-    return content.map(row => truncateToWidth(row.text, width, "…"));
+    return { rows: content.map(row => truncateToWidth(row.text, width, "…")), hits: [] };
   }
-  return presentationRows({ theme, width, rows: content, title: prefs.title, summary, hint, presentation: prefs.presentation, frame });
+  const rows = presentationRows({ theme, width, rows: content, title: prefs.title, summary, hint, presentation: prefs.presentation, frame });
+  if (!withHits) return { rows, hits: [] }; // No hit parsing on the live, possibly animated Tasks widget.
+  const hits: TaskPreviewHit[] = [];
+  // Hit regions are derived from the *rendered* rail, not assumed positions: a
+  // truncated or omitted label is not clickable. This stays in the Home adapter;
+  // Frame remains an input-agnostic drawing primitive.
+  const rails = [0, rows.length - 1];
+  for (const [id, value, position] of [
+    ["title", prefs.title, prefs.presentation.positions.title],
+    ["summary", summary, prefs.presentation.positions.summary],
+    ["hint", hint, prefs.presentation.positions.hint],
+  ] as const) {
+    if (!value) continue;
+    const y = position.startsWith("top") ? rails[0] : rails[1];
+    const line = stripVTControlCharacters(rows[y]);
+    const label = ` ${value} `;
+    const first = line.indexOf(label);
+    // Ambiguous repeated labels are left to the keyboard list instead of
+    // assigning a misleading mouse target.
+    if (first < 1 || line.indexOf(label, first + 1) !== -1) continue;
+    const x = visibleWidth(line.slice(0, first));
+    if (x + visibleWidth(label) < width) hits.push({ id, x, y, width: visibleWidth(label) });
+  }
+  content.forEach((row, index) => {
+    const y = index + 1;
+    if (y >= rows.length - 1) return;
+    const text = stripVTControlCharacters(rows[y]).slice(1, -1).trim();
+    if (text && row.text) hits.push({ id: row.role === "active" ? "active" : "body", x: 1, y, width: width - 2 });
+  });
+  return { rows, hits };
+}
+export function taskPanelRows(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
+  frame: FrameSample, budget = 7): string[] { return taskPanelLayout(theme, width, dock, prefs, frame, budget).rows; }
+/** Display-only hit metadata for the settings preview. Never changes Tasks state. */
+export function taskPanelPreview(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
+  frame: FrameSample, budget = 7): { rows: string[]; hits: TaskPreviewHit[] } {
+  return taskPanelLayout(theme, width, dock, prefs, frame, budget, true);
 }
 
 /** Thin data adapter. The package owns effects, state rules and motion lifetime; Home supplies facts and a shared clock. */
