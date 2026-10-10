@@ -6,7 +6,7 @@ Pi describes itself as a minimal, extensible AI agent for the terminal. Pi's hos
 
 | Term | Use it when | Accurate for this work now? |
 | --- | --- | --- |
-| **Pi extension suite / package** | Describing what people install and what is versioned together | **Yes.** The private `pi-workspace-suite` has an explicit Pi manifest; Frame and Ask also retain independent package manifests. It has not been published or switched live. |
+| **Pi extension suite / package** | Describing what people install and what is versioned together | **Yes.** The private `pi-workspace-suite` has an explicit Pi manifest; Frame and Ask also retain independent package manifests. It has not been published; after explicit approval, live Pi settings load this local checkout once with the older entries excluded. |
 | **Agent workspace / experience layer** | Explaining the integrated terminal UI, planning and human-in-the-loop workflow | **Yes, as a descriptive phrase.** Define it on first use; it is not a formal Pi API category. |
 | **Terminal design system / toolkit** | Describing shared visual grammar, Frame primitives, surface adapters and developer documentation | **Yes for the existing primitives and integrations; expanding.** A public third-party surface contract and full visual editor are future work. |
 | **Agent** | Describing the configured Pi-plus-extensions system a person uses | **Qualified yes:** a *customized Pi-based agent experience*, not a new agent runtime built from scratch. Tasks/Ask provide real behavior, not merely a theme. |

@@ -1,6 +1,6 @@
 # Surface workspace specification
 
-**Status: proposed design, not implemented across all surfaces.** This inventory distinguishes what already works from what the next implementation phases must add. The private suite remains isolated from the live Pi installation. See [architecture](ARCHITECTURE.md), [migration](MIGRATION.md), the existing [footer workspace guide](../extensions/pi-home/FOOTER.md), and the [Frame feature guide](../packages/pi-frame/FEATURE-GUIDE.md).
+**Status: four focused rooms implemented; third-party surface registration remains a design direction.** This inventory distinguishes implemented controls from future adapter work. After explicit approval, the private suite is loaded by the live Pi settings; the older Home/Tasks entries are excluded. See [architecture](ARCHITECTURE.md), [migration](MIGRATION.md), the [footer workspace guide](../extensions/pi-home/FOOTER.md), and the [Frame feature guide](../packages/pi-frame/FEATURE-GUIDE.md).
 
 ## Outcome and boundaries
 
@@ -51,4 +51,4 @@ A preview may use synthetic **labeled** states for Tasks, Ask and transcript/too
 2. **Interaction:** List and preview select the same visible element; hidden elements remain searchable; keyboard works in regular mode; fullscreen mouse hits and scroll/resize do not drift. Focus/cursor/IME and Vim draft/undo/completion survive open/close and reload.
 3. **Visual truth:** Check theme contrast, narrow and wide terminal-cell widths, ANSI/CJK/emoji labels, reserved native hints, semantic error/blocked cues and sourced creation times. Native/self-rendering/graphical fallbacks remain native.
 4. **Lifecycle:** Test cold start, reload, unload, session switch/shutdown, question replacement, streaming and state changes. Controllers stop when hidden, unfocused, typing, blocked, motion-off or disposed. Non-TUI modes keep domain tools without opening custom components.
-5. **Distribution and documentation:** Isolated packed-suite tests, standalone Ask/Frame and no-Home Tasks checks, one Git change per coherent feature, schema migration notes and a developer example linked from the Frame feature guide. Report automated tests and live-terminal checks separately before seeking approval for the live switch.
+5. **Distribution and documentation:** Isolated packed-suite tests, standalone Ask/Frame and no-Home Tasks checks, one Git change per coherent feature, schema migration notes and a developer example linked from the Frame feature guide. Keep automated, isolated-terminal, live-configuration and human observations distinct; the authorized live switch does not resolve remaining physical and subjective checks.

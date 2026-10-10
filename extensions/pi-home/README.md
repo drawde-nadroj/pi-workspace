@@ -2,7 +2,7 @@
 
 Home is a **Composer-only** appearance extension for Pi 1.0.0. It frames Pi's native editor and transcript, hosts the optional Tasks dock, and owns the `/footer` appearance workspace. It does not replace the text engine, make model calls, or own Tasks plans or Ask answers. The retired Home looks and `/home lab` gallery are not part of this checkout; their history remains in Git.
 
-**Checkout status:** `~/code/pi-workspace` is tested separately from the live installation in `~/.pi/agent`. The private suite explicitly loads Home, Tasks and Ask and bundles `pi-embeddable-frame`. Do not load the suite alongside the older live copies. See [isolated acceptance](../../docs/ACCEPTANCE.md) and the [proposed migration](../../docs/MIGRATION.md).
+**Installation status:** After explicit approval, the live Pi settings load this checkout's private suite, which explicitly loads Home, Tasks and Ask and bundles `pi-embeddable-frame`. The older Home/Tasks folders remain on disk but are excluded from auto-discovery; separate Frame/Ask package declarations were replaced. An already-running Pi session needs a fresh start to use the suite. See [acceptance](../../docs/ACCEPTANCE.md) and the [switch/rollback record](../../docs/MIGRATION.md).
 
 ## Composer
 
