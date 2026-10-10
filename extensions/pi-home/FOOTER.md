@@ -10,7 +10,7 @@ Implemented against Pi 1.0.0. Run `/reload`, then `/footer`.
 
 The **Input & footer room** shows the actual native input editor and footer at full terminal width, not a fabricated sample. It covers the transcript while open, keeps the controls next to the preview, and does not replace the native editor instance or modify its draft, undo, Vim mode, paste storage, or completion state. Close settings to resume typing your draft.
 
-`/footer` also works when another Home look is selected or Home is off. In that case the input is temporarily dressed as Composer for this workspace; closing restores the previous look. Saving appearance settings does **not** silently enable Home or change your selected look. Saved input-border layouts apply to `/home composer`; other Home looks retain their existing editor and footer layouts.
+`/footer` also works when Home is off. The input is temporarily dressed as Composer for this workspace; closing restores the native appearance. Saving appearance settings does **not** silently enable Home. Saved input-border layouts apply when Composer is on.
 
 ### Controls
 
@@ -101,7 +101,7 @@ For API examples and a feature-request template, see [`pi-frame/FEATURE-GUIDE.md
 
 ## Saving and compatibility
 
-Preferences are saved atomically to `~/.pi/agent/pi-footer.json`, or the configured Pi agent directory. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved presets or messages.
+Preferences are saved atomically to `~/.pi/agent/pi-footer.json`, or the configured Pi agent directory. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved appearance or messages.
 
 Other running sessions adopt saved changes after their next `/reload`. Existing scalar preferences remain supported. Opening the workspace derives a versioned `appearance` layout from their visibility choices; only saving persists it. Unknown or invalid individual appearance values fall back safely. Malformed JSON is reported and left untouched until Save.
 
