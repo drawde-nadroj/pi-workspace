@@ -160,7 +160,7 @@ async function harness({ home = false, order = "home-first", mode = "tui", prefs
   const tui = { terminal: { rows: 40 }, requestRender() { renderCount++; } };
   const data = { getGitBranch: () => undefined, getExtensionStatuses: () => new Map(), onBranchChange: () => () => {} };
   const context = { mode, hasUI: mode === "tui" || mode === "rpc", cwd: scratch, model: { id: "offline-test" },
-    sessionManager: { getLeafId: () => null, getBranch: () => branch, getSessionId: () => "test-session", getSessionName: () => "Forest workshop", getHeader: () => ({ timestamp: new Date().toISOString() }) }, getContextUsage: () => ({ percent: 10 }),
+    sessionManager: { getLeafId: () => null, getBranch: () => branch, getSessionId: () => "test-session", getSessionName: () => "Current session", getHeader: () => ({ timestamp: new Date().toISOString() }) }, getContextUsage: () => ({ percent: 10 }),
     ui: { theme, getTheme: getThemeByName, setTheme(value) { setThemeInstance(value); return { success: true }; },
       getEditorComponent: () => currentFactory, setEditorComponent(f) { const text = editor?.getText() ?? ""; currentFactory = f; editor = f?.(tui, getEditorTheme(), kb); if (editor) { editor.focused = true; editor.setText(text); } },
       getEditorText: () => editor?.getExpandedText() ?? "", setEditorText: (text) => editor?.setText(text),
@@ -331,13 +331,15 @@ test("Home and Tasks remain independent in both extension startup orders", async
       const editor = h.editor; editor.setText("draft stays intact");
       assert.equal(h.widgets.has("pi-tasks:fallback"), false);
       let workspace = h.widgets.get("pi-home:identity").render(100).map(plain).join("\n");
-      assert.match(workspace, /A real task/); assert.match(workspace, /Forest workshop/);
+      assert.match(workspace, /A real task/);
+      assert.match(h.editor.render(100).map(plain).join("\n"), /Current session/, "identity belongs in Composer's native editor rail");
       assert.match(workspace, /╭ Tasks .*╮[\s\S]*╰─/);
       await h.command("tasks", "off");
       assert.equal(h.editor, editor);
       assert.equal(h.editor.getText(), "draft stays intact");
       workspace = h.widgets.get("pi-home:identity").render(100).map(plain).join("\n");
-      assert.doesNotMatch(workspace, /A real task/); assert.match(workspace, /Forest workshop/);
+      assert.doesNotMatch(workspace, /A real task/);
+      assert.match(h.editor.render(100).map(plain).join("\n"), /Current session/);
       await h.command("tasks", "on");
       await h.command("home", "off");
       assert.ok(h.widgets.has("pi-tasks:fallback"));
@@ -347,7 +349,7 @@ test("Home and Tasks remain independent in both extension startup orders", async
       await h.command("home", "on");
       assert.equal(h.widgets.has("pi-tasks:fallback"), false);
       assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join("\n"), /A real task/);
-      await h.command("home", "scene off");
+      await h.command("home", "motion off");
       assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join("\n"), /A real task/);
       await h.command("tasks", "show");
       assert.equal(h.notices.filter((n) => n.tone === "warning").length, 0);
@@ -709,10 +711,9 @@ test("manual new preserves earlier plans, stale dialogs cannot overwrite them, a
 
 test("raised panel history is browse-only, actions are explicit and stale rendered task edits are ignored", async () => {
   let b = create(emptyBook(), "First plan"); b = create(b, "Second plan");
-  const { PINE } = await jiti.import(join(source, "../pi-home/biolume.ts"));
   let result, paints = 0;
   const nav = {};
-  const panel = new TaskPanel({ terminal: { rows: 40 }, requestRender() { paints++; } }, theme, () => b, () => PINE, (r) => result = r, nav);
+  const panel = new TaskPanel({ terminal: { rows: 40 }, requestRender() { paints++; } }, theme, () => b, () => undefined, (r) => result = r, nav);
   const lines = panel.render(90), revision = b.revision;
   assert.match(plain(lines[0]), /╭.*Tasks.*╮/);
   for (const line of lines) { assert.equal(visibleWidth(line), 90); assert.match(line, /\x1b\[48;/, "every modal row has an explicit surface"); }
@@ -726,15 +727,15 @@ test("raised panel history is browse-only, actions are explicit and stale render
   assert.equal(result, undefined); assert.ok(paints > 0);
   panel.render(90); panel.handleInput("\r"); assert.equal(result.revision, b.revision);
   for (const rows of [8, 12, 24, 40]) for (const width of [1, 2, 8, 20, 48, 90, 140]) {
-    const p = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => PINE, () => {});
+    const p = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, () => {});
     for (const mode of ["", "d", "h"]) { if (mode) p.handleInput(mode); const rendered = p.render(width); assert.ok(rendered.length <= Math.max(4, Math.floor(rows * .85))); for (const line of rendered) assert.ok(visibleWidth(line) <= width); }
   }
 });
 
-test("production forest is responsive, motion-off freezes art, and uses real identity/tasks without sample data", () => {
-  const state = { prefs: { ...DEFAULTS, look: "biolume", motion: "off" }, clock: new RunClock(), phase: "thinking", tools: new Map(), promptDepth: 0, compacting: false, lastInputAt: 0 };
+test("Composer dock is responsive, motion-off stays still, and shows only sourced work", () => {
+  const state = { prefs: { ...DEFAULTS, motion: "off" }, clock: new RunClock(), phase: "thinking", tools: new Map(), promptDepth: 0, compacting: false, lastInputAt: 0 };
   const tui = { terminal: { rows: 40 }, requestRender() {} };
-  const ctx = { ui: { theme }, sessionManager: { getSessionName: () => "My 界面 forest" } };
+  const ctx = { ui: { theme }, sessionManager: { getSessionName: () => "My 界面 plan" } };
   const docks = new Map([["test", { title: "Plan", rows: [{ text: "○ Real work" }], hint: "/tasks" }]]);
   let now = 1000;
   const workspace = createWorkspace(tui, () => ctx, state, docks, () => true, () => now);
@@ -746,10 +747,8 @@ test("production forest is responsive, motion-off freezes art, and uses real ide
     tui.terminal.rows = height;
     for (const width of [1, 2, 8, 20, 48, 80, 140]) for (const line of workspace.render(width)) assert.ok(visibleWidth(line) <= width);
   }
-  tui.terminal.rows = 40;
-  state.prefs.scene = false;
-  assert.equal(workspace.render(100).length, 5);
-  assert.ok(workspace.render(100).length < first.length, "scene-off keeps the plan, not the illustration");
+  docks.clear();
+  assert.deepEqual(workspace.render(100), [], "without a real provider, no demo or artwork appears");
   assert.equal(isSnapshot({ version: 1, sessionId: "test", id: "id", title: "Okay", rows: [{ text: "x", tone: "invalid" }] }), false);
   assert.equal(isHost({ version: 1, sessionId: "test", available: true, colors: {} }), false);
 });

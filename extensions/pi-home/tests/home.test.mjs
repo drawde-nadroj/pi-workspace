@@ -32,9 +32,8 @@ const kb = new KeybindingsManager();
 setKeybindings(kb);
 const plain = (s) => stripVTControlCharacters(s.replaceAll(CURSOR_MARKER, ""));
 const newState = () => ({ prefs: { ...DEFAULTS }, clock: new RunClock(), tools: new Map(), phase: "working", promptDepth: 0, compacting: false, lastInputAt: 0 });
-function setup(look = "hearth", rows = 40) {
+function setup(rows = 40) {
   const state = newState();
-  state.prefs.look = look;
   const tui = { terminal: { rows }, requestRender() {} };
   const ctx = { ui: { theme }, sessionManager: { getSessionId: () => "render-test", getSessionName: () => "Rendering" }, cwd: homedir(), model: { id: "gpt-model", contextWindow: 200000 }, getContextUsage: () => ({ percent: 24, contextWindow: 200000 }) };
   const editor = new HomeEditor(tui, getEditorTheme(), kb, () => ctx, state, () => "high", () => 10000);
@@ -90,7 +89,8 @@ test("timing spans repeated starts and survives resume without inventing unfinis
 
 test("preferences, elapsed formatting, and motion policy are bounded", () => {
   assert.deepEqual(preferencesFrom({ look: "not-a-look", motion: "fast", icons: "bad" }), DEFAULTS);
-  assert.equal(preferencesFrom({ enabled: false, look: "orbit", motion: "off", icons: "plain" }).enabled, false);
+  assert.deepEqual(preferencesFrom({ enabled: false, look: "orbit", scene: true, gaze: "both", motion: "ambient", icons: "plain" }),
+    { ...DEFAULTS, enabled: false, icons: "plain" }, "retired look and artwork migrate to Composer without rewriting source preferences");
   assert.equal(formatDuration(-10), "0s");
   assert.equal(formatDuration(NaN), "0s");
   assert.equal(formatDuration(3601000), "1h 0m");
@@ -103,20 +103,19 @@ test("preferences, elapsed formatting, and motion policy are bounded", () => {
   assert.equal(shouldAnimate(state, 10000, true), false);
   state.promptDepth = 0;
   state.lastInputAt = 9900;
-  assert.equal(shouldAnimate(state, 10000, true), false);
-  state.lastInputAt = 0;
+  assert.equal(shouldAnimate(state, 10000, true), true, "typing quiets the frame, not the real work clock");
   state.prefs.motion = "off";
   assert.equal(shouldAnimate(state, 10000, true), false);
-  state.prefs.motion = "ambient";
+  state.prefs.motion = "work";
   state.clock.settle(2000, "done");
-  assert.equal(shouldAnimate(state, 10000, true), true);
-  assert.equal(shouldAnimate(state, 10000, false), false);
+  assert.equal(shouldAnimate(state, 2100, false), true, "a real completion gets one settling transition");
+  assert.equal(shouldAnimate(state, 10000, false), false, "Composer does not animate while idle");
 });
 
-test("every preset fits narrow/wide panes, Unicode, multiline text, and both icon sets", () => {
-  for (const look of ["hearth", "studio", "orbit", "biolume", "composer"]) {
+test("Composer fits narrow/wide panes, Unicode, multiline text, and both icon sets", () => {
+  for (const look of ["composer"]) {
     for (const rows of [16, 40]) {
-      const { editor, state } = setup(look, rows);
+      const { editor, state } = setup(rows);
       for (const icons of ["nerd", "plain"]) {
         state.prefs.icons = icons;
         for (const text of ["", "hello world", "界面 🌈 e\u0301", Array.from({ length: 30 }, (_, i) => `row ${i}`).join("\n")]) {
@@ -135,13 +134,13 @@ test("every preset fits narrow/wide panes, Unicode, multiline text, and both ico
   }
 });
 
-test("preset changes preserve native cursor and large-paste storage", () => {
+test("Composer appearance changes preserve native cursor and large-paste storage", () => {
   const { editor, state } = setup();
   editor.handleInput("\x1b[200~" + "line of pasted text\n".repeat(40) + "\x1b[201~");
   const text = editor.getExpandedText();
   const cursor = editor.getCursor();
-  for (const look of ["studio", "orbit", "hearth", "biolume", "composer"]) {
-    state.prefs.look = look;
+  for (const motion of ["off", "work"]) {
+    state.prefs.motion = motion;
     editor.render(80);
     assert.equal(editor.getExpandedText(), text);
     assert.deepEqual(editor.getCursor(), cursor);
@@ -149,22 +148,18 @@ test("preset changes preserve native cursor and large-paste storage", () => {
 });
 
 test("fullscreen mouse maps box padding back to native text coordinates", () => {
-  for (const look of ["hearth", "studio", "orbit", "biolume", "composer"]) {
-    const { editor } = setup(look);
-    editor.setText("abcdef");
-    editor.render(80);
-    const pad = look === "studio" ? 0 : 1;
-    const horizontalPad = look === "studio" ? 1 : 2;
-    editor.handleMouse(mouse(80, 1 + horizontalPad + 3, 1 + pad));
-    assert.deepEqual(editor.getCursor(), { line: 0, col: 3 });
-    editor.handleMouse(mouse(80, 1 + horizontalPad, 1 + pad));
-    assert.deepEqual(editor.getCursor(), { line: 0, col: 0 });
-  }
+  const { editor } = setup();
+  editor.setText("abcdef");
+  editor.render(80);
+  editor.handleMouse(mouse(80, 6, 2));
+  assert.deepEqual(editor.getCursor(), { line: 0, col: 3 });
+  editor.handleMouse(mouse(80, 3, 2));
+  assert.deepEqual(editor.getCursor(), { line: 0, col: 0 });
 });
 
 test("completion menu stays outside box and remains keyboard/mouse selectable", async () => {
-  for (const look of ["hearth", "studio", "orbit", "biolume", "composer"]) {
-    const { editor } = setup(look);
+  for (const look of ["composer"]) {
+    const { editor } = setup();
     editor.setAutocompleteProvider({
       triggerCharacters: ["/"],
       async getSuggestions() { return { prefix: "/", items: [{ value: "/hello", label: "hello" }, { value: "/home", label: "home" }] }; },
@@ -227,11 +222,12 @@ test("theme invalidation, path boundaries and metadata sanitization", () => {
   for (let width = 0; width < 50; width++) assert.ok(visibleWidth(splitRow("a long left", "right", width)) <= width);
 });
 
-async function harness(mode = "tui") {
+async function harness(mode = "tui", savedHomePrefs) {
   const scratch = mkdtempSync(join(tmpdir(), "pi-home-test-"));
   const previousDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = scratch;
   writeFileSync(join(scratch, "pi-recaps.json"), JSON.stringify({ enabled: false }));
+  if (savedHomePrefs) writeFileSync(join(scratch, "pi-home.json"), JSON.stringify(savedHomePrefs));
   const handlers = new Map(), commands = new Map(), entries = [], widgets = new Map(), placements = new Map();
   let name;
   let currentFactory, editor, footer, header, picker;
@@ -274,6 +270,7 @@ async function harness(mode = "tui") {
   const emit = async (name, data = {}) => { for (const fn of handlers.get(name) ?? []) await fn({ type: name, ...data }, ctx); };
   const command = (text) => commands.get("home").handler(text, ctx);
   return { ctx, tui, emit, command, entries, handlers, widgets, placements,
+    completions(prefix) { return commands.get("home").getArgumentCompletions(prefix).map(item => item.value); },
     rename(value) { name = value; },
     get picker() { return picker; },
     footerCommand: () => commands.get("footer").handler("", ctx),
@@ -286,6 +283,29 @@ async function harness(mode = "tui") {
     },
   };
 }
+
+test("fresh and retired Home preferences render only Composer, with migration deferred until an explicit save", async () => {
+  const legacy = { enabled: true, look: "biolume", motion: "ambient", scene: false, gaze: "mouse", theme: true, icons: "plain" };
+  for (const saved of [undefined, legacy]) {
+    const h = await harness("tui", saved);
+    try {
+      await h.emit("session_start");
+      assert.match(h.header.render(100).map(plain).join("\n"), /pi \/ composer/);
+      assert.match(h.editor.render(100).map(plain).join("\n"), /What’s next\?/);
+      for (const old of ["biolume", "hearth", "studio", "orbit", "lab", "scene", "gaze", "motion ambient"])
+        assert.deepEqual(h.completions(old), [], `${old} must not be offered`);
+      if (!saved) continue;
+      const path = join(h.ctx.cwd, "pi-home.json");
+      assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), saved, "opening must not rewrite older preferences");
+      await h.command("motion off");
+      const persisted = JSON.parse(readFileSync(path, "utf8"));
+      assert.equal(persisted.look, "composer");
+      assert.equal(persisted.motion, "off");
+      assert.equal(persisted.icons, "plain");
+      assert.deepEqual(Object.keys(persisted).sort(), ["details", "enabled", "icons", "look", "motion", "theme"].sort());
+    } finally { await h.close(); }
+  }
+});
 
 test("questions stay above the complete Home workspace and restore placement after nested prompts", async () => {
   const h = await harness();
@@ -324,16 +344,16 @@ test("lifecycle: timings, parallel tools, prompts, command persistence, restore 
     await h.emit("session_start");
     assert.equal(h.subscribed, 1);
     assert.equal(h.visible, false);
-    assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join(""), /Untitled session/);
+    assert.match(h.editor.render(100).map(plain).join(""), /Untitled session/);
     h.rename("Our new home 界面");
     await h.emit("session_info_changed", { name: "Our new home 界面" });
-    assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join(""), /Our new home 界面/);
+    assert.match(h.editor.render(100).map(plain).join(""), /Our new home 界面/);
     const original = h.editor;
     h.editor.setText("draft");
-    await h.command("studio");
+    await h.command("motion off");
     assert.equal(h.editor, original);
     assert.equal(h.editor.getText(), "draft");
-    assert.equal(JSON.parse(readFileSync(join(h.ctx.cwd, "pi-home.json"), "utf8")).look, "studio");
+    assert.equal(JSON.parse(readFileSync(join(h.ctx.cwd, "pi-home.json"), "utf8")).look, "composer");
     await h.emit("agent_start");
     await h.emit("agent_start");
     assert.equal(h.entries.filter(e => e.customType === TIMING_ENTRY).length, 1);
@@ -341,14 +361,14 @@ test("lifecycle: timings, parallel tools, prompts, command persistence, restore 
     await h.emit("tool_execution_start", { toolCallId: "b", toolName: "bash" });
     assert.match(plain(h.editor.render(100)[0]), /2 tools/);
     await h.emit("ui_prompt_start");
-    assert.match(plain(h.editor.render(100)[0]), /your turn/);
+    assert.match(plain(h.editor.render(100)[0]), /Waiting for you/);
     await h.emit("ui_prompt_end");
     await h.emit("tool_execution_end", { toolCallId: "a" });
     assert.match(plain(h.editor.render(100)[0]), /running/);
     await h.emit("message_end", { message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "done" }] } });
     await h.emit("agent_settled");
     assert.equal(h.entries.filter(e => e.customType === TIMING_ENTRY).length, 2);
-    assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join(" "), /last run /);
+    assert.match(h.editor.render(100).map(plain).join(" "), /Our new home 界面/);
     await h.command("motion off");
     await h.command("icons plain");
     await h.command("off");
@@ -360,7 +380,7 @@ test("lifecycle: timings, parallel tools, prompts, command persistence, restore 
     assert.equal(h.subscribed, 1);
     h.entries.length = 0;
     await h.emit("session_tree");
-    assert.match(h.widgets.get("pi-home:identity").render(100).map(plain).join(" "), /ready/);
+    assert.match(h.editor.render(100).map(plain).join(" "), /What’s next\?/);
   } finally { await h.close(); }
   assert.equal(h.subscribed, 0);
   const renders = h.renders;
@@ -494,7 +514,7 @@ for (const order of ["before", "after"]) test(`composer adopts pi-vim installed 
   } finally { await h.close(); }
 });
 
-test("live Home decorates sent messages and restores them on appearance changes and shutdown", async () => {
+test("live Home decorates sent messages and restores them on disable, re-enable and shutdown", async () => {
   const { UserMessageComponent } = await import(pathToFileURL(join(host, "index.js")));
   const h = await harness(), user = new UserMessageComponent("My sent message");
   const native = user.render;
@@ -502,8 +522,8 @@ test("live Home decorates sent messages and restores them on appearance changes 
   try {
     await h.emit("session_start"); await h.command("composer");
     assert.match(plain(user.render(90)[0]), /╭ jordan/);
-    await h.command("studio"); assert.equal(user.render, native);
-    await h.command("composer"); assert.match(plain(user.render(90)[0]), /╭ jordan/);
+    await h.command("off"); assert.equal(user.render, native);
+    await h.command("on"); assert.match(plain(user.render(90)[0]), /╭ jordan/);
     await h.emit("session_shutdown"); assert.equal(user.render, native);
   } finally { await h.close(); }
 });

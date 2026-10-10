@@ -154,7 +154,7 @@ test("temporary Composer preview dresses disabled pi-vim without changing its dr
   const { ModalEditor } = await jiti.import(join(source, "../../node_modules/pi-vim/index.ts"));
   const { dressComposerEditor } = await jiti.import(join(source, "composer-editor.ts"));
   const h = workspace();
-  h.home.prefs.enabled = false; h.home.prefs.look = "biolume";
+  h.home.prefs.enabled = false; // Preview temporarily dresses the disabled native editor.
   const vim = new ModalEditor(h.tui, getEditorTheme(), kb); vim.setClipboardMirrorPolicy("never");
   vim.setText("one two 界面"); vim.handleInput("\x1b"); vim.handleInput("0"); vim.handleInput("x");
   const draft = vim.getText(), cursor = vim.getCursor(), padding = vim.getPaddingX(), original = vim.render;

@@ -13,21 +13,18 @@ import { readTranscript, transcriptDefaults } from "./transcript-presentation.ts
 import { dressComposerEditor, isEditorComponent } from "./composer-editor.ts";
 import { createFooter, createHeader, HomeEditor } from "./ui.ts";
 import { createWorkspace } from "./workspace.ts";
-import { DOCK, isSnapshot, type DockSnapshot, type DockColors } from "../../lib/home-dock.ts";
-import { PINE, ThemeLease } from "./biolume.ts";
-import { GAZE_FRAME_MS, GazeTracker, observePointer } from "./gaze.ts";
-import { showDesignLab } from "./lab/screen.ts";
+import { DOCK, isSnapshot, type DockSnapshot } from "../../lib/home-dock.ts";
+import { ThemeLease } from "./composer-theme.ts";
 import { registerRecaps } from "./recaps.ts";
 import { registerFooter } from "./footer.ts";
 import { registerComposerPreview } from "./composer-preview.ts";
-import { DIRECTIONS, NAMES, MOODS, MOOD_NAMES, type Direction, type Mood } from "./lab/design.ts";
 import {
   DEFAULTS, TIMING_ENTRY, RunClock, preferencesFrom, shouldAnimate,
   type HomeState, type Outcome, type Preferences,
 } from "./state.ts";
 
 type EditorFactory = Parameters<ExtensionContext["ui"]["setEditorComponent"]>[0];
-const COMMANDS = ["output raw", "output readable", "lab", ...DIRECTIONS.map((direction) => `lab ${direction}`), ...MOODS.map((mood) => `lab glasshouse ${mood}`), "composer", "biolume", "hearth", "studio", "orbit", "details on", "details off", "scene on", "scene off", "theme on", "theme off", "gaze both", "gaze mouse", "gaze typing", "gaze off", "motion work", "motion ambient", "motion off", "icons nerd", "icons plain", "on", "off"];
+const COMMANDS = ["output raw", "output readable", "composer", "details on", "details off", "theme on", "theme off", "motion work", "motion off", "icons nerd", "icons plain", "on", "off"];
 const IDENTITY_WIDGET = "pi-home:identity";
 
 export default function home(pi: ExtensionAPI) {
@@ -56,7 +53,7 @@ export default function home(pi: ExtensionAPI) {
   };
   function syncEditor() {
     if (!installed || !context || state.promptDepth > 0) return;
-    if (state.prefs.look !== "composer" || context.ui.getEditorComponent() === ourFactory) {
+    if (context.ui.getEditorComponent() === ourFactory) {
       undressEditor?.(); undressEditor = undefined; dressedEditor = undefined;
       return;
     }
@@ -69,18 +66,12 @@ export default function home(pi: ExtensionAPI) {
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timerDue = Infinity;
-  let gazePaint = false;
-  let pointerCleanup: (() => void) | undefined;
-  const gaze = new GazeTracker(() => pokeGaze());
-  state.gaze = gaze;
   let installed = false;
   let previousEditor: EditorFactory;
   let ourFactory: EditorFactory;
   let footerCleanup: (() => void) | undefined;
   let outcome: Outcome = "done";
   let lastSecond = -1;
-  let labDirection: Direction = "glasshouse";
-  let labMood: Mood = "biolume";
   const preferencesPath = join(getAgentDir(), "pi-home.json");
   const docks = new Map<string, DockSnapshot>();
   state.nextHint = () => {
@@ -96,7 +87,7 @@ export default function home(pi: ExtensionAPI) {
   let paintCleanup: (() => void) | undefined;
   let lastMessageScan = 0;
   function syncSentFrames(now = Date.now(), beforePaint = false) {
-    if (!installed || state.prefs.look !== "composer") { groupedTools.dispose(); sentFrames.dispose(); activityBlocks.dispose(); return; }
+    if (!installed) { groupedTools.dispose(); sentFrames.dispose(); activityBlocks.dispose(); return; }
     if (!tui || !context || (!beforePaint && now - lastMessageScan < 250)) return;
     lastMessageScan = now;
     const groupsChanged = groupedTools.sync(tui);
@@ -116,13 +107,12 @@ export default function home(pi: ExtensionAPI) {
   }
   function syncTheme(ctx: ExtensionContext) {
     if (ctx.mode !== "tui") return;
-    if (state.prefs.enabled && (state.prefs.look === "biolume" || state.prefs.look === "composer") && state.prefs.theme) themeLease.apply(ctx, state.prefs.look);
+    if (state.prefs.enabled && state.prefs.theme) themeLease.apply(ctx);
     else themeLease.restore(ctx);
   }
   function announce() {
     if (!context) return;
-    pi.events.emit(DOCK.host, { version: 1, sessionId: context.sessionManager.getSessionId(), available: installed,
-      colors: installed && state.prefs.look === "biolume" ? PINE as unknown as DockColors : undefined });
+    pi.events.emit(DOCK.host, { version: 1, sessionId: context.sessionManager.getSessionId(), available: installed });
   }
   pi.events.on(DOCK.probe, () => announce());
   pi.events.on(DOCK.update, (value) => {
@@ -142,47 +132,21 @@ export default function home(pi: ExtensionAPI) {
     if (timer) clearTimeout(timer);
     timer = undefined; timerDue = Infinity;
   };
-  const gazeAllowed = () => installed && state.prefs.look === "biolume" && state.prefs.scene && state.prefs.motion !== "off"
-    && state.prefs.gaze !== "off" && state.promptDepth === 0 && (editor?.focused ?? false);
-  function pokeGaze() {
-    if (!installed) return;
-    gazePaint = true;
-    // Bring the existing scheduler forward, never add a second animation timer.
-    if (timerDue > Date.now() + GAZE_FRAME_MS) {
-      stopTimer(); timerDue = Date.now() + GAZE_FRAME_MS; timer = setTimeout(tick, GAZE_FRAME_MS); timer.unref();
-    }
-  }
-  function syncPointer() {
-    const enabled = installed && tui?.mode === "fullscreen" && process.stdin.isTTY && state.prefs.look === "biolume"
-      && state.prefs.scene && state.prefs.motion !== "off" && state.prefs.gaze !== "off";
-    if (!enabled) { pointerCleanup?.(); pointerCleanup = undefined; return; }
-    if (pointerCleanup) return;
-    gaze.focus(true, false);
-    pointerCleanup = observePointer((x, y) => {
-      if (gazeAllowed() && state.prefs.gaze !== "typing" && x < tui!.terminal.columns && y < tui!.terminal.rows) gaze.pointer(x, y);
-    }, (focused) => gaze.focus(focused));
-  }
   const tick = () => {
     timer = undefined; timerDue = Infinity;
     if (!installed || !context) return;
     themeLease.settleReload(context);
     syncSentFrames();
     syncEditor(); // Adopt a later-installed Vim editor in place; never replace its state.
-    syncPointer(); // TUI mode can switch while the existing editor instance is retained.
     const now = Date.now();
     const focused = activeEditor()?.focused ?? false;
     const taskAnimated = state.taskPanel?.tick(state, now, focused) ?? false;
     const animated = shouldAnimate(state, now, focused) || taskAnimated;
     const second = Math.floor(now / 1000);
-    const gazeMode = tui?.mode === "fullscreen" ? state.prefs.gaze : state.prefs.gaze === "mouse" ? "off" : "typing";
-    const eyes = gaze.advance(gazeMode, gazeAllowed(), now, { x: state.clock.active || state.compacting ? 1 : 0, y: 0 });
-    // Reactive gaze can move at idle in work mode; explicit motion-off disables it too.
-    if ((focused || state.prefs.look === "composer") && state.promptDepth === 0 && (animated || eyes.changed || gazePaint || (state.clock.timing && second !== lastSecond))) refresh();
-    gazePaint = false;
+    if (state.promptDepth === 0 && (animated || (state.clock.timing && second !== lastSecond))) refresh();
     lastSecond = second;
-    // Short, smooth gaze transitions get ~30 Hz, then yield back to the normal 10/1 Hz clock.
-    const transition = state.prefs.look === "composer" && state.clock.transitionAt > 0 && now - state.clock.transitionAt < 800;
-    const delay = eyes.soon ? GAZE_FRAME_MS : taskAnimated || animated && transition ? 40 : animated || themeLease.awaitingReload ? 100 : 1000;
+    const transition = state.clock.transitionAt > 0 && now - state.clock.transitionAt < 800;
+    const delay = taskAnimated || animated && transition ? 40 : animated || themeLease.awaitingReload ? 100 : 1000;
     timerDue = now + delay;
     timer = setTimeout(tick, delay);
     timer.unref();
@@ -217,7 +181,7 @@ export default function home(pi: ExtensionAPI) {
     previousEditor = ctx.ui.getEditorComponent();
     ctx.ui.setHeader((ui) => {
       paintCleanup?.(); tui = ui;
-      paintCleanup = installPaintGuard(ui, () => { syncEditor(); syncSentFrames(Date.now(), true); }, () => installed && state.prefs.look === "composer");
+      paintCleanup = installPaintGuard(ui, () => { syncEditor(); syncSentFrames(Date.now(), true); }, () => installed);
       return createHeader(current, state);
     });
     state.editorFocused = () => activeEditor()?.focused ?? false;
@@ -225,12 +189,11 @@ export default function home(pi: ExtensionAPI) {
     ourFactory = (ui, theme, kb) => {
       tui = ui;
       editor = new HomeEditor(ui, theme, kb, current, state, () => pi.getThinkingLevel());
-      syncPointer();
       return editor;
     };
     // Composer decorates an existing editor (including pi-vim) instead of owning
     // a competing factory. A later-installed editor is adopted by syncEditor.
-    if (!(state.prefs.look === "composer" && previousEditor)) ctx.ui.setEditorComponent(ourFactory);
+    if (!previousEditor) ctx.ui.setEditorComponent(ourFactory);
     // Pi copies the collapsed draft when replacing editors. Expand paste markers before they lose their owner.
     if (draft !== ctx.ui.getEditorText()) ctx.ui.setEditorText(draft);
     ctx.ui.setWorkingVisible(false);
@@ -242,7 +205,6 @@ export default function home(pi: ExtensionAPI) {
       return { ...footer, dispose: footerCleanup };
     });
     installed = true;
-    syncPointer();
     announce();
     wake();
   }
@@ -257,8 +219,6 @@ export default function home(pi: ExtensionAPI) {
     activityBlocks.dispose();
     sentFrames.dispose(); lastMessageScan = 0;
     undressEditor?.(); undressEditor = undefined; dressedEditor = undefined;
-    pointerCleanup?.(); pointerCleanup = undefined;
-    gaze.clear();
     themeLease.restore(ctx);
     docks.clear();
     announce();
@@ -294,8 +254,7 @@ export default function home(pi: ExtensionAPI) {
     state.prefs = next;
     syncTheme(ctx);
     if (next.enabled) install(ctx); else uninstall(ctx);
-    gaze.clear(); syncPointer();
-    // Preset changes reuse the SAME editor: undo, cursor, paste storage, and completions survive.
+    // Appearance changes reuse the SAME editor: undo, cursor, paste storage, and completions survive.
     activeEditor()?.invalidate();
     announce();
     wake();
@@ -324,8 +283,6 @@ export default function home(pi: ExtensionAPI) {
     activityBlocks.dispose();
     sentFrames.dispose(); lastMessageScan = 0;
     undressEditor?.(); undressEditor = undefined; dressedEditor = undefined;
-    pointerCleanup?.(); pointerCleanup = undefined;
-    gaze.clear();
     if (context) themeLease.restore(context);
     footerCleanup?.();
     footerCleanup = undefined;
@@ -342,7 +299,6 @@ export default function home(pi: ExtensionAPI) {
     if (ctx.mode !== "tui") return;
     context = ctx;
     restoreTiming(ctx);
-    gaze.clear();
     wake();
   });
 
@@ -430,35 +386,24 @@ export default function home(pi: ExtensionAPI) {
   });
 
   async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> {
-    const options = ["Biolume — evergreen forest, cat, wandering fireflies", "Hearth — warm, rounded, breathing", "Studio — compact, current theme", "Orbit — stars and a travelling highlight",
-      "Motion…", "Icons…", "Forest scene…", "Matching interface theme…", "Cat gaze…", "Design lab — Glasshouse + the original directions", "Composer — approved calm input, state-aware status, aligned footer", "Work details…", state.prefs.enabled ? "Turn appearance off" : "Turn appearance on"];
-    const result = await ctx.ui.select(`pi-home · ${state.prefs.look} · motion ${state.prefs.motion}`, options);
+    const options = ["Motion…", "Icons…", "Matching Composer theme…", "Work details…",
+      state.prefs.enabled ? "Turn appearance off" : "Turn appearance on"];
+    const result = await ctx.ui.select(`pi-home · composer · motion ${state.prefs.motion}`, options);
     if (!result) return;
     const index = options.indexOf(result);
-    if (index < 4 && index >= 0) return ["biolume", "hearth", "studio", "orbit"][index];
-    if (index === 4) {
-      const motion = await ctx.ui.select("Movement (timing readouts remain live in every mode)", ["work", "ambient", "off"]);
+    if (index === 0) {
+      const motion = await ctx.ui.select("Movement while working (timing readouts remain live)", ["work", "off"]);
       return motion ? `motion ${motion}` : undefined;
     }
-    if (index === 5) {
+    if (index === 1) {
       const icons = await ctx.ui.select("Icon set", ["nerd", "plain"]);
       return icons ? `icons ${icons}` : undefined;
     }
-    if (index === 6) {
-      const scene = await ctx.ui.select("Forest artwork (session identity and tasks remain)", ["on", "off"]);
-      return scene ? `scene ${scene}` : undefined;
-    }
-    if (index === 7) {
+    if (index === 2) {
       const theme = await ctx.ui.select("Matching interface palette (off restores the preceding colors)", ["on", "off"]);
       return theme ? `theme ${theme}` : undefined;
     }
-    if (index === 8) {
-      const gaze = await ctx.ui.select("Cat watches the most recently used input", ["both", "mouse", "typing", "off"]);
-      return gaze ? `gaze ${gaze}` : undefined;
-    }
-    if (index === 9) return "lab";
-    if (index === 10) return "composer";
-    if (index === 11) {
+    if (index === 3) {
       const details = await ctx.ui.select("Work summary", ["Compact", "Expanded"]);
       return details ? `details ${details === "Expanded" ? "on" : "off"}` : undefined;
     }
@@ -466,7 +411,7 @@ export default function home(pi: ExtensionAPI) {
   }
 
   pi.registerCommand("home", {
-    description: "Appearance and design lab: output raw/readable, composer / biolume / hearth / studio / orbit, scene on/off, theme on/off, gaze, motion, icons, lab, on/off. details on/off for expanded work. Tasks are independent.",
+    description: "Composer appearance: output raw/readable, details, theme, motion, icons, on/off. Tasks are independent; /footer edits the frame layout.",
     getArgumentCompletions: (prefix) => COMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") { ctx.ui.notify("pi-home appearance is available only in terminal UI mode.", "info"); return; }
@@ -478,43 +423,23 @@ export default function home(pi: ExtensionAPI) {
         ctx.ui.notify(`Expanded tool cards now use ${command === "output raw" ? "raw payloads" : "readable output"}. Use Ctrl+O to expand. Session only.`, "info");
         return;
       }
-      if (command === "lab" || command.startsWith("lab ")) {
-        const [requested, lighting, ...extra] = command.split(/\s+/).slice(1);
-        if (extra.length || (requested && !DIRECTIONS.includes(requested as Direction)) ||
-          (lighting && (requested !== "glasshouse" || !MOODS.includes(lighting as Mood)))) {
-          ctx.ui.notify("Usage: /home lab [prism|terrarium|arcade|glasshouse]; /home lab glasshouse [biolume|kaleido|sunlit]", "warning");
-          return;
-        }
-        const result = await showDesignLab(ctx, (requested || labDirection) as Direction, (lighting || labMood) as Mood);
-        if (result) {
-          labDirection = result.direction;
-          if (result.mood) labMood = result.mood;
-          const lightingName = result.mood ? ` / ${MOOD_NAMES[result.mood]}` : "";
-          ctx.ui.notify(`${NAMES[result.direction]}${lightingName} shortlisted. Preview only—your current appearance is unchanged.`, "info");
-        }
-        return;
-      }
       const next = { ...state.prefs };
-      if (command === "composer" || command === "biolume" || command === "hearth" || command === "studio" || command === "orbit") {
-        next.look = command;
-        next.enabled = true;
-      } else if (command === "on" || command === "off") next.enabled = command === "on";
+      if (command === "composer") next.enabled = true;
+      else if (command === "on" || command === "off") next.enabled = command === "on";
       else if (command === "details on" || command === "details off") next.details = command === "details on";
-      else if (command === "scene on" || command === "scene off") next.scene = command === "scene on";
       else if (command === "theme on" || command === "theme off") {
         themeLease.restore(ctx);
         next.theme = command === "theme on";
       }
-      else if (["gaze both", "gaze mouse", "gaze typing", "gaze off"].includes(command)) next.gaze = command.slice(5) as Preferences["gaze"];
-      else if (command === "motion work" || command === "motion ambient" || command === "motion off") next.motion = command.slice(7) as Preferences["motion"];
+      else if (command === "motion work" || command === "motion off") next.motion = command.slice(7) as Preferences["motion"];
       else if (command === "icons nerd" || command === "icons plain") next.icons = command.slice(6) as Preferences["icons"];
-      else { ctx.ui.notify("Usage: /home [composer|biolume|hearth|studio|orbit|details on|details off|scene on|scene off|theme on|theme off|gaze both|gaze mouse|gaze typing|gaze off|motion work|motion ambient|motion off|icons nerd|icons plain|lab|on|off]", "warning"); return; }
+      else { ctx.ui.notify("Usage: /home [composer|details on|details off|theme on|theme off|motion work|motion off|icons nerd|icons plain|output raw|output readable|on|off]", "warning"); return; }
       await apply(next, ctx);
     },
   });
 
   // Registered last: the workspace is ready before the independent footer mounts.
   registerFooter(pi, state);
-  registerRecaps(pi, () => state.prefs.enabled && state.prefs.look === "composer");
+  registerRecaps(pi, () => state.prefs.enabled);
   registerComposerPreview(pi, () => ({ motion: state.prefs.motion !== "off", icons: state.prefs.icons === "nerd" }));
 }

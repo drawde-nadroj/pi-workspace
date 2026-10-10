@@ -7,7 +7,6 @@
   "workspaces": ["packages/pi-frame", "packages/pi-ask"],
   "files": [
     "extensions/pi-home/*.ts",
-    "extensions/pi-home/lab/*.ts",
     "extensions/pi-tasks/*.ts",
     "lib/*.ts",
     "packages/pi-ask/extensions/**/*.ts",

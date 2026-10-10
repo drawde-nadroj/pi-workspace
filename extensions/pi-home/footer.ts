@@ -44,7 +44,7 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
   const path = join(getAgentDir(), "pi-footer.json");
   const refresh = () => tui?.requestRender();
   const persist = () => { if (ctx?.mode === "tui") pi.appendEntry(FOOTER_ENTRY, clock.snapshot(Date.now())); };
-  const composer = () => home.footerPickerOpen || home.prefs.enabled && home.prefs.look === "composer";
+  const composer = () => home.footerPickerOpen || home.prefs.enabled;
   let renderFooter: ((width: number) => string[]) | undefined;
   home.appearanceData = () => ({ cwd: ctx?.cwd ?? "", model: ctx?.model?.name || ctx?.model?.id || "no model", thinking: pi.getThinkingLevel(),
     session: ctx?.sessionManager.getSessionName() ?? "", usage: ctx?.getContextUsage(), git, gitUnavailable, frame: frame() });
@@ -159,7 +159,6 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
           const statuses = [...data.getExtensionStatuses().values()].map(clean).filter(Boolean);
           if (statuses.length) rows.push(...wrapTextWithAnsi(ctx.ui.theme.fg("dim", statuses.join("  ")), width));
           if (composer() && !home.footerPickerOpen && composerPadding(width, ui.terminal.rows)) rows.unshift("");
-          home.gaze?.setFooterRows(rows.length);
           return composer() ? rows.map(row => composerSurface(ctx!.ui.theme, row, width)) : rows;
         },
       };
@@ -264,7 +263,7 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
             return { editor, footer, above: prefs.timing === "strip" ? activity(width) : [], hits: home.appearanceHits ?? [] };
           },
           select: (selected, state) => { if (gen === generation) { home.appearancePreview = { selected, state }; refresh(); } },
-          temporary: !home.prefs.enabled || home.prefs.look !== "composer",
+          temporary: !home.prefs.enabled,
           reducedMotion: home.prefs.motion === "off",
         }, abort.signal);
         if (gen !== generation || !selected) return;

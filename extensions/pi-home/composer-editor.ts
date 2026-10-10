@@ -22,11 +22,11 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
   let framed = false, verticalPad = 0, nativeBottom = 0;
   const render = function(width: number): string[] {
     verticalPad = 0;
-    framed = canFrame && (home.footerPickerOpen || home.prefs.enabled && home.prefs.look === "composer") && width >= 8;
+    framed = canFrame && (home.footerPickerOpen || home.prefs.enabled) && width >= 8;
     if (canFrame) {
       const nativeWidth = framed ? width - 2 : Math.max(3, width);
       // The native wrapper needs at least three content cells for CJK + cursor.
-      appliedPadding = home.footerPickerOpen || home.prefs.enabled && home.prefs.look === "composer"
+      appliedPadding = home.footerPickerOpen || home.prefs.enabled
         ? Math.min(2, Math.max(0, Math.floor((nativeWidth - 3) / 2))) : oldPadding;
       padded.setPaddingX!(appliedPadding!);
     }

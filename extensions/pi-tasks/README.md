@@ -1,6 +1,6 @@
 # pi-tasks
 
-An **independent, optional named-plan library** for pi 0.99.1. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Home/Biolume is an optional visual host, not the owner of state. No extra model calls, execution loops, network requests, database, or runtime packages.
+An **independent, optional named-plan library** for Pi 1.0.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Home/Composer is an optional visual host, not the owner of state. No extra model calls, execution loops, network requests, database, or runtime packages.
 
 ## Start
 
@@ -141,7 +141,7 @@ The legacy `/tasks prev`, `next`, `follow`, and `view focus|compact` controls re
 - Timers and subscriptions are session-scoped. Expiry is cancelled on shutdown/off, and is absent in non-TUI modes.
 - Only Home owns the editor/header/footer. Tasks never replaces them.
 
-This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-home/DOCK.md` and `../pi-home/TODO-RESEARCH.md` for the protocol and earlier research rationale.
+This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-home/DOCK.md` for the production protocol. Earlier design research remains in Git history, not in the current interface.
 
 ## Validation
 

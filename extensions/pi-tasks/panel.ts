@@ -79,7 +79,7 @@ export class TaskPanel implements Component {
       : this.details ? 24 : Math.max(16, p.state.tasks.length + 12 + Math.max(0, preview.length - 1));
     const height = Math.min(available, preferred);
     const color = (tone: Tone) => colors ? parseColor(colors[tone]) : this.theme.colors[tone];
-    // Raised relative to both the forest and the native transcript; never transparent terminal-default rows.
+    // Raised relative to Composer and the native transcript; never transparent terminal-default rows.
     const surface = mixColors(colors ? parseColor(colors.panel) : this.theme.colors.customMessageBg, color("text"), .08, "srgb");
     const selected = mixColors(surface, color("accent"), .17, "srgb");
     const inner = Math.max(0, width - 2), contentWidth = Math.max(0, inner - 4);

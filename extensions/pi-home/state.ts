@@ -1,25 +1,20 @@
 import type { TaskPanel } from "./task-presentation.ts";
-import type { GazeTracker } from "./gaze.ts";
 import type { FooterPrefs } from "./footer-state.ts";
 import type { AppearanceState, AppearancePreview, AppearanceHit } from "./appearance.ts";
 import type { FooterData } from "./footer-view.ts";
 import type { TUI } from "@earendil-works/pi-tui";
 
-export type GazeMode = "both" | "mouse" | "typing" | "off";
-export type Look = "hearth" | "studio" | "orbit" | "biolume" | "composer";
-export type Motion = "work" | "ambient" | "off";
+export type Motion = "work" | "off";
 export interface Preferences {
   enabled: boolean;
-  look: Look;
+  look: "composer";
   motion: Motion;
   icons: "nerd" | "plain";
-  scene: boolean;
   details: boolean;
   theme: boolean;
-  gaze: GazeMode;
 }
 export const DEFAULTS: Preferences = {
-  enabled: true, look: "biolume", motion: "work", icons: "nerd", scene: true, details: false, theme: true, gaze: "both",
+  enabled: true, look: "composer", motion: "work", icons: "nerd", details: false, theme: true,
 };
 export const TIMING_ENTRY = "pi-home:timing-v1";
 export type Outcome = "done" | "stopped" | "error";
@@ -34,13 +29,12 @@ export function preferencesFrom(value: unknown): Preferences {
   const p = (value && typeof value === "object" ? value : {}) as Partial<Preferences>;
   return {
     enabled: typeof p.enabled === "boolean" ? p.enabled : DEFAULTS.enabled,
-    look: ["hearth", "studio", "orbit", "biolume", "composer"].includes(p.look ?? "") ? p.look! : DEFAULTS.look,
-    motion: ["work", "ambient", "off"].includes(p.motion ?? "") ? p.motion! : DEFAULTS.motion,
+    // Old Home looks and gallery-only fields are ignored, never written back on save.
+    look: "composer",
+    motion: p.motion === "off" ? "off" : "work",
     icons: p.icons === "plain" ? "plain" : "nerd",
-    scene: typeof p.scene === "boolean" ? p.scene : DEFAULTS.scene,
     details: typeof p.details === "boolean" ? p.details : DEFAULTS.details,
     theme: typeof p.theme === "boolean" ? p.theme : DEFAULTS.theme,
-    gaze: ["both", "mouse", "typing", "off"].includes(p.gaze ?? "") ? p.gaze! : DEFAULTS.gaze,
   };
 }
 
@@ -145,7 +139,6 @@ export interface HomeState {
   appearanceMode?: string;
   openAppearancePreview?: (tui: TUI) => { render: (width: number) => string[]; dispose: () => void };
   thinkingLevel?: () => string;
-  gaze?: GazeTracker;
   prefs: Preferences;
   clock: RunClock;
   phase: "working" | "thinking" | "responding";
@@ -169,8 +162,7 @@ export function activity(state: HomeState): string {
 }
 
 export function shouldAnimate(state: HomeState, now: number, focused: boolean): boolean {
-  return !state.footerPickerOpen && state.prefs.enabled && state.prefs.motion !== "off" && (focused || state.prefs.look === "composer") &&
-    state.promptDepth === 0 && (state.prefs.look === "composer" || now - state.lastInputAt >= 1200) &&
-    (state.clock.active || state.compacting || (state.prefs.motion === "ambient" && state.prefs.look !== "composer") ||
+  return !state.footerPickerOpen && state.prefs.enabled && state.prefs.motion !== "off" &&
+    state.promptDepth === 0 && (state.clock.active || state.compacting ||
       (state.clock.transitionAt > 0 && now - state.clock.transitionAt < 800));
 }

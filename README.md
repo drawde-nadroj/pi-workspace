@@ -9,7 +9,7 @@ Source for four related Pi components in **one Git repository**:
 | Home | [`extensions/pi-home`](extensions/pi-home/README.md) | Editor, footer, transcript surfaces and workspace host |
 | Tasks | [`extensions/pi-tasks`](extensions/pi-tasks/README.md) | Plans, task tool, history, and independent fallback |
 
-**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. A packed suite was installed and cold-loaded in an isolated Pi agent directory; a partial interactive terminal review and rollback-settings drill are recorded in [acceptance](docs/ACCEPTANCE.md). Physical IME and human visual checks remain open. This is **not published or enabled in your live Pi installation**: it still loads the original copies in `~/.pi/agent`. Do not install the suite there alongside them, as that would double-register resources.
+**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. Home is Composer-only in this checkout, including on a fresh install; retired presets and the old design lab have been removed. A packed suite was installed and cold-loaded in an isolated Pi agent directory; a partial interactive terminal review and rollback-settings drill are recorded in [acceptance](docs/ACCEPTANCE.md). Physical IME and human visual checks remain open. This is **not published or enabled in your live Pi installation**: it still loads the original copies in `~/.pi/agent`. Do not install the suite there alongside them, as that would double-register resources.
 
 ## Develop
 

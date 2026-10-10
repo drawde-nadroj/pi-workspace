@@ -1,6 +1,6 @@
 # Native composer preview
 
-Run `/reload`, then `/composer-preview`. This is a temporary native Pi overlay, not a replacement editor or a saved design. It focuses on the region from working status through the footer, without the forest scene or transcript.
+Run `/reload`, then `/composer-preview`. This is a temporary native Pi overlay, not a replacement editor or a saved design. It focuses on the region from working status through the footer, separate from the live transcript.
 
 All displayed identity, paths, model, task counts, Git state, context usage and times are **sample data**. There are no model calls, shell commands, task updates, session entries, preference writes, or reads/writes of the real draft. Closing discards the test draft and preview options.
 

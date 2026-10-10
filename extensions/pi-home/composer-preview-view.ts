@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { mixColors, sliceByColumn, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import { Canvas, makePalette, type Palette } from "./lab/design.ts";
+import { Canvas, makeComposerPalette, type Palette } from "./composer-palette.ts";
 import { middle } from "./footer-view.ts";
 import { clean } from "./footer-state.ts";
 import type { PreviewPhase } from "./composer-preview.ts";
@@ -33,7 +33,7 @@ const palettes = new Map<boolean, Palette>();
 function palette(light: boolean) {
   let p = palettes.get(light);
   if (p) return p;
-  p = makePalette("prism", light);
+  p = makeComposerPalette(light);
   for (let i = 0; i < 16; i++) {
     p[`flow${i}`] = mixColors(p.line, p.secondary, 0.3 + i / 15 * 0.7);
     p[`finish${i}`] = mixColors(p.line, p.success, i / 15);

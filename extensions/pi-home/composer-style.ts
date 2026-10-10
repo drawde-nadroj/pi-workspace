@@ -1,8 +1,8 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { frameRail, paintFramePerimeter } from "../../lib/frame.ts";
 import { foregroundAnsi, mixColors, parseColor, truncateToWidth, visibleWidth, type Color } from "@earendil-works/pi-tui";
-import { inheritColors } from "./biolume.ts";
-import { makePalette } from "./lab/design.ts";
+import { inheritColors } from "./composer-theme.ts";
+import { makeComposerPalette } from "./composer-palette.ts";
 import { colorToHex } from "@earendil-works/pi-tui";
 import { formatDuration, shouldAnimate, type HomeState } from "./state.ts";
 import { clean, homePath, stamp } from "./footer-state.ts";
@@ -106,7 +106,7 @@ export function composerFrame(theme: Theme, rows: string[], width: number, home:
 
 /** Public theme roles are also the contract used by pi-ask's standalone shell. */
 export function composerThemeColors(light: boolean): Record<string, string> {
-  const p = makePalette("prism", light), hex = (key: string) => colorToHex(p[key]);
+  const p = makeComposerPalette(light), hex = (key: string) => colorToHex(p[key]);
   return {
     accent: hex("accent"), border: hex("line"), borderAccent: hex("secondary"), borderMuted: hex("line"),
     text: hex("text"), muted: hex("muted"), dim: hex("muted"), success: hex("success"), warning: hex("warning"), error: hex("error"),
