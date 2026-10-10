@@ -9,7 +9,7 @@ const { composerPadding, composerMessageRail, composerBottomRail, composerFrame,
 const { HomeEditor } = await jiti.import(join(source, "ui.ts"));
 const { COMPOSER_ICONS } = await jiti.import(join(source, "composer-icons.ts"));
 const { DEFAULTS, RunClock } = await jiti.import(join(source, "state.ts"));
-const { FOOTER_DEFAULTS, ActivityClock, stamp } = await jiti.import(join(source, "footer-state.ts"));
+const { FOOTER_DEFAULTS, ActivityClock } = await jiti.import(join(source, "footer-state.ts"));
 const { composerStatus, composerStatusRows } = await jiti.import(join(source, "composer-live.ts"));
 const { createWorkspace } = await jiti.import(join(source, "workspace.ts"));
 const { TuiMainScreen, TuiAltScreen, colorToHex, parseColor } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
@@ -214,8 +214,9 @@ test("composer top-right shows only a recorded user-send time in user red, with 
   assert.match(plain(composerMessageRail(theme, 100, home, now, "Alchemy")), /Next: review tests/);
   home.lastUserSentAt = () => at;
   const sent = composerMessageRail(theme, 100, home, now, "Alchemy");
-  assert.match(plain(sent), /Sent 12:30/);
-  assert.ok(sent.includes(theme.style(` Sent ${stamp(at, "24h", now)} `, { fg: userFrameColor(theme) })), "time uses the user frame red");
+  const seconds = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  assert.ok(plain(sent).includes(`${COMPOSER_ICONS.sent} ${seconds}`));
+  assert.ok(sent.includes(theme.style(` ${COMPOSER_ICONS.sent} ${seconds} `, { fg: userFrameColor(theme), bold: true })), "time uses the user frame red");
   assert.doesNotMatch(plain(sent), /Next: review tests/);
   assert.equal(sent, composerMessageRail(theme, 100, home, now + 20_000, "Alchemy"), "recorded time does not tick");
   assert.match(plain(composerMessageRail(theme, 100, home, now, "Alchemy", "↑ 3 more")), /↑ 3 more/);

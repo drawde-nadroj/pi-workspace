@@ -99,7 +99,7 @@ for (const mode of ["cold", "require", "native", "require-bare", "native-bare", 
         title = "Fix Pi Home Footer Session Display";
         let row = plain(composerMessageRail(theme, 140, home, 100000, title));
         assert.match(row, /6 tools running/);
-        assert.match(row, /Sent/);
+        assert.match(row, /\d{2}:\d{2}:\d{2}/, "send time remains visible after rail prioritization");
         assert.ok(row.includes(title), `${mode}, custom=${custom}: missing recorded title in ${row}`);
         assert.ok(Math.abs(row.indexOf(title) + title.length / 2 - 70) <= 1, "title is centered");
         assert.match(plain(composerBottomRail(theme, 140, home, ctx, "NORMAL")), /NORMAL/);

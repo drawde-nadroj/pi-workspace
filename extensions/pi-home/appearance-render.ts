@@ -3,7 +3,8 @@ import { mixColors, parseColor, sliceByColumn, truncateToWidth, visibleWidth, ty
 import { frameRail } from "../../lib/frame.ts";
 import { basename } from "node:path";
 import { ELEMENTS, STATE_TEXT, type ElementId, type Position, type AppearanceState, type AppearanceColor, type AppearanceHit } from "./appearance.ts";
-import { clean, duration, gitLabel, homePath, stamp, FOOTER_DEFAULTS } from "./footer-state.ts";
+import { clean, duration, gitLabel, homePath, FOOTER_DEFAULTS } from "./footer-state.ts";
+import { sentTime } from "./sent-metadata.ts";
 import { contextText, decorateFooterPart } from "./footer-view.ts";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
 import type { HomeState } from "./state.ts";
@@ -41,13 +42,13 @@ export function appearanceValues(home: HomeState, width: number, now: number): R
     status += ` ${duration(home.railRunElapsed?.(now) ?? home.clock.elapsed(now))}`;
   }
   const sent = home.lastUserSentAt?.();
-  const sentTime = Number.isFinite(sent) && sent! >= 0 ? stamp(sent, p.timestamps === "12h" ? "12h" : "24h", now) : "";
+  const lastSendTime = sentTime(sent, p, now);
   return {
-    status, session: data?.session || "Untitled session", sentTime,
+    status, session: data?.session || "Untitled session", sentTime: lastSendTime,
     directory: p.directory === "folder" ? basename(data?.cwd ?? "") : homePath(data?.cwd ?? ""),
     vim: home.appearanceMode ?? "", model: data?.model ?? "", thinking: home.thinkingLevel?.() ?? data?.thinking ?? "",
     context: contextText(p, data?.usage, width), git: data?.git ? gitLabel(data.git, p, width < 75) : data?.gitUnavailable ? "—" : "",
-    hint: !home.clock.active && !sentTime ? clean(home.nextHint?.() ?? "") : "",
+    hint: !home.clock.active && !lastSendTime ? clean(home.nextHint?.() ?? "") : "",
   };
 }
 /** Same layout and hit rectangles serve normal rendering and the editing workspace. */
@@ -70,11 +71,15 @@ export function appearanceRow(theme: Theme, width: number, home: HomeState, row:
         : id === "context" && (data?.usage?.percent ?? 0) >= 75 ? theme.colors[(data?.usage?.percent ?? 0) >= 90 ? "error" : "warning"]
         : id === "git" ? theme.colors[data?.git?.conflicts ? "error" : data?.git && data.git.staged + data.git.changed + data.git.untracked ? "warning" : "success"] : border;
       const color = appearanceColor(theme, id === "status" ? stateStyle?.color ?? e.color : e.color, border, automatic);
-      let text = e.text.replaceAll("{value}", clean(values[id]));
+      const p = home.layout!;
+      // Existing saved defaults still say "Sent {value}". Hide only that stock
+      // word in Nerd mode; leave deliberate custom templates intact.
+      const template = id === "sentTime" && p.icons === "nerd" && e.text === "Sent {value}" ? "{value}" : e.text;
+      let text = template.replaceAll("{value}", clean(values[id]));
+      const icon = p.icons === "nerd" ? (COMPOSER_ICONS as Record<string, string>)[id === "sentTime" ? "sent" : id]
+        : !framed ? ({ directory: "dir", git: "git", session: "session", context: "ctx" } as Record<string, string>)[id] : "";
+      if (icon && (id === "sentTime" || id === "directory" || !framed)) text = `${icon} ${text}`;
       if (!framed) {
-        const p = home.layout!;
-        const icon = p.icons === "nerd" ? (COMPOSER_ICONS as Record<string, string>)[id] : ({ directory: "dir", git: "git", session: "session", context: "ctx" } as Record<string, string>)[id];
-        if (icon) text = `${icon} ${text}`;
         const tone = id === "git" && data?.git?.conflicts || id === "context" && (data?.usage?.percent ?? 0) >= 90 ? "error"
           : id === "context" && (data?.usage?.percent ?? 0) >= 75 ? "warning" : undefined;
         text = decorateFooterPart(theme, p, { id, text, tone }, index, data?.frame, e.color === "auto" ? undefined : color);
@@ -110,7 +115,7 @@ export function appearanceRow(theme: Theme, width: number, home: HomeState, row:
       if (content) { content += theme.style(separator, { fg: border }); x += visibleWidth(separator); }
       const part = parts[i], text = truncateToWidth(part.text, sizes[i], "…");
       const selected = home.footerPickerOpen && home.appearancePreview?.selected === part.id;
-      const styled = theme.style(text, { fg: part.color, bold: part.bold });
+      const styled = theme.style(text, { fg: part.color, bold: framed || part.bold });
       content += selected ? selectionHighlight(theme, styled, { underline: true, foreground: part.color, phase: home.appearancePreview?.shimmer }) : styled;
       hits.push({ id: part.id, x, width: visibleWidth(text) }); x += visibleWidth(text);
     }

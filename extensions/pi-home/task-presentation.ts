@@ -10,7 +10,7 @@ export interface TaskPanelPrefs { version: 1; title: string; rows: number; prese
 export type TaskElementId = "frame" | "title" | "summary" | "hint" | "body" | "active";
 export interface TaskPreviewHit { id: TaskElementId; x: number; y: number; width: number }
 export function taskPanelDefaults(): TaskPanelPrefs {
-  return { version: 1, title: "Tasks", rows: 3, presentation: framePresentationDefaults() };
+  return { version: 1, title: "Tasks", rows: 3, presentation: { ...framePresentationDefaults(), metadataColor: "accent" } };
 }
 export function readTaskPanel(value: unknown): TaskPanelPrefs {
   const out = taskPanelDefaults(), raw = value as Partial<TaskPanelPrefs> | undefined;

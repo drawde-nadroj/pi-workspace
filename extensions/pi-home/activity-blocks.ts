@@ -302,7 +302,7 @@ export class ActivityBlocks {
         + (appearance ? toolIdentity(theme, `${title} `, rail, appearance) : quietFrameLabel(theme, `${title} `, rail)),
         (appearance ? matchedToolStatus(appearance, error || attention) : labels === "matched" && !error && !attention)
           ? quietFrameLabel(theme, ` ${disclosure}${headerStatus} `, rail)
-          : theme.style(` ${disclosure}${headerStatus} `, { fg: color, bold: !!error }), true, rail)];
+          : theme.style(` ${disclosure}${headerStatus} `, { fg: color, bold: true }), true, rail)];
       for (const line of body) rows.push(composerSurface(theme, theme.style("│", { fg: rail }) + composerSurface(theme, " " + truncateToWidth(line, inner, "…") + " ", width - 2) + theme.style("│", { fg: rail }), width));
       rows.push(composerRail(theme, width, "", "", false, rail));
       framedWidth = width;

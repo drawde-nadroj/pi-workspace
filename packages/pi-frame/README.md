@@ -72,7 +72,7 @@ The public entry is **`pi-embeddable-frame/presentation`**. The root still re-ex
 
 `framePresentationDefaults()` creates fresh version-1, serializable settings. `readFramePresentation(value)` validates colors, enums, positions and state rules, bounds period to 1.2–12 seconds and intensity to 0–1, and ignores unknown fields.
 
-- Independent border, highlight, title, metadata, body and active-row colors; title/active-row bold.
+- Independent border, highlight, title, metadata, body and active-row colors. Title, summary and hint rail labels render bold; active-row bold remains configurable. This does not bold ordinary body rows.
 - Theme colors or exact six-digit hex. The `highlight` token is soft white on dark themes and dark ink on light themes. Custom colors are not automatically contrast-corrected.
 - Title, summary and optional hint in any of the six rail positions; same-position fields are combined. Tasks uses the bottom-right hint for additional open work rather than spending a body row.
 - Shimmer or whole-border pulse, clockwise/counterclockwise direction, cycle duration and intensity.
@@ -91,7 +91,7 @@ With `{ automatic: true, requestRender }`, it owns one timer, capped at 30 Hz. T
 
 Home supplies sourced task counts and open-work rows through the dock bridge. The overview is independent of the legacy `/tasks` focus browser: active tasks come first, then blockers and pending work; completed work is counted rather than consuming rows. The independent no-Home Tasks fallback retains its existing appearance and browsing behavior. Historical tool acknowledgements are not animated by this integration.
 
-Default motion is a quiet accent border with a near-white travelling highlight while an actual run and active task are present. Progress changes can sweep once. Waiting, typing, lost editor focus, blocking prompts, hidden/narrow frames, settings interactions and motion-off stop live motion. Explicit settings demos have their own disposable controller; reduced-motion settings still apply.
+Home's Tasks defaults give the summary and overflow hint the same accent color as its title; saved metadata-color customizations remain valid. Default motion is a quiet accent border with a near-white travelling highlight while an actual run and active task are present. Progress changes can sweep once. Waiting, typing, lost editor focus, blocking prompts, hidden/narrow frames, settings interactions and motion-off stop live motion. Explicit settings demos have their own disposable controller; reduced-motion settings still apply.
 
 ## Historical verification for the first Tasks integration
 

@@ -8,6 +8,7 @@ const { FOOTER_DEFAULTS, footerPrefs } = await jiti.import(join(source, "footer-
 const { DEFAULTS, RunClock } = await jiti.import(join(source, "state.ts"));
 const { appearanceDefaults, POSITIONS, STATES } = await jiti.import(join(source, "appearance.ts"));
 const { appearanceRow, appearanceBorder } = await jiti.import(join(source, "appearance-render.ts"));
+const { COMPOSER_ICONS } = await jiti.import(join(source, "composer-icons.ts"));
 const { HomeEditor } = await jiti.import(join(source, "ui.ts"));
 const { getEditorTheme } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")));
 import { workspace } from "./workspace-harness.mjs";
@@ -25,11 +26,29 @@ test("visual layout migration is optional, validates nested data and never mutat
   const parsed = footerPrefs({ ...old, appearance });
   assert.equal(parsed.appearance.elements.model.text, "Model {value} ");
   assert.equal(parsed.appearance.elements.model.position, "bottomRight");
-  assert.equal(parsed.appearance.elements.model.color, "quiet");
+  assert.equal(parsed.appearance.elements.model.color, "frame");
   assert.equal(parsed.appearance.states.done.text, "Ready now");
   assert.deepEqual(footerPrefs(JSON.parse(JSON.stringify(parsed))), parsed);
   assert.equal(footerPrefs({ ...old, appearance: { version: 999 } }).appearance, undefined);
   assert.equal(old.appearance, undefined);
+});
+
+test("stock Sent and directory rails follow the existing icon preference without rewriting templates", async () => {
+  const h = workspace();
+  const top = () => plain(appearanceRow(theme, 140, h.home, "top", new Date(2026, 9, 8, 12, 31).valueOf()));
+  const bottom = () => plain(appearanceRow(theme, 140, h.home, "bottom", 0));
+  assert.match(top(), new RegExp(`${COMPOSER_ICONS.sent} \\d{2}:\\d{2}:\\d{2}`));
+  assert.doesNotMatch(top(), /Sent \d/);
+  assert.ok(bottom().includes(`${COMPOSER_ICONS.directory} /project/界面`));
+  assert.equal(h.home.layout.appearance.elements.model.color, "frame");
+  h.home.layout.icons = "plain";
+  assert.match(top(), /Sent \d{2}:\d{2}:\d{2}/);
+  assert.doesNotMatch(bottom(), new RegExp(COMPOSER_ICONS.directory));
+  assert.ok(bottom().includes("/project/界面"));
+  h.home.layout.icons = "nerd";
+  h.home.layout.appearance.elements.sentTime.text = "Posted {value}";
+  assert.match(top(), new RegExp(`${COMPOSER_ICONS.sent} Posted \\d`), "custom text remains intact");
+  await h.discard();
 });
 
 test("native full-width preview, disabled elements and synced direct/list selection", async () => {

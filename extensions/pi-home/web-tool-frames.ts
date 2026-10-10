@@ -53,6 +53,6 @@ export function renderWebToolFrame(meta: WebMeta, theme: Theme, width: number, n
     corners: { topLeft: toolIdentity(theme, ` Web · ${label} `, color, style),
       topRight: quietFrameLabel(theme, meta.result ? meta.expanded ? " ▾ " : " ▸ " : "", color),
       bottomRight: matchedToolStatus(style, state === "failed" || state === "cancelled") ? quietFrameLabel(theme, text, color)
-        : theme.style(text, { fg: parseColor(status.color as string) }) },
+        : theme.style(text, { fg: parseColor(status.color as string), bold: true }) },
     surface: (text, cells) => composerSurface(theme, text, cells) });
 }

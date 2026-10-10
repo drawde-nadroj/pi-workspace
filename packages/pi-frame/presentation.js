@@ -93,7 +93,7 @@ export function presentationRows({ theme, width, rows, title = "", summary = "",
   const ink = (text, color, bold, animate = false) => theme?.style
     ? theme.style(text, { fg: animate && glow ? mixColors(resolve(theme, color), highlight, glow) : resolve(theme, color), bold }) : text;
   const corners = {};
-  for (const [key, value, color, bold] of [["title", title, style.labelColor, p.labelBold], ["summary", summary, style.metadataColor, false], ["hint", hint, style.metadataColor, false]]) {
+  for (const [key, value, color, bold] of [["title", title, style.labelColor, p.labelBold], ["summary", summary, style.metadataColor, true], ["hint", hint, style.metadataColor, true]]) {
     if (!value) continue;
     const position = p.positions[key];
     const label = ink(` ${value} `, color, bold, ["labels", "both"].includes(p.textEffect));

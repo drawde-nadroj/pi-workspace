@@ -26,7 +26,8 @@ test('transcript list and synthetic preview select only visible labels; Undo/Dis
   const h = workspace();
   h.click('[Transcript]');
   assert.match(h.rows().join('\n'), /Demo chat \/ tool · display only/);
-  h.click('Sent 9:41 AM');
+  const { COMPOSER_ICONS } = await jiti.import(join(source, 'composer-icons.ts'));
+  h.click(`${COMPOSER_ICONS.sent} 9:41:05 AM`);
   assert.match(h.rows().join('\n'), /Workspace · Transcript · Sourced Sent time/);
   h.click('Sent position'); h.pick('bottomLeft');
   assert.equal(h.latest.transcript.chat.sentPosition, 'bottomLeft');

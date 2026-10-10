@@ -5,7 +5,9 @@ import { inheritColors } from "./composer-theme.ts";
 import { makeComposerPalette } from "./composer-palette.ts";
 import { colorToHex } from "@earendil-works/pi-tui";
 import { formatDuration, shouldAnimate, type HomeState } from "./state.ts";
-import { clean, homePath, stamp } from "./footer-state.ts";
+import { clean, homePath } from "./footer-state.ts";
+import { sentTime, styledSentLabel } from "./sent-metadata.ts";
+import { COMPOSER_ICONS } from "./composer-icons.ts";
 import { appearanceBorder, appearanceRow } from "./appearance-render.ts";
 
 /** Padding yields in short/narrow panes; no animation changes geometry. */
@@ -32,7 +34,7 @@ function glintColors(theme: Theme, base: Color): Color[] {
 export function composerInset(width: number): number { return width >= 8 ? 2 : 0; }
 /** Related metadata stays readable while borrowing the frame's hue. */
 export function quietFrameLabel(theme: Theme, text: string, border: Color): string {
-  return theme.style(text, { fg: mixColors(border, theme.colors.muted, .55) });
+  return theme.style(text, { fg: mixColors(border, theme.colors.muted, .55), bold: true });
 }
 
 /** A bright traveling head with a soft trail, not icons or a filling progress track.
@@ -48,15 +50,14 @@ export function composerMessageRail(theme: Theme, width: number, home: HomeState
   const status = home.railStatus?.() ?? { text: busy ? "Working" : "What’s next?", tone: busy ? "toolTitle" : "muted" };
   const runningTime = busy && home.promptDepth === 0 && home.clock.active && home.clock.timing
     ? ` ${formatDuration(home.railRunElapsed?.(now) ?? now - home.clock.timing.startedAt)}` : "";
-  const left = theme.style(` ${clean(status.text)}${runningTime} `, { fg: theme.colors[status.tone], bold: busy });
+  const left = theme.style(` ${clean(status.text)}${runningTime} `, { fg: theme.colors[status.tone], bold: true });
   const next = !busy && home.layout?.railHint !== "off" ? clean(home.nextHint?.() ?? "") : "";
   const sentAt = home.lastUserSentAt?.();
-  const sent = Number.isFinite(sentAt) && sentAt! >= 0
-    ? stamp(sentAt, home.layout?.timestamps === "12h" ? "12h" : "24h", now) : "";
+  const sent = sentTime(sentAt, home.layout, now);
   // The native scroll indicator wins. A real user-send time takes priority over
   // the optional task hint; the hint can return before the first recorded send.
   const right = hint ? quietFrameLabel(theme, ` ${hint} `, border)
-    : width >= 42 && sent ? theme.style(` Sent ${sent} `, { fg: userFrameColor(theme) })
+    : width >= 42 && sent ? styledSentLabel(theme, sent, userFrameColor(theme), "user", home.layout?.icons)
     : width >= 66 && next ? quietFrameLabel(theme, ` Next: ${next} `, border) : "";
   // Center stays cell-centered. Reserve the status and a modest right slot first;
   // frameRail can shorten a long time before hiding the session identity.
@@ -142,7 +143,7 @@ export function composerBottomRail(theme: Theme, width: number, home: HomeState,
   const border = composerBorder(theme);
   const meta = home.layout?.railDetails !== "off";
   const left = meta && home.layout?.directory !== "off"
-    ? quietFrameLabel(theme, ` ${homePath(context.cwd || "")} `, border) : "";
+    ? quietFrameLabel(theme, ` ${home.layout?.icons === "plain" ? "" : `${COMPOSER_ICONS.directory} `}${homePath(context.cwd || "")} `, border) : "";
   const model = meta && home.layout?.model !== "off" ? clean(context.model?.name || context.model?.id || "no model") : "";
   const thinking = home.layout?.thinking !== "off" ? clean(home.thinkingLevel?.() ?? "") : "";
   // Reserve the right half around a centered Vim label. Shorten the model first
@@ -151,7 +152,9 @@ export function composerBottomRail(theme: Theme, width: number, home: HomeState,
   const available = Math.max(0, Math.floor(width / 2) - Math.ceil(visibleWidth(mode ? ` ${clean(mode)} ` : "") / 2) - 2);
   const modelName = model ? truncateToWidth(model, Math.max(0, available - visibleWidth(level) - (level ? 5 : 2)), "…") : "";
   const detail = [modelName, level].filter(Boolean).join(" · ");
-  const right = nativeHint || (detail ? quietFrameLabel(theme, ` ${detail} `, border) : "");
+  const right = nativeHint || (detail ? modelName
+    ? theme.style(` ${modelName} `, { fg: border, bold: true }) + (level ? quietFrameLabel(theme, `· ${level} `, border) : "")
+    : quietFrameLabel(theme, ` ${level} `, border) : "");
   const center = mode ? theme.style(` ${clean(mode)} `, { fg: border, bold: true }) : "";
   return composerRail(theme, width, left, right, false, border, center);
 }

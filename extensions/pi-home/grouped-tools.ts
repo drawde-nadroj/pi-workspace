@@ -3,8 +3,9 @@ import { Container, parseColor, truncateToWidth, visibleWidth, type Component, t
 import { frameRows, statusPreset } from "../../lib/frame.ts";
 import { toolLocation } from "./activity-blocks.ts";
 import { compactToolStatus } from "./tool-status.ts";
-import { composerSurface, quietFrameLabel } from "./composer-style.ts";
-import { stamp, type FooterPrefs } from "./footer-state.ts";
+import { composerSurface } from "./composer-style.ts";
+import type { FooterPrefs } from "./footer-state.ts";
+import { sentTime, styledSentLabel } from "./sent-metadata.ts";
 import { taskFrameColor } from "../../lib/task-frame.ts";
 import { terminalBackground } from "./sent-messages.ts";
 import { activeTranscript, toolIdentity } from "./transcript-presentation.ts";
@@ -81,11 +82,10 @@ class ToolGroup extends Container {
     const theme = this.theme(), color = taskFrameColor(theme);
     const timestamp = (this.owner as unknown as { lastMessage?: { timestamp?: number } }).lastMessage?.timestamp;
     const options = this.prefs(), style = activeTranscript(options);
-    const time = style.chat.showSent && Number.isFinite(timestamp) && timestamp! >= 0
-      ? stamp(timestamp!, options?.timestamps === "12h" ? "12h" : "24h", Date.now()) : "";
+    const time = style.chat.showSent ? sentTime(timestamp, options, Date.now()) : "";
     return frameRows({ theme, width, rows: rows.map(terminalBackground), color,
       corners: { topLeft: toolIdentity(theme, ` Tools · ${this.children.length} calls `, color, style),
-        [style.chat.sentPosition]: time ? quietFrameLabel(theme, ` Sent ${time} `, color) : "" },
+        [style.chat.sentPosition]: styledSentLabel(theme, time, color, "quiet", options?.icons) },
       surface: (text, cells) => composerSurface(theme, text, cells) });
   }
   override handleMouse(event: TuiMouseEvent): ReturnType<Container["handleMouse"]> {

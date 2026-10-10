@@ -5,7 +5,9 @@ import { pathToFileURL } from "node:url";
 import { jiti, source, root, theme, plain, visibleWidth } from "./host.mjs";
 const { GroupedTools } = await jiti.import(join(source, "grouped-tools.ts"));
 const { ActivityBlocks } = await jiti.import(join(source, "activity-blocks.ts"));
-const { FOOTER_DEFAULTS, stamp } = await jiti.import(join(source, "footer-state.ts"));
+const { FOOTER_DEFAULTS } = await jiti.import(join(source, "footer-state.ts"));
+const { sentTime } = await jiti.import(join(source, "sent-metadata.ts"));
+const { COMPOSER_ICONS } = await jiti.import(join(source, "composer-icons.ts"));
 const { AssistantMessageComponent, ToolExecutionComponent, createReadToolDefinition, createWriteToolDefinition } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/index.js")));
 const { Container, Text } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
 const ui = { requestRender() {} };
@@ -31,7 +33,7 @@ test("replay groups adjacent call IDs under their issuing assistant's fixed Sent
     assert.equal(root.children[0], owner); assert.deepEqual(root.children[1].children, calls);
     const rows = root.render(90), text = printed(rows);
     assert.match(text, /Tools · 2 calls/);
-    assert.match(text, new RegExp(`Sent ${stamp(timestamp, "24h", Date.now())}`));
+    assert.match(text, new RegExp(`${COMPOSER_ICONS.sent} ${sentTime(timestamp, FOOTER_DEFAULTS, Date.now())}`));
     assert.equal(rows.filter(row => plain(row).startsWith("╭")).length, 1);
     assert.match(text, /· read a\.txt · preparing/); assert.match(text, /· write b\.txt · preparing/);
     assert.equal((text.match(/read a\.txt/g) ?? []).length, 1);
@@ -49,7 +51,7 @@ test("grouped tool identity and sourced Sent placement follow transcript appeara
     groups.sync(root); blocks.sync(root);
     assert.deepEqual(root.children[1].children, calls);
     const rows = root.children[1].render(90);
-    assert.ok(plain(rows.at(-1)).startsWith(`╰ Sent ${stamp(timestamp, "24h", Date.now())}`));
+    assert.ok(plain(rows.at(-1)).startsWith(`╰ ${COMPOSER_ICONS.sent} ${sentTime(timestamp, prefs, Date.now())}`));
     assert.match(plain(rows[0]), /Tools · 2 calls/);
     prefs.transcript.chat.showSent = false;
     assert.doesNotMatch(plain(root.children[1].render(90).at(-1)), /Sent /);
@@ -105,8 +107,8 @@ test("adjacent assistant turns never merge calls or borrow timestamps", () => {
     assert.equal(root.children.length, 4);
     assert.deepEqual(root.children[1].children, calls);
     assert.deepEqual(root.children[3].children, [c, d]);
-    assert.match(printed(root.children[1].render(90)), new RegExp(`Sent ${stamp(timestamp, "24h", Date.now())}`));
-    assert.match(printed(root.children[3].render(90)), new RegExp(`Sent ${stamp(timestamp + 60_000, "24h", Date.now())}`));
+    assert.match(printed(root.children[1].render(90)), new RegExp(`${COMPOSER_ICONS.sent} ${sentTime(timestamp, FOOTER_DEFAULTS, Date.now())}`));
+    assert.match(printed(root.children[3].render(90)), new RegExp(`${COMPOSER_ICONS.sent} ${sentTime(timestamp + 60_000, FOOTER_DEFAULTS, Date.now())}`));
   } finally { groups.dispose(); }
 });
 

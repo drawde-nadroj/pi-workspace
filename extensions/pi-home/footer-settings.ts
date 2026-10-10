@@ -268,7 +268,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           suspended: !focused || !!edit || discardConfirm, reducedMotion: draft.motion === "off" || surface?.reducedMotion, visible: width >= 16 && height >= 12 }, draft.tasks!.presentation) : undefined;
         const taskView = pane === "tasks" ? taskPanelPreview(theme, width, taskDemo(demoState), draft.tasks!, demoFrame!, Math.max(3, Math.min(8, Math.floor(height * .45)))) : undefined;
         const askView = pane === "ask" && askStyle() ? questionPreview(theme, width, askStyle()!) : undefined;
-        const transcriptView = pane === "transcript" && transcriptStyle() ? transcriptPreview(theme, width, transcriptStyle()!, transcriptSelected.startsWith("chat") ? "chat" : "tools") : undefined;
+        const transcriptView = pane === "transcript" && transcriptStyle() ? transcriptPreview(theme, width, transcriptStyle()!, transcriptSelected.startsWith("chat") ? "chat" : "tools", draft.icons) : undefined;
         const live = taskView || askView || transcriptView ? { editor: [], footer: [], hits: [], above: (taskView ?? askView ?? transcriptView)!.rows }
           : pane === "ask" || pane === "transcript" ? { editor: [], footer: [], hits: [], above: [] }
           : surface?.render(width, pulse.kind === "element" ? phase : undefined) ?? { editor: [], footer: [], hits: [] };

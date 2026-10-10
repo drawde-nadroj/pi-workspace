@@ -6,7 +6,8 @@ import { jiti, source, root, theme, plain, visibleWidth } from "./host.mjs";
 const { SentMessageFrames, terminalBackground } = await jiti.import(join(source, "sent-messages.ts"));
 const { composerBorder, userFrameColor } = await jiti.import(join(source, "composer-style.ts"));
 const { taskFrameColor } = await jiti.import(join(source, "../../lib/task-frame.ts"));
-const { stamp } = await jiti.import(join(source, "footer-state.ts"));
+const { sentTime } = await jiti.import(join(source, "sent-metadata.ts"));
+const { COMPOSER_ICONS } = await jiti.import(join(source, "composer-icons.ts"));
 const { AssistantMessageComponent, UserMessageComponent } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/index.js")));
 const { Container, Text, TuiMainScreen, TuiAltScreen, colorToHex, parseColor } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
 
@@ -62,25 +63,29 @@ test("chat frames show only sourced fixed creation times; repeated user text map
   const assistant = new AssistantMessageComponent({ role: "assistant", content: [{ type: "text", text: "Reply" }],
     stopReason: "stop", model: "test", provider: "test", timestamp: Date.UTC(2024, 0, 2, 15, 42) });
   for (const node of [first, second, synthetic, assistant]) root.addChild(node);
-  const prefs = { messageTime: "on", timestamps: "24h" };
+  const prefs = { messageTime: "on", timestamps: "24h", icons: "nerd" };
   const users = [Date.UTC(2024, 0, 2, 10, 1), Date.UTC(2024, 0, 2, 10, 2)]
     .map(timestamp => ({ text: "again", timestamp }));
   try {
     frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
-    const firstTime = stamp(users[0].timestamp, "24h", Date.now());
-    const secondTime = stamp(users[1].timestamp, "24h", Date.now());
-    assert.ok(plain(first.render(70).at(-1)).includes(`Sent ${firstTime}`));
-    assert.ok(first.render(70).at(-1).includes(theme.style(` Sent ${firstTime} `, { fg: userFrameColor(theme) })), "user timestamp matches the user frame red");
-    assert.ok(plain(second.render(70).at(-1)).includes(`Sent ${secondTime}`));
-    assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent /, "unsourced user messages have no invented time");
-    const assistantTime = stamp(Date.UTC(2024, 0, 2, 15, 42), "24h", Date.now());
-    assert.ok(plain(assistant.render(70).at(-1)).includes(`Sent ${assistantTime}`));
+    const firstTime = sentTime(users[0].timestamp, prefs, Date.now());
+    const secondTime = sentTime(users[1].timestamp, prefs, Date.now());
+    const label = time => `${COMPOSER_ICONS.sent} ${time}`;
+    assert.ok(plain(first.render(70).at(-1)).includes(label(firstTime)));
+    assert.ok(first.render(70).at(-1).includes(theme.style(` ${label(firstTime)} `, { fg: userFrameColor(theme), bold: true })), "user timestamp matches the user frame red");
+    assert.ok(plain(second.render(70).at(-1)).includes(label(secondTime)));
+    assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent |\u{f10dd}/u, "unsourced user messages have no invented time");
+    const assistantTime = sentTime(Date.UTC(2024, 0, 2, 15, 42), prefs, Date.now());
+    assert.ok(plain(assistant.render(70).at(-1)).includes(label(assistantTime)));
     prefs.transcript = { version: 1, chat: { assistantLabel: "quiet", showSent: true, sentPosition: "bottomLeft" }, tools: { identity: "quiet", status: "semantic" } };
     frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
-    assert.ok(plain(first.render(70).at(-1)).startsWith(`╰ Sent ${firstTime}`), "user creation time moves left without losing its red identity");
-    assert.ok(first.render(70).at(-1).includes(theme.style(` Sent ${firstTime} `, { fg: userFrameColor(theme) })));
-    assert.ok(plain(assistant.render(70).at(-1)).includes(`Sent ${assistantTime}`));
+    assert.ok(plain(first.render(70).at(-1)).startsWith(`╰ ${label(firstTime)}`), "user creation time moves left without losing its red identity");
+    assert.ok(first.render(70).at(-1).includes(theme.style(` ${label(firstTime)} `, { fg: userFrameColor(theme), bold: true })));
+    assert.ok(plain(assistant.render(70).at(-1)).includes(label(assistantTime)));
     assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent /);
+    prefs.icons = "plain";
+    assert.ok(plain(first.render(70).at(-1)).includes(`Sent ${firstTime}`), "plain mode retains a readable label");
+    assert.doesNotMatch(plain(first.render(70).at(-1)), new RegExp(COMPOSER_ICONS.sent));
     prefs.transcript.chat.showSent = false;
     assert.ok(!plain(first.render(70).at(-1)).includes(firstTime), "saved transcript section takes precedence over legacy field");
     delete prefs.transcript;

@@ -148,7 +148,7 @@ export function frameQuestion(component: any, theme: any, tui: any, previewAppea
         : theme.colors?.muted ? mixColors(accent, theme.colors.muted, .55) : accent;
       return frameRows({ theme, width, rows: lines, inset: 1, color: accent,
         corners: { [appearance.titlePosition]: theme.style ? theme.style(title, { fg: accent, bold: true }) : theme.fg("accent", title),
-          [appearance.progressPosition]: theme.style ? theme.style(position, { fg: progress }) : theme.fg(appearance.labels === "matched" ? "accent" : "muted", position) },
+          [appearance.progressPosition]: theme.style ? theme.style(position, { fg: progress, bold: true }) : theme.fg(appearance.labels === "matched" ? "accent" : "muted", position) },
         surface: (text, cells) => surface(theme, text, cells) });
     },
   };

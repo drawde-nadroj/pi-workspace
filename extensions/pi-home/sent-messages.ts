@@ -2,8 +2,9 @@ import { stripVTControlCharacters } from "node:util";
 import { AssistantMessageComponent, UserMessageComponent, type Theme } from "@earendil-works/pi-coding-agent";
 import { frameRows } from "../../lib/frame.ts";
 import { mixColors, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
-import { composerSurface, quietFrameLabel, userFrameColor } from "./composer-style.ts";
-import { clean, stamp, type FooterPrefs } from "./footer-state.ts";
+import { composerSurface, userFrameColor } from "./composer-style.ts";
+import { clean, type FooterPrefs } from "./footer-state.ts";
+import { sentTime, styledSentLabel } from "./sent-metadata.ts";
 import { taskFrameColor } from "../../lib/task-frame.ts";
 import { activeTranscript, assistantIdentity } from "./transcript-presentation.ts";
 type MessageComponent = UserMessageComponent | AssistantMessageComponent;
@@ -89,14 +90,13 @@ export class SentMessageFrames {
         const label = truncateToWidth(assistant ? clean(modelName()) || "Assistant" : "jordan", width - 6, "…");
         const options = this.presentation, style = activeTranscript(options?.prefs);
         const timestamp = assistant ? (node as AssistantMessageComponent).lastMessage?.timestamp : this.timestamps.get(node);
-        const time = style.chat.showSent && Number.isFinite(timestamp) && timestamp! >= 0
-          ? stamp(timestamp, options?.prefs?.timestamps === "12h" ? "12h" : "24h", Date.now()) : "";
+        const time = style.chat.showSent ? sentTime(timestamp, options?.prefs, Date.now()) : "";
         const motion = assistant && (node as unknown as { isStreaming?: boolean }).isStreaming === true
           ? thinkingMotion?.() : undefined;
         return frameRows({ theme: t, width, rows: lines.map(terminalBackground), color,
-          corners: { topLeft: assistant ? assistantIdentity(t, ` ${label} `, color, style) : t.style(` ${label} `, { fg: color }),
-            [style.chat.sentPosition]: time ? assistant ? quietFrameLabel(t, ` Sent ${time} `, color)
-              : t.style(` Sent ${time} `, { fg: color }) : "" }, surface: (text, cells) => composerSurface(t, text, cells),
+          corners: { topLeft: assistant ? assistantIdentity(t, ` ${label} `, color, style) : t.style(` ${label} `, { fg: color, bold: true }),
+            [style.chat.sentPosition]: styledSentLabel(t, time, color, assistant ? "quiet" : "user", options?.prefs?.icons) },
+          surface: (text, cells) => composerSurface(t, text, cells),
           motion: motion ? { ...motion, accent: mixColors(color, t.colors.text, .35) } : undefined });
       };
       node.render = render; node.handleMouse = mouse; node.invalidate();

@@ -49,6 +49,18 @@ test('task panel preserves exact counts and bounded geometry, prioritizes open w
   }
   initTheme('dark', false);
 });
+test('Tasks summary and hint use the same accent as its title; rail labels are bold, body stays separate', () => {
+  for (const appearance of ['dark', 'light']) {
+    initTheme(appearance, false);
+    const rows = taskPanelRows(theme, 90, taskDemo('working'), taskPanelDefaults(), frame('idle'), 7);
+    assert.ok(rows[0].includes(theme.style(' 3/7 done ', { fg: theme.colors.accent, bold: true })));
+    assert.ok(rows.at(-1).includes(theme.style(' + 1 open · /tasks ', { fg: theme.colors.accent, bold: true })));
+    const idleRows = taskPanelRows(theme, 90, taskDemo('idle'), taskPanelDefaults(), frame('idle'), 7);
+    assert.ok(idleRows.slice(1, -1).some(row => !row.includes('\x1b[1m')), 'ordinary body text remains unbolded');
+  }
+  initTheme('dark', false);
+});
+
 test('changes-only motion ignores mount/history, plan switches and narrow unframed layouts', () => {
   const home = state(), panel = new TaskPanel(); home.layout = { ...FOOTER_DEFAULTS, tasks: taskPanelDefaults() }; home.layout.tasks.presentation.motion = 'changes';
   const dock = taskDemo('idle'); dock.overview.planId = 'p1';
