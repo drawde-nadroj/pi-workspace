@@ -86,7 +86,8 @@ export class ActivityBlocks {
   constructor(private theme: () => Theme, private repaint: () => void,
     private labels: () => "semantic" | "matched" = () => "semantic",
     private grouped: (node: ToolExecutionComponent) => boolean = () => false,
-    private presentation: () => TranscriptAppearance | undefined = () => undefined) {}
+    private presentation: () => TranscriptAppearance | undefined = () => undefined,
+    private density: () => "spaced" | "compact" = () => "spaced") {}
   record(name: string, args: unknown, parent?: string, id?: string): void {
     if (!parent) return;
     let children = this.nested.get(parent);
@@ -148,7 +149,7 @@ export class ActivityBlocks {
       const theme = this.theme(), children = this.nested.get(meta.toolCallId), state = phase(meta), expanded = meta.expanded === true;
       const version = children?.version ?? -1;
       const appearance = this.presentation(), labels = appearance?.tools.status ?? this.labels();
-      const styleKey = `${appearance?.tools.identity ?? "quiet"}:${labels}`;
+      const styleKey = `${appearance?.tools.identity ?? "quiet"}:${labels}:${this.density()}`;
       if (cache && cache.args === meta.args && cache.result === meta.result && cache.expanded === expanded && cache.width === width && cache.theme === theme && cache.version === version && cache.state === state && cache.labels === styleKey) {
         framedWidth = width; expandable = cache.expandable; rawRow = cache.rawRow; return cache.rows;
       }
@@ -178,7 +179,7 @@ export class ActivityBlocks {
       const textRows = (s: string, tone: "muted" | "toolOutput" | "warning" | "error" = "toolOutput") => new Text(theme.fg(tone, sourceText(s)), 0, 0).render(inner);
       const section = (label: string, rows: string[]) => {
         if (!rows.length) return;
-        if (body.length && body.at(-1) !== "") body.push("");
+        if (this.density() === "spaced" && body.length && body.at(-1) !== "") body.push("");
         if (label) body.push(theme.fg("dim", label));
         body.push(...rows);
       };
@@ -289,7 +290,7 @@ export class ActivityBlocks {
       for (const notice of notices) body.push(...textRows(notice, "warning"));
       expandable = !!meta.result || Object.keys(a).length > 0 || !!childCalls?.length || expanded;
       if (expanded) {
-        if (body.length) body.push("");
+        if (this.density() === "spaced" && body.length) body.push("");
         rawRow = body.length + 1;
         const label = raw ? "‹ Readable view" : "› Raw payload";
         rawLabelWidth = visibleWidth(label);

@@ -85,7 +85,7 @@ export class HomeEditor extends CustomEditor {
     }
     const theme = this.ctx().ui.theme, now = this.now();
     const inner = width - 2;
-    this.verticalPad = composerPadding(width, this.tui.terminal.rows);
+    this.verticalPad = composerPadding(width, this.tui.terminal.rows, this.homeState.layout?.density);
     // Preserve native wrapping, navigation, completion, cursor and IME marker.
     super.setPaddingX(Math.min(2, Math.max(0, Math.floor((inner - 4) / 2))));
     const lines = super.render(inner);

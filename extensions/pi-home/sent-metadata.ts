@@ -3,11 +3,17 @@ import { mixColors, type Color } from "@earendil-works/pi-tui";
 import type { FooterPrefs } from "./footer-state.ts";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
 
+/** Local calendar date, never an inferred send timestamp. */
+export function calendarDay(value: number): string {
+  const date = new Date(value), two = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
+}
 /** One display vocabulary for sourced Sent metadata; callers own the timestamp and slot. */
-export function sentTime(timestamp: number | undefined, prefs: Pick<FooterPrefs, "timestamps"> | undefined, now: number): string {
+export function sentTime(timestamp: number | undefined, prefs: Pick<FooterPrefs, "timestamps"> | undefined, now: number, fullDate = false): string {
   if (!Number.isFinite(timestamp) || timestamp! < 0) return "";
   const date = new Date(timestamp!);
   const time = date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: prefs?.timestamps === "12h" });
+  if (fullDate) return `${calendarDay(timestamp!)} ${time}`;
   return date.toDateString() === new Date(now).toDateString() ? time
     : `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
 }

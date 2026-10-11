@@ -1,6 +1,6 @@
 # Customize your input box and footer
 
-Implemented against Pi 1.0.0. Run `/reload`, then `/footer`.
+Implemented against Pi 1.0.0. Run `/reload`, then `/workspace`. Preferences now save to `pi-workspace.json`. Existing `pi-footer.json` settings are loaded when the new file is absent and are not modified by migration.
 
 ## Start here
 
@@ -10,7 +10,7 @@ Implemented against Pi 1.0.0. Run `/reload`, then `/footer`.
 
 The **Input & footer room** shows the actual native input editor and footer at full terminal width, not a fabricated sample. It covers the transcript while open, keeps the controls next to the preview, and does not replace the native editor instance or modify its draft, undo, Vim mode, paste storage, or completion state. Close settings to resume typing your draft.
 
-`/footer` also works when Home is off. The input is temporarily dressed as Composer for this workspace; closing restores the native appearance. Saving appearance settings does **not** silently enable Home. Saved input-border layouts apply when Composer is on.
+`/workspace` also works when Home is off. The input is temporarily dressed as Composer for this workspace; closing restores the native appearance. Saving appearance settings does **not** silently enable Home. Saved input-border layouts apply when Composer is on.
 
 ### Controls
 
@@ -39,7 +39,7 @@ Selection has a steady, theme-accent tint. **`›` marks keyboard focus**; **`�
 
 **Other options → Selection shimmer** defaults to **on**. Changing selection produces one 480 ms sweep across the highlight background, then settles. Selecting another element coordinates the list and preview; moving among properties animates only the focused control. Turning it off keeps the same steady selection and focus cues. Save persists this preference; Undo and Discard work normally.
 
-This effect belongs only to `/footer`, independently of agent-work motion. It does not change native Pi menus or pi-ask. It stops during text entry, Discard confirmation, focus loss, resize/theme invalidation, and closing or session teardown. It never moves letters, changes field widths, or alters the draft. Background colors adapt to light/dark and 256-color/truecolor output; terminal-specific palette overrides can still affect their appearance.
+This effect belongs only to `/workspace`, independently of agent-work motion. It does not change native Pi menus or pi-ask. It stops during text entry, Discard confirmation, focus loss, resize/theme invalidation, and closing or session teardown. It never moves letters, changes field widths, or alters the draft. Background colors adapt to light/dark and 256-color/truecolor output; terminal-specific palette overrides can still affect their appearance.
 
 ## Elements and positions
 
@@ -79,33 +79,33 @@ The preview has explicitly labelled idle, working, waiting, done, blocked and er
 
 Controls cover border and highlight colors, shimmer/pulse, speed, intensity, direction, progress sweeps, label/body/active colors, gentle text-color effects, bold, six title/count/more-work rail positions, visible-task count and per-state overrides. The package owns these presentation rules; Home supplies sourced task state and its shared clock. Default text stays still; the soft near-white border highlight runs only during actual active work. Global motion-off, typing, lost focus, blocking dialogs and hidden/narrow panels stop live motion. The explicit demo uses its own disposable controller and respects motion-off.
 
-The rooms share Save/Discard/Undo in this existing workspace and are saved only under their established sections of `pi-footer.json` (Tasks under `tasks`, Ask under `ask`, chat/tools under `transcript`). There is no new preference file. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
+The rooms share Save/Discard/Undo in this existing workspace and are saved only under their established sections of `pi-workspace.json` (Tasks under `tasks`, Ask under `ask`, chat/tools under `transcript`). All four rooms share the new `pi-workspace.json` file after Save. The native draft and task/run state are unchanged by preview. Current live Tasks appearance is used again on closing; saving adopts the selected settings, discarding restores the original settings.
 
 The Home overview shows active work, blockers and pending work with sourced done/total counts in the rail. Completed items no longer occupy the default body. Narrow rails use `✓ done/total`, `!blocked`, and `–cancelled`. `/tasks` retains the full plan/history browser; its legacy focus-window paging and appearance settings still apply to the independent no-Home fallback, not this overview. Tool acknowledgements and other frames are not restyled or animated by these controls.
 
 ## Question appearance (Ask)
 
-Open **Ask** in `/footer`. Select the question frame, title, sourced progress, question text, or action hints from the keyboard list or the **synthetic, display-only** preview. The sample does not open an answer dialog or send an answer. The title can be renamed (30 safe characters) or moved between upper-left and upper-center; progress can occupy one of the three lower positions and use matched orange or quieter hierarchy coloring. Question text emphasis and hint tone are visual only. Orange question identity, actions, actual question wording, cursor, choice state and focus remain Ask-owned.
+Open **Ask** in `/workspace`. The **Workspace** room edits your sent-message display name and the one Compact/Spaced density setting. Spaced keeps existing layouts except that user-message frames no longer have an extra interior bottom row. Compact removes optional whitespace in eligible Home input/message/tool frames and the Ask shell, without changing content or Tasks row counts. Select the question frame, title, sourced progress, question text, or action hints from the keyboard list or the **synthetic, display-only** preview. The sample does not open an answer dialog or send an answer. The title can be renamed (30 safe characters) or moved between upper-left and upper-center; progress can occupy one of the three lower positions and use the matched Pi accent or a quieter hierarchy treatment. Question text emphasis and hint tone are visual only. Ask’s theme-accent identity, actions, actual question wording, cursor, choice state and focus remain Ask-owned.
 
-Ask validates its own version-1 `pi-footer.json` → `ask` visual section and reads it **once when a new question opens**, even without Home. The legacy `questionLabels` setting is only a fallback before the Ask section is saved. An unknown future Ask section is read-only and blocks Save rather than silently replacing it. All rooms share the same `pi-footer.json` transaction; changes in other Pi processes become visible on reload/new question. At narrow widths the list remains keyboard accessible when a preview label cannot fit.
+Ask validates its own version-1 `pi-workspace.json` → `ask` visual section and reads it **once when a new question opens**, even without Home. The legacy `questionLabels` setting is only a fallback before the Ask section is saved. An unknown future Ask section is read-only and blocks Save rather than silently replacing it. All rooms share the same `pi-workspace.json` transaction; changes in other Pi processes become visible on reload/new question. At narrow widths the list remains keyboard accessible when a preview label cannot fit.
 
 ## Chat and tool appearance (Transcript)
 
-Open **Transcript** in `/footer`. Select the chat border, identity, sourced **Sent** time, tool border, identity, or status in the element list or click a visible label in the **synthetic, display-only** preview. The examples do not send a message, call a tool, or record a time. User chat stays red and assistant chat stays accent purple. You can quiet the assistant identity label, show/hide a reliably recorded creation time and place `Sent` at lower-left or lower-right. The user identity and time remain red; missing or unsourced times never appear. A creation timestamp is not a reply-completion time.
+Open **Transcript** in `/workspace`. Select the chat border, identity, sourced **Sent** time, tool border, identity, or status in the element list or click a visible label in the **synthetic, display-only** preview. The examples do not send a message, call a tool, or record a time. User chat stays red and assistant chat stays accent purple. You can quiet the assistant identity label, show/hide a reliably recorded creation time and place `Sent` at lower-left or lower-right. The user identity and time remain red; missing or unsourced times never appear. A creation timestamp is not a reply-completion time.
 
 Eligible ordinary cards, grouped-tool frames, and allowlisted web-tool frames can match or quiet their identity label. Successful status labels on ordinary and web cards can use semantic or rail-matched treatment; grouped child-call statuses stay semantic. **Failed, cancelled and child-error status still uses its semantic marker/color.** Unknown, graphical, self-rendering or unsupported tool shapes keep their native UI; settings do not change their results, expansion or mouse mapping. The preview samples show only representative frames, not an execution.
 
-Home validates the version-1 `pi-footer.json` → `transcript` section and reads it for live frames. The old `messageTime` and `toolLabels` preferences are fallbacks until the section is saved; they are not duplicate controls. An unknown future section is read-only and blocks Save instead of replacing it. Composer, Tasks, Ask and Transcript share **one atomic Save/Discard transaction for `pi-footer.json`**, not independent per-room saves. Narrow windows retain a keyboard path even when a sample label or the Transcript tab cannot fit on the screen.
+Home validates the version-1 `pi-workspace.json` → `transcript` section and reads it for live frames. The old `messageTime` and `toolLabels` preferences are fallbacks until the section is saved; they are not duplicate controls. An unknown future section is read-only and blocks Save instead of replacing it. Composer, Tasks, Ask and Transcript share **one atomic Save/Discard transaction for `pi-workspace.json`**, not independent per-room saves. Narrow windows retain a keyboard path even when a sample label or the Transcript tab cannot fit on the screen.
 
 For API examples and a feature-request template, see [`pi-frame/FEATURE-GUIDE.md`](../../packages/pi-frame/FEATURE-GUIDE.md).
 
 ## Saving and compatibility
 
-Preferences are saved atomically to `~/.pi/agent/pi-footer.json`, or the configured Pi agent directory. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved appearance or messages.
+Preferences are saved atomically to `~/.pi/agent/pi-workspace.json`, or the configured Pi agent directory. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved appearance or messages.
 
 Other running sessions adopt saved changes after their next `/reload`. Existing scalar preferences remain supported. Opening the workspace derives a versioned `appearance` layout from their visibility choices; only saving persists it. Unknown or invalid individual appearance values fall back safely. Malformed JSON is reported and left untouched until Save.
 
-Defaults remain an accent-purple input frame, centered chat title, directory at bottom-left, native Vim mode at bottom-center, and model plus level at bottom-right. Frame-rail labels are bold, not framed message/tool/task/question bodies; active task rows and question emphasis retain their own independent rules. The default Composer model label matches its purple frame, and the default Tasks progress summary/hint match its purple title. Saved custom label colors remain user-controlled in `/footer`. Customizing the input border does not recolor assistant/Tasks frames. Context stays off in Composer unless enabled. Its value is real context capacity used, not task progress; unknown usage is `—`, not zero. Optional styles apply to fields in footer rows, not the input border.
+Defaults remain an accent-purple input frame, centered chat title, directory at bottom-left, native Vim mode at bottom-center, and model plus level at bottom-right. Frame-rail labels are bold, not framed message/tool/task/question bodies; active task rows and question emphasis retain their own independent rules. The default Composer model label matches its purple frame, and the default Tasks progress summary/hint match its purple title. Saved custom label colors remain user-controlled in `/workspace`. Customizing the input border does not recolor assistant/Tasks frames. Context stays off in Composer unless enabled. Its value is real context capacity used, not task progress; unknown usage is `—`, not zero. Optional styles apply to fields in footer rows, not the input border.
 
 The top-right send time uses the latest **recorded user-message timestamp**, not an input event or a guessed reply time. Before the first recorded send, a task-derived next-step hint can appear. Neither performs model calls or inserts/submits text. Chat frames retain their own fixed **Sent** creation times; assistant creation is not completion time. Grouped native tool calls repeat the issuing assistant's creation time, not a separate tool-execution time. All three Home surfaces use `sent-metadata.ts` for sourced time formatting and the Sent icon/label, while their own state supplies the timestamp. They display local hours, minutes and **seconds**, not milliseconds; older dates still include the date. Nerd mode shows an outgoing-envelope icon followed by the time; Plain shows `Sent` followed by the time. The Composer directory shows a folder icon followed by the path in Nerd mode, and the path alone in Plain mode. Existing custom text templates remain intact; a saved stock `Sent {value}` template drops the redundant word only in Nerd mode. Composer's `sentTime` element controls its placement/text; transcript `chatSent` controls chat and grouped-call visibility/placement. These are separate preferences, not a global Sent switch. User frame, identity and timestamp share their red.
 
@@ -115,7 +115,7 @@ The default title belongs at the top center of the input frame. If it is enabled
 
 If Home, Tasks and questions disappeared together after the earlier update, the reload diagnostics can show `Package subpath './primitives' is not defined by "exports"`. The corrected bootstrap no longer requires that subpath lookup. It was verified through failed reload → recovery in real Pi processes while the old export table remained in place. Reload each affected process after applying the correction; do not toggle or reset your preferences to compensate.
 
-A deliberately hidden title or a pane too narrow for the center slot remains hidden. Check **Chat title → Show this element / Position** in `/footer` if needed.
+A deliberately hidden title or a pane too narrow for the center slot remains hidden. Check **Chat title → Show this element / Position** in `/workspace` if needed.
 
 ## Git legend
 
@@ -156,7 +156,7 @@ The strip uses up to two rows in narrow panes. Hide less useful fields when work
 ## Verification
 
 ```sh
-node --test ~/.pi/agent/extensions/pi-home/tests/*.test.mjs ~/.pi/agent/extensions/pi-tasks/tests/*.test.mjs
+cd /Users/jordan/code/pi-workspace && npm run test:home && npm run test:tasks
 ```
 
 Tests use the installed Pi host packages, synthetic UI events, isolated preference directories, and real temporary Git repositories. They cover mouse/keyboard selection, transactional preview, save failure, restore, width limits, theme variants, timing gaps, status preservation, Home/Tasks startup order, and cleanup. They do not establish how every Nerd Font glyph will look in your terminal. Review spacing after `/reload`.

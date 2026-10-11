@@ -45,7 +45,7 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
       framed = false;
       return original.render.call(editor, width);
     }
-    verticalPad = composerPadding(width, terminalRows());
+    verticalPad = composerPadding(width, terminalRows(), home.layout?.density);
     nativeBottom = bottom;
     const edge = theme.style("│", { fg: composerThinkingBorder(theme, home.thinkingLevel?.()) });
     const blank = composerSurface(theme, edge + composerSurface(theme, "", inner, true) + edge, width);

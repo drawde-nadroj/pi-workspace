@@ -129,6 +129,8 @@ export interface HomeState {
   railRunElapsed?: (now: number) => number | undefined;
   nextHint?: () => string;
   lastUserSentAt?: () => number | undefined;
+  /** Display-only mode announced by the optional standalone Chronomancer package. */
+  chronomancerDay?: string;
   layout?: FooterPrefs;
   editorFocused?: () => boolean;
   editorRows?: (width: number) => number;

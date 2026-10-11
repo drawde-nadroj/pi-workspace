@@ -226,6 +226,21 @@ test("composer top-right shows only a recorded user-send time in user red, with 
   assert.doesNotMatch(plain(composerMessageRail(theme, 100, home, now, "Alchemy")), /Sent/);
 });
 
+test("Chronomancer hides run-state rail without hiding session title or changing normal mode", () => {
+  const home = state(); home.prefs.motion = "off"; home.layout = { ...FOOTER_DEFAULTS };
+  home.railStatus = () => ({ text: "your turn", tone: "success" });
+  const at = new Date(2025, 4, 8, 12, 30).getTime();
+  home.lastUserSentAt = () => at;
+  assert.match(plain(composerMessageRail(theme, 110, home, at, "Alchemy")), /your turn/);
+  home.chronomancerDay = "2025-05-01";
+  const inMode = plain(composerMessageRail(theme, 110, home, at, "Alchemy"));
+  assert.doesNotMatch(inMode, /your turn/);
+  assert.match(inMode, /Alchemy/);
+  assert.match(inMode, /2025-05-08/);
+  home.chronomancerDay = undefined;
+  assert.match(plain(composerMessageRail(theme, 110, home, at, "Alchemy")), /your turn/);
+});
+
 test("border glint changes light, not symbols or layout, and obeys motion gates", () => {
   const home = state(); home.clock.begin(1000);
   for (const width of [1, 3, 8, 20, 44, 90, 160]) {

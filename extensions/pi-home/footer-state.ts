@@ -28,14 +28,14 @@ export const OPTIONS = {
   elapsed: ["off", "opened", "created"], timestamps: ["24h", "12h", "relative"],
   railTitle: ["on", "off"], railDetails: ["on", "off"], railHint: ["on", "off"], composerActivity: ["minimal", "full"], composerContext: ["off", "on"],
   messageTime: ["on", "off"], toolLabels: ["semantic", "matched"], questionLabels: ["hierarchy", "matched"],
-  selectionShimmer: ["on", "off"],
+  selectionShimmer: ["on", "off"], density: ["spaced", "compact"],
 } as const;
 export type FooterOption = keyof typeof OPTIONS;
-export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { appearance?: Appearance; tasks?: TaskPanelPrefs; ask?: unknown; transcript?: TranscriptAppearance | unknown };
+export type FooterPrefs = { [K in FooterOption]: (typeof OPTIONS)[K][number] } & { displayName: string; appearance?: Appearance; tasks?: TaskPanelPrefs; ask?: unknown; transcript?: TranscriptAppearance | unknown };
 export const FOOTER_DEFAULTS: FooterPrefs = {
   style: "quiet", color: "semantic", layout: "paired", shape: "rail", icons: "nerd", directory: "path", git: "detailed", gitLabels: "symbols",
   session: "on", model: "on", thinking: "on", context: "adaptive", bar: "blocks",
-  effect: "luminous", motion: "work", selectionShimmer: "on",
+  effect: "luminous", motion: "work", selectionShimmer: "on", density: "spaced", displayName: "jordan",
   topOrder: "session,directory,git", bottomOrder: "context,model,thinking",
   timing: "strip", sent: "on", received: "on", run: "on", active: "auto", elapsed: "off", timestamps: "24h",
   railTitle: "on", railDetails: "on", railHint: "on", composerActivity: "minimal", composerContext: "off", messageTime: "on", toolLabels: "semantic", questionLabels: "matched",
@@ -45,6 +45,11 @@ export function footerPrefs(value: unknown): FooterPrefs {
   if (value && typeof value === "object") for (const key of Object.keys(OPTIONS) as (keyof FooterPrefs)[]) {
     const v = (value as Record<string, unknown>)[key];
     if ((OPTIONS[key as FooterOption] as readonly unknown[]).includes(v)) (result as Record<string, unknown>)[key] = v;
+  }
+  const name = (value as FooterPrefs | undefined)?.displayName;
+  if (typeof name === "string") {
+    const sanitized = Array.from(clean(name).trim()).slice(0, 40).join("");
+    if (sanitized) result.displayName = sanitized;
   }
   const appearance = readAppearance((value as FooterPrefs | undefined)?.appearance, result);
   if (appearance) result.appearance = appearance;

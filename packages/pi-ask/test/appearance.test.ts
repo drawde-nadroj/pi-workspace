@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, getKeybindings, visibleWidth } from "@earendil-works/pi-tui";
-import { askAppearanceDefaults, readAskAppearance, safeAskTitle, savedAskAppearance } from "../extensions/ask-user-question/appearance.ts";
+import { askAppearanceDefaults, readAskAppearance, safeAskTitle, savedAskAppearance, savedWorkspaceVisuals } from "../extensions/ask-user-question/appearance.ts";
 import { questionPreview } from "../extensions/ask-user-question/question-preview.ts";
 import { askText } from "../extensions/ask-user-question/standalone-ui.ts";
 
@@ -30,6 +30,12 @@ test("standalone Ask reads persisted visual preferences without Home and safely 
     writeFileSync(join(dir, "pi-footer.json"), JSON.stringify({ questionLabels: "hierarchy", ask: { version: 1, title: "Ask me", progressPosition: "bottomRight" } }));
     assert.equal(savedAskAppearance().title, "Ask me");
     assert.equal(savedAskAppearance().progressPosition, "bottomRight");
+    writeFileSync(join(dir, "pi-workspace.json"), JSON.stringify({ version: 1, density: "compact", ask: { version: 1, title: "Workspace questions" } }));
+    assert.equal(savedAskAppearance().title, "Workspace questions");
+    assert.equal(savedWorkspaceVisuals().density, "compact");
+    writeFileSync(join(dir, "pi-workspace.json"), '{"version":2}');
+    assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
+    rmSync(join(dir, "pi-workspace.json"));
     writeFileSync(join(dir, "pi-footer.json"), "not json");
     assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
   } finally {

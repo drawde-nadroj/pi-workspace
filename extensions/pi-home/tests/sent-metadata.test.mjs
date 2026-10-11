@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { jiti, source, theme, initTheme, plain } from './host.mjs';
 import { join } from 'node:path';
-const { sentTime, sentLabel, styledSentLabel } = await jiti.import(join(source, 'sent-metadata.ts'));
+const { calendarDay, sentTime, sentLabel, styledSentLabel } = await jiti.import(join(source, 'sent-metadata.ts'));
 const { COMPOSER_ICONS } = await jiti.import(join(source, 'composer-icons.ts'));
 
 test('sourced Sent metadata shares formatting without inventing missing time', () => {
@@ -16,6 +16,8 @@ test('sourced Sent metadata shares formatting without inventing missing time', (
   }
   const yesterday = at - 86_400_000;
   assert.match(sentTime(yesterday, { timestamps: '24h' }, now), /\d{2}:\d{2}:\d{2}/);
+  assert.equal(sentTime(at, { timestamps: '24h' }, now, true), `${calendarDay(at)} ${new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`);
+  assert.equal(sentTime(undefined, { timestamps: '24h' }, now, true), '', 'no invented timestamp');
   for (const at of [undefined, NaN, -1]) {
     assert.equal(sentTime(at, undefined, now), '');
     assert.equal(sentLabel(sentTime(at, undefined, now)), '');

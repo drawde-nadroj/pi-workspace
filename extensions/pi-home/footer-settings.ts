@@ -24,7 +24,7 @@ interface Control { label: string; value: string; help: string; activate(): void
 interface Target { x: number; y: number; width: number; action(): void }
 // Visibility/position now have one authority: the element inspector. Keep the
 // other existing capabilities, rather than exposing duplicate switches that do nothing.
-const REPLACED = new Set<FooterOption>(["layout", "topOrder", "bottomOrder", "session", "model", "thinking", "railTitle", "railDetails", "railHint", "composerContext", "questionLabels", "messageTime", "toolLabels"]);
+const REPLACED = new Set<FooterOption>(["density", "layout", "topOrder", "bottomOrder", "session", "model", "thinking", "railTitle", "railDetails", "railHint", "composerContext", "questionLabels", "messageTime", "toolLabels"]);
 export const OTHER_OPTIONS: FooterOption[] = ["selectionShimmer", ...(Object.keys(OPTIONS) as FooterOption[]).filter(id => id !== "selectionShimmer" && !REPLACED.has(id))];
 const INFO: Record<Selection, string> = {
   frame: "The border around your input. Its color can stay the same or change with the assistant's state.",
@@ -49,8 +49,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
   const undo: FooterPrefs[] = [];
   let release = () => {};
   try { return await ctx.ui.custom<FooterPrefs | undefined>((tui, theme, _kb, done) => {
-    let selected: Selection = "status", state: AppearanceState | undefined, pane: "elements" | "properties" | "other" | "tasks" | "ask" | "transcript" = "elements";
-    let elementIndex = 0, propertyIndex = 0, otherIndex = 0, more = false, query = "", message = "";
+    let selected: Selection = "status", state: AppearanceState | undefined, pane: "elements" | "properties" | "workspace" | "other" | "tasks" | "ask" | "transcript" = "elements";
+    let elementIndex = 0, propertyIndex = 0, workspaceIndex = 0, otherIndex = 0, more = false, query = "", message = "";
     let targets: Target[] = [], inputY = -1, inputX = 0, inputWidth = 0;
     let edit: { input: Input; title: string; help: string; accept(value: string): boolean } | undefined;
     let choices: { title: string; items: Array<{ label: string; value: string }>; index: number; current: string; accept(value: string): void } | undefined;
@@ -81,7 +81,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") { pulse.stop(); return; }
       tui.requestRender();
     });
-    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${pane === "tasks" ? `${taskSelected}:${taskFocus}:${taskIndex}` : pane === "ask" ? `${askSelected}:${askFocus}:${askIndex}` : pane === "transcript" ? `${transcriptSelected}:${transcriptFocus}:${transcriptIndex}` : `${selected}:${pane === "properties" ? propertyIndex : pane === "other" ? otherIndex : elementIndex}`}`;
+    const focusKey = () => choices ? `choice:${choices.title}:${choices.index}` : `${pane}:${pane === "tasks" ? `${taskSelected}:${taskFocus}:${taskIndex}` : pane === "ask" ? `${askSelected}:${askFocus}:${askIndex}` : pane === "transcript" ? `${transcriptSelected}:${transcriptFocus}:${transcriptIndex}` : `${selected}:${pane === "properties" ? propertyIndex : pane === "workspace" ? workspaceIndex : pane === "other" ? otherIndex : elementIndex}`}`;
     const afterInteraction = (before: string, previous: Selection, previousTask: TaskElementId, previousAsk: AskElementId, previousTranscript: TranscriptElementId) => {
       if (closed || !focused || edit || discardConfirm || draft.selectionShimmer === "off") pulse.stop();
       else if (previous !== selected || before !== focusKey()) pulse.start(previous !== selected || previousTask !== taskSelected || previousAsk !== askSelected || previousTranscript !== transcriptSelected ? "element" : "focus");
@@ -217,6 +217,17 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
       if (next < 0 || next >= peers.length) { message = "Already at the end of this group."; return; }
       changed(() => { [peers[at], peers[next]] = [peers[next], peers[at]]; peers.forEach((k, i) => { design().elements[k].order = i; }); });
     }
+    const workspaceControls = (): Control[] => [
+      { label: "Your display name", value: draft.displayName, help: "Your sent-message frame label. Your account and saved messages stay unchanged.",
+        activate: () => textEditor("Your display name", draft.displayName, "1–40 characters. Display only.", value => {
+          const name = safeText(value, 40).trim();
+          if (!name) { message = "Enter a nonempty display name."; return false; }
+          changed(() => { draft.displayName = name; }); return true;
+        }) },
+      { label: "Workspace density", value: draft.density === "compact" ? "Compact" : "Spaced", help: "One setting for integrated message, tool, question and input whitespace.",
+        activate: () => choose("Workspace density", [{ label: "Spaced", value: "spaced" }, { label: "Compact", value: "compact" }], draft.density,
+          value => changed(() => { draft.density = value as FooterPrefs["density"]; })) },
+    ];
     const otherControls = (): Control[] => OTHER_OPTIONS.map(id => ({ label: LABELS[id], value: String(draft[id]), help: DESCRIPTIONS[id] ?? "Changes remain temporary until Save.", activate: () => choose(LABELS[id],
       OPTIONS[id].map(value => ({ label: value, value })), String(draft[id]), value => changed(() => {
         (draft as unknown as Record<string, unknown>)[id] = value;
@@ -258,7 +269,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             const text = `[${label}]`;
             if (visibleWidth(line) + visibleWidth(text) > inner) break;
             targets.push({ x: visibleWidth(line) + 1, y, width: visibleWidth(text), action });
-            const active = !edit && !choices && !discardConfirm && (label === "Elements" && (pane === "elements" || pane === "properties") || label === "Tasks" && pane === "tasks" || label === "Ask" && pane === "ask" || label === "Transcript" && pane === "transcript" || label === "Other options" && pane === "other");
+            const active = !edit && !choices && !discardConfirm && (label === "Elements" && (pane === "elements" || pane === "properties") || label === "Tasks" && pane === "tasks" || label === "Ask" && pane === "ask" || label === "Transcript" && pane === "transcript" || label === "Workspace" && pane === "workspace" || label === "Other options" && pane === "other");
             line += (active ? selectionHighlight(theme, theme.style(text, { fg: theme.colors.text, bold: true })) : theme.fg("accent", text)) + " ";
           }
           return line;
@@ -287,8 +298,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         const previewHeight = aboveRows.length + editorRows.length + footerRows.length;
         const controlsHeight = Math.max(5, Math.min(wide ? 20 : 18, height - previewHeight - 1));
         const rows: string[] = [];
-        rows.push(buttonLine([["Elements", () => { pane = "elements"; }], ["Tasks", () => { pane = "tasks"; }], ["Ask", () => { pane = "ask"; }], ["Transcript", () => { pane = "transcript"; }], ["Other options", () => { pane = "other"; }], ["Undo", undoChange]], 1));
-        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : pane === "tasks" || pane === "ask" || pane === "transcript" ? `${pane === "ask" ? "Ask" : pane === "tasks" ? "Tasks" : "Transcript"} room · ← elements · → settings · ↑↓ select · Tab switch` : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
+        rows.push(buttonLine([["Elements", () => { pane = "elements"; }], ["Tasks", () => { pane = "tasks"; }], ["Ask", () => { pane = "ask"; }], ["Transcript", () => { pane = "transcript"; }], ["Other options", () => { pane = "other"; }], ["Workspace", () => { pane = "workspace"; }], ["Undo", undoChange]], 1));
+        rows.push(theme.fg("muted", edit ? "Enter keeps edit · Esc cancels edit" : choices ? "↑↓ choose · Enter select · Esc back" : pane === "tasks" || pane === "ask" || pane === "transcript" ? `${pane === "ask" ? "Ask" : pane === "tasks" ? "Tasks" : "Transcript"} room · ← elements · → settings · ↑↓ select · Tab switch` : width < 80 ? "↑↓ select · Tab switch · Enter edit" : `${pane === "elements" ? "Elements" : pane === "properties" ? "Properties" : pane === "workspace" ? "Workspace" : "Other options"} · › keyboard focus · ↑↓ select · Tab switch · Enter edit · / search`));
         const capacity = Math.max(1, controlsHeight - 6);
         const helpLines: string[] = [];
         const addControl = (control: Control, row: number, x: number, cells: number, active: boolean) => {
@@ -297,6 +308,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             if (pane === "tasks") { taskIndex = Math.max(0, taskProperties().findIndex(c => c.label === control.label)); taskSelected = taskControlElement(control); taskFocus = "properties"; }
             else if (pane === "ask") { askIndex = Math.max(0, askControls().findIndex(c => c.label === control.label)); askFocus = "properties"; }
             else if (pane === "transcript") { transcriptIndex = Math.max(0, transcriptControls().findIndex(c => c.label === control.label)); transcriptFocus = "properties"; }
+            else if (pane === "workspace") workspaceIndex = Math.max(0, workspaceControls().findIndex(c => c.label === control.label));
             else if (pane !== "other") { pane = "properties"; propertyIndex = Math.max(0, propertyControls().findIndex(c => c.label === control.label)); }
             else otherIndex = Math.max(0, otherControls().findIndex(c => c.label === control.label));
             control.activate();
@@ -383,6 +395,10 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
             rows.push(wide ? left + " ".repeat(Math.max(0, listWidth - visibleWidth(left))) + "│ " + right : transcriptFocus === "elements" ? left : right);
           }
           helpLines.push(transcriptFocus === "elements" ? transcriptElements[selectedIndex].help : controls[transcriptIndex].help);
+        } else if (pane === "workspace") {
+          const controls = workspaceControls(); workspaceIndex = Math.min(workspaceIndex, controls.length - 1);
+          for (const [index, control] of controls.entries()) rows.push(addControl(control, rows.length + 1, 1, inner, index === workspaceIndex));
+          helpLines.push(controls[workspaceIndex].help);
         } else if (pane === "other") {
           const controls = otherControls(); otherIndex = Math.min(otherIndex, controls.length - 1);
           const start = Math.max(0, otherIndex - Math.floor(capacity / 2));
@@ -488,7 +504,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           if (elements()[0]) { selected = elements()[0]; surface?.select(selected, state); }
           return true;
         });
-        else if (matchesKey(data, Key.tab)) pane = pane === "elements" ? "properties" : pane === "properties" ? "other" : pane === "other" ? "tasks" : pane === "tasks" ? "ask" : pane === "ask" ? "transcript" : "elements";
+        else if (matchesKey(data, Key.tab)) pane = pane === "elements" ? "properties" : pane === "properties" ? "other" : pane === "other" ? "tasks" : pane === "tasks" ? "ask" : pane === "ask" ? "transcript" : pane === "transcript" ? "workspace" : "elements";
         else if (pane === "transcript" && matchesKey(data, Key.left)) transcriptFocus = "elements";
         else if (pane === "transcript" && matchesKey(data, Key.right)) transcriptFocus = "properties";
         else if (pane === "ask" && matchesKey(data, Key.left)) askFocus = "elements";
@@ -512,7 +528,8 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           } else if (pane === "tasks") {
             taskIndex = Math.max(0, Math.min(taskProperties().length - 1, taskIndex + delta));
             taskSelected = taskControlElement(taskProperties()[taskIndex]);
-          } else otherIndex = Math.max(0, Math.min(OTHER_OPTIONS.length - 1, otherIndex + delta));
+          } else if (pane === "workspace") workspaceIndex = Math.max(0, Math.min(workspaceControls().length - 1, workspaceIndex + delta));
+          else otherIndex = Math.max(0, Math.min(OTHER_OPTIONS.length - 1, otherIndex + delta));
         } else if (matchesKey(data, Key.enter) || data === " ") {
           if (pane === "elements") pane = "properties";
           else if (pane === "properties") propertyControls()[propertyIndex]?.activate();
@@ -522,6 +539,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           else if (pane === "ask") askControls()[askIndex]?.activate();
           else if (pane === "tasks" && taskFocus === "elements") selectTask(taskSelected);
           else if (pane === "tasks") taskProperties()[taskIndex]?.activate();
+          else if (pane === "workspace") workspaceControls()[workspaceIndex]?.activate();
           else otherControls()[otherIndex]?.activate();
         }
         afterInteraction(before, previous, previousTask, previousAsk, previousTranscript);

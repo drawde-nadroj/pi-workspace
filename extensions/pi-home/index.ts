@@ -8,6 +8,7 @@ import type { EditorComponent, TUI } from "@earendil-works/pi-tui";
 import { installPaintGuard } from "./paint-guard.ts";
 import { ActivityBlocks } from "./activity-blocks.ts";
 import { SentMessageFrames } from "./sent-messages.ts";
+import { calendarDay } from "./sent-metadata.ts";
 import { GroupedTools } from "./grouped-tools.ts";
 import { readTranscript, transcriptDefaults } from "./transcript-presentation.ts";
 import { dressComposerEditor, isEditorComponent } from "./composer-editor.ts";
@@ -80,10 +81,12 @@ export default function home(pi: ExtensionAPI) {
   };
   const themeLease = new ThemeLease();
   const sentFrames = new SentMessageFrames();
-  const groupedTools = new GroupedTools(() => current().ui.theme, () => state.layout);
+  const groupedTools = new GroupedTools(() => current().ui.theme, () => state.layout,
+    () => !!state.chronomancerDay && state.chronomancerDay !== calendarDay(Date.now()));
   const activityBlocks = new ActivityBlocks(() => current().ui.theme, () => tui?.requestRender(),
     () => state.layout?.toolLabels ?? "semantic", groupedTools.isGrouped,
-    () => readTranscript(state.layout?.transcript, state.layout) ?? transcriptDefaults());
+    () => readTranscript(state.layout?.transcript, state.layout) ?? transcriptDefaults(),
+    () => state.layout?.density ?? "spaced");
   let paintCleanup: (() => void) | undefined;
   let lastMessageScan = 0;
   function syncSentFrames(now = Date.now(), beforePaint = false) {
@@ -96,7 +99,7 @@ export default function home(pi: ExtensionAPI) {
       const now = Date.now();
       return { active: state.phase === "thinking" && state.clock.active && shouldAnimate(state, now, state.editorFocused?.() ?? true),
         now, startAt: state.clock.transitionAt };
-    }, () => ({ prefs: state.layout, users: current().sessionManager.getBranch().flatMap(entry => {
+    }, () => ({ prefs: state.layout, chronomancerDay: state.chronomancerDay, users: current().sessionManager.getBranch().flatMap(entry => {
       if (entry.type !== "message" || entry.message.role !== "user") return [];
       const message = entry.message;
       const text = typeof message.content === "string" ? message.content
@@ -115,6 +118,12 @@ export default function home(pi: ExtensionAPI) {
     pi.events.emit(DOCK.host, { version: 1, sessionId: context.sessionManager.getSessionId(), available: installed });
   }
   pi.events.on(DOCK.probe, () => announce());
+  pi.events.on("pi-chronomancer:mode", (value) => {
+    const v = value as { version?: number; active?: boolean; day?: string; sessionId?: string } | undefined;
+    if (!context || v?.version !== 1 || v.sessionId !== context.sessionManager.getSessionId()) return;
+    state.chronomancerDay = v.active && /^\d{4}-\d{2}-\d{2}$/.test(v.day ?? "") ? v.day : undefined;
+    wake();
+  });
   pi.events.on(DOCK.update, (value) => {
     if (!isSnapshot(value) || !context || value.sessionId !== context.sessionManager.getSessionId()) return;
     const accepted = installed && (docks.has(value.id) || docks.size < 6);
@@ -206,6 +215,7 @@ export default function home(pi: ExtensionAPI) {
     });
     installed = true;
     announce();
+    pi.events.emit("pi-chronomancer:probe", { sessionId: ctx.sessionManager.getSessionId() });
     wake();
   }
 
@@ -264,6 +274,7 @@ export default function home(pi: ExtensionAPI) {
   pi.on("session_start", async (event, ctx) => {
     if (ctx.mode !== "tui") return;
     context = ctx;
+    state.chronomancerDay = undefined;
     try {
       state.prefs = preferencesFrom(JSON.parse(await readFile(preferencesPath, "utf8")));
     } catch (error) {
@@ -290,6 +301,7 @@ export default function home(pi: ExtensionAPI) {
     docks.clear();
     announce();
     context = undefined;
+    state.chronomancerDay = undefined;
     tui = undefined;
     editor = undefined;
     // Pi clears the extension UI on runtime teardown. Do not resurrect a loader while exiting.

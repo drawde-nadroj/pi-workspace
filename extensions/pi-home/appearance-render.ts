@@ -4,7 +4,7 @@ import { frameRail } from "../../lib/frame.ts";
 import { basename } from "node:path";
 import { ELEMENTS, STATE_TEXT, type ElementId, type Position, type AppearanceState, type AppearanceColor, type AppearanceHit } from "./appearance.ts";
 import { clean, duration, gitLabel, homePath, FOOTER_DEFAULTS } from "./footer-state.ts";
-import { sentTime } from "./sent-metadata.ts";
+import { calendarDay, sentTime } from "./sent-metadata.ts";
 import { contextText, decorateFooterPart } from "./footer-view.ts";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
 import type { HomeState } from "./state.ts";
@@ -42,9 +42,9 @@ export function appearanceValues(home: HomeState, width: number, now: number): R
     status += ` ${duration(home.railRunElapsed?.(now) ?? home.clock.elapsed(now))}`;
   }
   const sent = home.lastUserSentAt?.();
-  const lastSendTime = sentTime(sent, p, now);
+  const lastSendTime = sentTime(sent, p, now, !!home.chronomancerDay && home.chronomancerDay !== calendarDay(now));
   return {
-    status, session: data?.session || "Untitled session", sentTime: lastSendTime,
+    status: !simulated && home.chronomancerDay ? "" : status, session: data?.session || "Untitled session", sentTime: lastSendTime,
     directory: p.directory === "folder" ? basename(data?.cwd ?? "") : homePath(data?.cwd ?? ""),
     vim: home.appearanceMode ?? "", model: data?.model ?? "", thinking: home.thinkingLevel?.() ?? data?.thinking ?? "",
     context: contextText(p, data?.usage, width), git: data?.git ? gitLabel(data.git, p, width < 75) : data?.gitUnavailable ? "—" : "",

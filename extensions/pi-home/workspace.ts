@@ -47,7 +47,7 @@ export function createWorkspace(tui: TUI, ctx: () => ExtensionContext, state: Ho
         remaining -= items.length + 1;
       }
       for (const line of state.activityRows?.(width) ?? []) rows.push(line);
-      if (rows.length && composerPadding(width, terminalRows)) rows.push("");
+      if (rows.length && composerPadding(width, terminalRows, state.layout?.density)) rows.push("");
       if (state.statusRows) rows.push(...state.statusRows(width));
       return rows.map((line) => composerSurface(theme, line, width));
     },

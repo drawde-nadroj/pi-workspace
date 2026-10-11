@@ -6,12 +6,12 @@ import { makeComposerPalette } from "./composer-palette.ts";
 import { colorToHex } from "@earendil-works/pi-tui";
 import { formatDuration, shouldAnimate, type HomeState } from "./state.ts";
 import { clean, homePath } from "./footer-state.ts";
-import { sentTime, styledSentLabel } from "./sent-metadata.ts";
+import { calendarDay, sentTime, styledSentLabel } from "./sent-metadata.ts";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
 import { appearanceBorder, appearanceRow } from "./appearance-render.ts";
 
 /** Padding yields in short/narrow panes; no animation changes geometry. */
-export function composerPadding(width: number, rows: number): number { return width >= 44 && rows >= 34 ? 1 : 0; }
+export function composerPadding(width: number, rows: number, density: "spaced" | "compact" = "spaced"): number { return density === "spaced" && width >= 44 && rows >= 34 ? 1 : 0; }
 /** Composer, assistant transcript, and Tasks use the same active Pi accent. */
 export function composerBorder(theme: Theme): Color { return theme.colors.accent; }
 export function composerThinkingBorder(theme: Theme, _level?: string): Color { return composerBorder(theme); }
@@ -50,10 +50,10 @@ export function composerMessageRail(theme: Theme, width: number, home: HomeState
   const status = home.railStatus?.() ?? { text: busy ? "Working" : "What’s next?", tone: busy ? "toolTitle" : "muted" };
   const runningTime = busy && home.promptDepth === 0 && home.clock.active && home.clock.timing
     ? ` ${formatDuration(home.railRunElapsed?.(now) ?? now - home.clock.timing.startedAt)}` : "";
-  const left = theme.style(` ${clean(status.text)}${runningTime} `, { fg: theme.colors[status.tone], bold: true });
+  const left = home.chronomancerDay ? "" : theme.style(` ${clean(status.text)}${runningTime} `, { fg: theme.colors[status.tone], bold: true });
   const next = !busy && home.layout?.railHint !== "off" ? clean(home.nextHint?.() ?? "") : "";
   const sentAt = home.lastUserSentAt?.();
-  const sent = sentTime(sentAt, home.layout, now);
+  const sent = sentTime(sentAt, home.layout, now, !!home.chronomancerDay && home.chronomancerDay !== calendarDay(now));
   // The native scroll indicator wins. A real user-send time takes priority over
   // the optional task hint; the hint can return before the first recorded send.
   const right = hint ? quietFrameLabel(theme, ` ${hint} `, border)

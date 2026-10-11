@@ -273,7 +273,7 @@ async function harness(mode = "tui", savedHomePrefs) {
     completions(prefix) { return commands.get("home").getArgumentCompletions(prefix).map(item => item.value); },
     rename(value) { name = value; },
     get picker() { return picker; },
-    footerCommand: () => commands.get("footer").handler("", ctx),
+    workspaceCommand: () => commands.get("workspace").handler("", ctx),
     get editor() { return editor; }, get footer() { return footer; }, get header() { return header; },
     get renders() { return renders; }, get subscribed() { return subscribed; }, get visible() { return visible; },
     async close() {
@@ -388,7 +388,7 @@ test("lifecycle: timings, parallel tools, prompts, command persistence, restore 
   assert.equal(h.renders, renders, "no rendering timer after shutdown");
 });
 
-test("/footer overlay keeps the real Composer editor visible and previews rail changes transactionally", async () => {
+test("/workspace overlay keeps the real Composer editor visible and previews rail changes transactionally", async () => {
   const h = await harness();
   try {
     await h.emit("session_start");
@@ -398,7 +398,7 @@ test("/footer overlay keeps the real Composer editor visible and previews rail c
     editor.setText("Unsent draft 界面");
     const frame = () => editor.render(100).map(plain).join("\n");
     assert.match(frame(), /Actual session/);
-    const open = h.footerCommand();
+    const open = h.workspaceCommand();
     const panel = h.picker.component;
     assert.equal(h.picker.options.overlay, true);
     assert.equal(h.picker.options.overlayOptions.anchor, "top-left");

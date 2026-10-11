@@ -146,7 +146,7 @@ This is an interoperability convention among trusted extensions, not a security 
 ## Validation
 
 ```sh
-node --test ~/.pi/agent/extensions/pi-tasks/tests/*.test.mjs ~/.pi/agent/extensions/pi-home/tests/*.test.mjs
+cd /Users/jordan/code/pi-workspace && npm run test:tasks && npm run test:home
 ```
 
 Tests use installed pi packages rather than duplicate dependencies. Coverage includes v1 migration, plan isolation, archive protections, library-wide revisions, history pagination, completion expiry, failed storage, branch/compaction restoration, user precedence, off/on and headless behavior, browse-only navigation, stale dialogs, explicit modal backgrounds, Unicode/narrow layouts and Home integration. Strict TypeScript checks cover both extensions and the bridge.

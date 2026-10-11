@@ -186,7 +186,7 @@ async function harness(mode = "tui") {
   const emit = async (n, value = {}) => { for (const f of handlers.get(n) ?? []) await f({ type: n, ...value }, ctx); };
   return { ctx, home, entries, widgets, events, notifications, scratch, emit, commands,
     get footer() { return footer; }, get panel() { return panel; }, get subscriptions() { return subscriptions; }, get renders() { return renders; },
-    choose: () => commands.get("footer").handler("", ctx),
+    choose: () => commands.get("workspace").handler("", ctx),
     async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(scratch, { recursive: true, force: true }); },
   };
 }
@@ -195,6 +195,8 @@ test("controller preview is transactional: Cancel restores, Apply persists, relo
   const h = await harness();
   try {
     await h.emit("session_start");
+    assert.equal(h.commands.has("workspace"), true);
+    assert.equal(h.commands.has("footer"), false);
     assert.equal(h.subscriptions, 1);
     const before = h.footer.render(120);
     assert.match(before.map(plain).join(" "), /Model Name.*high/);
@@ -210,7 +212,7 @@ test("controller preview is transactional: Cancel restores, Apply persists, relo
     pick = h.choose();
     h.panel.handleInput("\t"); h.panel.handleInput("\t"); h.panel.handleInput("\x1b[B");
     h.panel.handleInput("\r"); h.panel.handleInput("\x1b[B"); h.panel.handleInput("\r"); h.panel.handleInput("\x13"); await pick;
-    assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-footer.json"), "utf8")).style, "powerline");
+    assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-workspace.json"), "utf8")).style, "powerline");
     const applied = h.footer.render(120); await h.emit("session_start");
     assert.deepEqual(h.footer.render(120), applied); assert.equal(h.subscriptions, 1);
     assert.ok(h.widgets.has("pi-home:activity"));
@@ -319,8 +321,11 @@ test("save failures roll back live preview; corrupt settings stay untouched unti
     writeFileSync(join(h.scratch, "pi-footer.json"), "not json");
     await h.emit("session_start"); assert.match(h.notifications[0][0], /could not be read/);
     assert.equal(readFileSync(join(h.scratch, "pi-footer.json"), "utf8"), "not json");
-    rmSync(join(h.scratch, "pi-footer.json")); mkdirSync(join(h.scratch, "pi-footer.json"));
-    const before = h.footer.render(120), pick = h.choose(); h.panel.handleInput("\r"); h.panel.handleInput("\x13"); await pick;
+    await h.choose(); // Corrupt legacy settings block editing rather than being overwritten.
+    assert.equal(readFileSync(join(h.scratch, "pi-footer.json"), "utf8"), "not json");
+    rmSync(join(h.scratch, "pi-footer.json")); await h.emit("session_start");
+    const before = h.footer.render(120), pick = h.choose(); h.panel.handleInput("\r");
+    mkdirSync(join(h.scratch, "pi-workspace.json")); h.panel.handleInput("\x13"); await pick;
     assert.deepEqual(h.footer.render(120), before); assert.ok(h.notifications.some(([m, t]) => t === "error" && /not saved/.test(m)));
   } finally { await h.close(); }
 });

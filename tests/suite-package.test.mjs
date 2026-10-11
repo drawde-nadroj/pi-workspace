@@ -49,7 +49,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     const response = rpc.find(record => record.id === "suite-commands");
     assert.equal(response?.success, true, "the real Pi process loads the packed suite");
     const packageCommands = response.data.commands.filter(entry => entry.source === "extension" && entry.sourceInfo?.origin === "package");
-    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer-preview", "footer", "home", "recaps", "tasks"]);
+    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer-preview", "home", "recaps", "tasks", "workspace"]);
     assert.ok(packageCommands.every(entry => entry.sourceInfo.baseDir === suite), "commands come from one packed suite");
 
     const previous = process.env.PI_CODING_AGENT_DIR;
@@ -66,7 +66,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
         assert.equal(tools.length, new Set(tools).size, "one owner per tool name");
         assert.equal(commands.length, new Set(commands).size, "one owner per command name");
         for (const name of ["tasks", "ask_user_question", "ask_questions"]) assert.ok(tools.includes(name), name);
-        for (const name of ["home", "footer", "tasks"]) assert.ok(commands.includes(name), name);
+        for (const name of ["home", "workspace", "tasks"]) assert.ok(commands.includes(name), name);
       }
       const tasksOnly = await loadExtensions([entries[1]], project);
       assert.deepEqual(tasksOnly.errors, [], "Tasks cold-loads without Home or Ask");

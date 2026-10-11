@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi, type TUI } from "@earendil-works/pi-tui";
@@ -8,7 +8,8 @@ import { DOCK } from "../../lib/home-dock.ts";
 import { shouldAnimate, type HomeState } from "./state.ts";
 import { composerStatus } from "./composer-live.ts";
 import { composerInset, composerPadding, composerSurface } from "./composer-style.ts";
-import { ActivityClock, FOOTER_DEFAULTS, FOOTER_ENTRY, activityParts, clean, footerPrefs, parseGit, type FooterPrefs, type GitState } from "./footer-state.ts";
+import { ActivityClock, FOOTER_DEFAULTS, FOOTER_ENTRY, activityParts, clean, parseGit, type FooterPrefs, type GitState } from "./footer-state.ts";
+import { loadWorkspacePrefs, WORKSPACE_SETTINGS, WORKSPACE_VERSION } from "./workspace-preferences.ts";
 import { footerRows, timingRows } from "./footer-view.ts";
 import { chooseFooter } from "./footer-settings.ts";
 import { appearanceRow } from "./appearance-render.ts";
@@ -20,7 +21,7 @@ export async function saveFooter(path: string, prefs: FooterPrefs): Promise<void
   const temp = `${path}.${randomUUID()}.tmp`;
   try {
     await mkdir(join(path, ".."), { recursive: true });
-    await writeFile(temp, JSON.stringify(prefs, null, 2) + "\n", { mode: 0o600 });
+    await writeFile(temp, JSON.stringify({ version: WORKSPACE_VERSION, ...prefs }, null, 2) + "\n", { mode: 0o600 });
     await rename(temp, path);
   } finally { await rm(temp, { force: true }).catch(() => {}); }
 }
@@ -41,7 +42,8 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
   };
   let mountedWidget = false, unsubscribe: (() => void) | undefined;
   let createdAt: number | undefined, lastUserSentAt: number | undefined, outcome = "done";
-  const path = join(getAgentDir(), "pi-footer.json");
+  const path = join(getAgentDir(), WORKSPACE_SETTINGS);
+  let unreadableSettings = false;
   const refresh = () => tui?.requestRender();
   const persist = () => { if (ctx?.mode === "tui") pi.appendEntry(FOOTER_ENTRY, clock.snapshot(Date.now())); };
   const composer = () => home.footerPickerOpen || home.prefs.enabled;
@@ -158,7 +160,7 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
           if (prefs.timing === "footer") rows.push(...activity(width));
           const statuses = [...data.getExtensionStatuses().values()].map(clean).filter(Boolean);
           if (statuses.length) rows.push(...wrapTextWithAnsi(ctx.ui.theme.fg("dim", statuses.join("  ")), width));
-          if (composer() && !home.footerPickerOpen && composerPadding(width, ui.terminal.rows)) rows.unshift("");
+          if (composer() && !home.footerPickerOpen && composerPadding(width, ui.terminal.rows, prefs.density)) rows.unshift("");
           return composer() ? rows.map(row => composerSurface(ctx!.ui.theme, row, width)) : rows;
         },
       };
@@ -187,10 +189,10 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
     stop();
     if (context.mode !== "tui") return;
     ctx = context;
-    try { prefs = footerPrefs(JSON.parse(await readFile(path, "utf8"))); }
+    try { prefs = await loadWorkspacePrefs(); unreadableSettings = false; }
     catch (error) {
-      prefs = { ...FOOTER_DEFAULTS };
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") context.ui.notify(`Footer settings could not be read: ${String(error)}. Using defaults; file is unchanged.`, "warning");
+      prefs = { ...FOOTER_DEFAULTS }; unreadableSettings = true;
+      context.ui.notify(`Workspace settings could not be read: ${String(error)}. Using defaults; saved files are unchanged.`, "warning");
     }
     restore(context); git = undefined; gitUnavailable = false; lastGitAt = 0;
     install(context); pollGit(true);
@@ -242,10 +244,11 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
   pi.on("session_info_changed", contextChanged);
   pi.on("session_compact", contextChanged);
   pi.on("session_compact_failed", contextChanged);
-  pi.registerCommand("footer", {
-    description: "Customize your input box and footer: live preview, text, colors and positions. Save / Discard.",
+  pi.registerCommand("workspace", {
+    description: "Customize input, footer, Tasks, Ask and Transcript visuals. Save / Discard.",
     handler: async (_args, context) => {
-      if (context.mode !== "tui") { context.ui.notify("/footer requires terminal UI mode.", "info"); return; }
+      if (context.mode !== "tui") { context.ui.notify("/workspace requires terminal UI mode.", "info"); return; }
+      if (unreadableSettings) { context.ui.notify("Workspace settings could not be read; fix the saved file before editing so it is not overwritten.", "error"); return; }
       if (pickerOpen) return;
       pickerOpen = true; home.footerPickerOpen = true; ctx = context; wake();
       const original = clonePrefs(prefs), gen = generation;
@@ -271,8 +274,8 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
         await saveFooter(path, selected);
         if (gen !== generation) return;
         prefs = selected; committed = true;
-        context.ui.notify("Footer saved for all Pi sessions. Other open sessions adopt it after /reload.", "info");
-      } catch (error) { context.ui.notify(`Footer settings were not saved: ${String(error)}`, "error"); }
+        context.ui.notify("Workspace saved for all Pi sessions. Other open sessions adopt it after /reload.", "info");
+      } catch (error) { context.ui.notify(`Workspace settings were not saved: ${String(error)}`, "error"); }
       finally {
         if (pickerAbort === abort) { pickerAbort = undefined; pickerBaseline = undefined; }
         native?.dispose();

@@ -45,7 +45,7 @@ At least 38 columns by 22 terminal rows are needed for the full composition. A s
 ## Verification
 
 ```sh
-node --test agent/extensions/pi-home/tests/*.test.mjs agent/extensions/pi-tasks/tests/*.test.mjs
+cd /Users/jordan/code/pi-workspace && npm run test:home && npm run test:tasks
 ```
 
 Tests cover width/height bounds, state and treatment changes, directory/model alignment, fixed input position, local draft isolation, Unicode and focus markers, animation scheduling, tour pause/resume, cancellation/shutdown, mouse input, invalid arguments, and non-TUI safety. They do not establish the visual quality of a user's font or terminal. No production application is implied by passing tests or opening this preview.

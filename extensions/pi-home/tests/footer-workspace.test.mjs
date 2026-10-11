@@ -33,6 +33,18 @@ test("visual layout migration is optional, validates nested data and never mutat
   assert.equal(old.appearance, undefined);
 });
 
+test("workspace identity and density edit, undo and save transactionally", async () => {
+  const h = workspace();
+  h.click("[Workspace]"); h.click("Your display name"); h.text("Alex 界面");
+  assert.equal(h.latest.displayName, "Alex 界面");
+  h.click("Workspace density"); h.pick("Compact");
+  assert.equal(h.latest.density, "compact");
+  h.click("[Undo]"); assert.equal(h.latest.density, "spaced");
+  h.click("Workspace density"); h.pick("Compact"); h.click("[Save]");
+  const saved = await h.pending;
+  assert.equal(saved.displayName, "Alex 界面"); assert.equal(saved.density, "compact");
+});
+
 test("stock Sent and directory rails follow the existing icon preference without rewriting templates", async () => {
   const h = workspace();
   const top = () => plain(appearanceRow(theme, 140, h.home, "top", new Date(2026, 9, 8, 12, 31).valueOf()));

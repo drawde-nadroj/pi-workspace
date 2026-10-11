@@ -6,7 +6,7 @@ import { jiti, source, root, theme, plain, visibleWidth } from "./host.mjs";
 const { SentMessageFrames, terminalBackground } = await jiti.import(join(source, "sent-messages.ts"));
 const { composerBorder, userFrameColor } = await jiti.import(join(source, "composer-style.ts"));
 const { taskFrameColor } = await jiti.import(join(source, "../../lib/task-frame.ts"));
-const { sentTime } = await jiti.import(join(source, "sent-metadata.ts"));
+const { sentTime, calendarDay } = await jiti.import(join(source, "sent-metadata.ts"));
 const { COMPOSER_ICONS } = await jiti.import(join(source, "composer-icons.ts"));
 const { AssistantMessageComponent, UserMessageComponent } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/index.js")));
 const { Container, Text, TuiMainScreen, TuiAltScreen, colorToHex, parseColor } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
@@ -57,6 +57,25 @@ test("sent-message frames wrap only native user messages, preserving content, wr
   } finally { frames.dispose(); }
 });
 
+test("live workspace identity and density balance the user and assistant frame interiors", () => {
+  const root = new Container(), frames = new SentMessageFrames();
+  const user = new UserMessageComponent("hello");
+  const assistant = new AssistantMessageComponent({ role: "assistant", content: [{ type: "text", text: "reply" }],
+    stopReason: "stop", model: "test", provider: "test", timestamp: 1 });
+  root.addChild(user); root.addChild(assistant);
+  const prefs = { displayName: "Alex 界面", density: "spaced", messageTime: "off", timestamps: "24h" };
+  try {
+    frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs }));
+    const spacedUser = user.render(70).map(plain), spacedAssistant = assistant.render(70).map(plain);
+    assert.match(spacedUser[0], /Alex 界面/);
+    assert.equal(spacedUser.length, spacedAssistant.length);
+    prefs.density = "compact";
+    assert.equal(user.render(70).length, spacedUser.length - 1);
+    assert.equal(assistant.render(70).length, spacedAssistant.length - 1);
+    assert.equal(user.render(70).join("").split("\x1b]133;C\x07").length - 1, 1);
+  } finally { frames.dispose(); }
+});
+
 test("chat frames show only sourced fixed creation times; repeated user text maps in order", () => {
   const root = new Container(), frames = new SentMessageFrames();
   const first = new UserMessageComponent("again"), second = new UserMessageComponent("again"), synthetic = new UserMessageComponent("synthetic");
@@ -77,6 +96,12 @@ test("chat frames show only sourced fixed creation times; repeated user text map
     assert.doesNotMatch(plain(synthetic.render(70).at(-1)), /Sent |\u{f10dd}/u, "unsourced user messages have no invented time");
     const assistantTime = sentTime(Date.UTC(2024, 0, 2, 15, 42), prefs, Date.now());
     assert.ok(plain(assistant.render(70).at(-1)).includes(label(assistantTime)));
+    frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users, chronomancerDay: "2024-01-01" }));
+    const actualDay = calendarDay(users[0].timestamp);
+    assert.ok(plain(first.render(90).at(-1)).includes(actualDay), "past-day mode shows the real send date");
+    assert.ok(!plain(synthetic.render(90).at(-1)).includes(actualDay), "no date is fabricated for unsourced messages");
+    frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
+    assert.ok(plain(first.render(90).at(-1)).includes(label(firstTime)), "normal mode restores its original formatting");
     prefs.transcript = { version: 1, chat: { assistantLabel: "quiet", showSent: true, sentPosition: "bottomLeft" }, tools: { identity: "quiet", status: "semantic" } };
     frames.sync(root, () => theme, () => "Assistant", undefined, () => ({ prefs, users }));
     assert.ok(plain(first.render(70).at(-1)).startsWith(`╰ ${label(firstTime)}`), "user creation time moves left without losing its red identity");

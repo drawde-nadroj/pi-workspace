@@ -32,7 +32,7 @@ class ToolGroup extends Container {
   private rows: string[] = [];
   private offsets: { child: ToolExecutionComponent; start: number; height: number }[] = [];
   constructor(readonly owner: AssistantMessageComponent, readonly ids: string[],
-    private theme: () => Theme, private prefs: () => FooterPrefs | undefined) { super(); }
+    private theme: () => Theme, private prefs: () => FooterPrefs | undefined, private fullDate: () => boolean) { super(); }
   // Pi 1.0's Ctrl+O scans direct chat children for setExpanded. Forward it to
   // the original tools so keyboard expansion still works after reparenting.
   setExpanded(expanded: boolean): void {
@@ -82,7 +82,7 @@ class ToolGroup extends Container {
     const theme = this.theme(), color = taskFrameColor(theme);
     const timestamp = (this.owner as unknown as { lastMessage?: { timestamp?: number } }).lastMessage?.timestamp;
     const options = this.prefs(), style = activeTranscript(options);
-    const time = style.chat.showSent ? sentTime(timestamp, options, Date.now()) : "";
+    const time = style.chat.showSent ? sentTime(timestamp, options, Date.now(), this.fullDate()) : "";
     return frameRows({ theme, width, rows: rows.map(terminalBackground), color,
       corners: { topLeft: toolIdentity(theme, ` Tools · ${this.children.length} calls `, color, style),
         [style.chat.sentPosition]: styledSentLabel(theme, time, color, "quiet", options?.icons) },
@@ -111,7 +111,8 @@ class ToolGroup extends Container {
 export class GroupedTools {
   private groups = new Map<ToolGroup, Container>();
   private members = new WeakSet<ToolExecutionComponent>();
-  constructor(private theme: () => Theme, private prefs: () => FooterPrefs | undefined) {}
+  constructor(private theme: () => Theme, private prefs: () => FooterPrefs | undefined,
+    private fullDate: () => boolean = () => false) {}
   isGrouped = (node: ToolExecutionComponent): boolean => this.members.has(node);
   sync(root: Component): boolean {
     let changed = false;
@@ -153,7 +154,7 @@ export class GroupedTools {
             changed = true;
           }
         } else if (additions.length >= 2) {
-          const group = new ToolGroup(owner, ids.slice(0, additions.length) as string[], this.theme, this.prefs);
+          const group = new ToolGroup(owner, ids.slice(0, additions.length) as string[], this.theme, this.prefs, this.fullDate);
           for (const tool of additions) { group.addChild(tool); this.members.add(tool); }
           children.splice(i + 1, additions.length, group);
           this.groups.set(group, node);
