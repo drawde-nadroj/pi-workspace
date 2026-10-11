@@ -52,20 +52,34 @@ If you want the agent to check for important unknowns, try:
 
 > **Before you start, identify any unknowns only I can answer that would materially change your exploration or next action. Ask focused questions about those; if none are needed, proceed. If I'm exploring ideas, begin open-ended rather than forcing a decision menu.**
 
-Give the agent relevant context, especially context already shared in the conversation or project. It can use `ask_questions` to gather related unknowns rather than guessing or interrupting repeatedly. It should not ask questions simply to fill a batch.
+Give the agent relevant context, especially context already shared in the conversation or project. It can use `ask_questions` to gather related unknowns rather than guessing or interrupting repeatedly. It should not ask questions simply to fill a batch. First it should inspect what it can, make a provisional judgment, and ask only when different answers would materially change its next action. It can proceed with a stated, reversible assumption when the choice does not belong to you.
+
+### Inquiry charter
+
+**Purpose:** strengthen a person's ability to understand and act, not merely collect structured answers. The agent owes the person its own thinking before asking for theirs.
+
+- **Attend before intervening.** Read what has already been said and investigate available evidence. Do not ask someone to repeat a fact the agent can find.
+- **Separate kinds of uncertainty.** Findable facts call for research; low-risk, reversible choices can be made with stated assumptions; consequential preferences, consent, and lived experience belong to the person.
+- **Ask at a real fork.** A question is earned when plausible answers would change the next action. Show the finding, trade-off, or uncertainty that makes the answer matter. One pivotal question beats a long questionnaire; zero questions can be the right result.
+- **Recommend without taking over.** Offer a reasoned provisional path for technical choices, including what could change it. For open exploration, reflect the problem before narrowing it to a menu. Keep room to disagree.
+- **Learn from the answer.** Show what changed, do the work, and drop stale follow-ups. When the person asks for clarification or revision, reconsider whether a question is still necessary instead of mechanically re-asking it.
+
+This is a design ethic, not a claim that the tool verifies an agent's judgment. The educational ambition is to cultivate attention, evidence, judgment, creation, and revision while preserving the learner's agency. The software currently provides question and answer affordances plus agent-facing guidance; its real effect must be evaluated in use, including whether people leave better informed and more capable of acting without it.
+
+For example, a weak question is *“Which architecture do you want: A, B, or C?”* before investigating the code. A stronger agent first inspects the project: *“A preserves your current editor state; B replaces it and risks losing Vim undo. I would use A. Is replacing the editor acceptable for a specific reason I have missed?”* If that difference does not affect the task, it should simply proceed with A.
 
 More useful context usually produces better work. A question batch creates a quick path to shared understanding: answer what you know, add notes where nuance matters, and ask the agent for clarification from inside any question you do not understand.
 
 ### Revise unanswered questions
 
-You do not have to finish a batch whose later questions no longer fit. After answering at least one question, leave the questions that need rethinking unanswered and press **Ctrl+R**. The plugin returns your completed answers and notes to the agent as new context, preserves them as resolved, and asks the agent to replace only the unanswered questions. The next batch can therefore adapt to everything you have said without making you answer the same questions again.
+You do not have to finish a batch whose later questions no longer fit. After answering at least one question, leave the questions that need rethinking unanswered and press **Ctrl+R**. The plugin returns your completed answers and notes to the agent as new context and preserves them as resolved. The agent should reassess the unanswered questions: revise only those still consequential, or explain why none remain and continue the work. You should not have to answer the same question again.
 
 This loop can continue until you and the agent share enough context to proceed:
 
 1. The agent asks a broad, useful batch.
 2. Your answers change or sharpen its understanding.
-3. **Revise unanswered** replaces stale questions with better ones.
-4. The agent starts the work once the important unknowns are resolved.
+3. **Revise unanswered** prompts the agent to drop stale questions and, if needed, replace them with better ones.
+4. The agent continues the work once the important unknowns are resolved.
 
 ### Submit answered questions and skip the rest
 

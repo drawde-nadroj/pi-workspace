@@ -367,8 +367,8 @@ export function buildRegenerateResult(questions: QuestionDef[], answers: TabAnsw
 		.map((entry) => ({ questionIndex: entry.questionIndex, note: entry.note!.trim() }));
 	const unansweredNoteByIndex = new Map(unansweredNotes.map((entry) => [entry.questionIndex, entry.note]));
 	const lines = [
-		"Regenerate the remaining batch questions now using the user's new understanding below.",
-		"Do not repeat resolved questions. Immediately call ask_questions again with revised unanswered questions only.",
+		"Reassess the unanswered batch questions using the user's answers and notes as new understanding.",
+		"Reconsider each unanswered question: drop it if resolved or no longer consequential. Do not repeat resolved questions. Ask only essential revised questions; if none remain, explain why and proceed with the work.",
 	];
 	for (const entry of answered) {
 		const question = questions[entry.questionIndex];
@@ -417,7 +417,7 @@ export function buildClarificationResult(
 	const semantics = mode === "text" ? "text (free-text answer)" : mode === "multi-select" ? "multi-select (choose one or more choices)" : "single-select (choose one choice)";
 	const lines = [
 		`The user paused this question to ask: ${clarification}`,
-		"Answer the clarification in normal assistant text, then immediately call ask_user_question again before continuing work.",
+		"Answer the clarification in normal assistant text. Reconsider whether the original question is still consequential; re-ask it only if needed, otherwise explain why it is no longer needed and proceed.",
 		`Original question: ${question}`,
 	];
 	if (context) lines.push(`Details: ${context}`);
@@ -437,7 +437,7 @@ export function buildBatchClarificationResult(questions: QuestionDef[], answers:
 	const base = buildRegenerateResult(questions, unresolvedAnswers);
 	const lines = [
 		`The user paused the batch to ask: ${clarification}`,
-		"Answer the clarification in normal assistant text, then immediately call ask_questions again with revised unanswered questions only before continuing work.",
+		"Answer the clarification in normal assistant text, then reconsider the unanswered questions. Re-ask only the essential revised questions; if none remain, explain why and proceed.",
 		"Do not repeat resolved questions. Committed answers and notes are resolved context.",
 		`Current unresolved question: Q${activeQuestionIndex + 1}: ${questions[activeQuestionIndex]?.question ?? "(unknown)"}`,
 	];

@@ -44,21 +44,22 @@ export default function askUserQuestion(pi: ExtensionAPI) {
 		label: "Question",
 		renderShell: "self",
 		description:
-			"Ask the user a single question and pause execution until they answer or explicitly skip it. Supports choices or a multiline free-form response when options are omitted. Use this when requirements are ambiguous, user preferences are needed, a decision would materially affect implementation, or you need confirmation before proceeding. Ask exactly one question per tool call, and prefer multiple separate tool calls over bundling unrelated questions together.",
+			"Ask one consequential question and pause until the user answers or explicitly skips it. First investigate what you can and form a provisional judgment. Ask when plausible answers would change the next action and the answer belongs to the user, cannot be found in available evidence, and cannot be handled by a stated, reversible assumption. Supports choices or a multiline free-form response when options are omitted.",
 		promptSnippet:
-			"Use this tool to ask exactly one clarifying question, missing-requirement question, preference question, or decision question before continuing.",
+			"Ask one question only when its answer would change your next action; otherwise investigate or proceed with a stated assumption.",
 		promptGuidelines: [
 			"Ask exactly one question per tool call.",
-			"If you need answers to multiple questions, make multiple separate ask_user_question tool calls instead of combining them into one prompt.",
+			"If multiple consequential answers are needed together, use ask_questions; keep unrelated questions separate and do not combine them into one prompt.",
 			'Provide options for choice and decision questions. Write concise, neutral option labels that still make sense beneath the question in a completed record; put rationale in description or suggestion. Users can write a custom answer with "Something else…" and add an optional note.',
 			"Omit options for open-ended questions that ask the user to describe or explain something, or to share an experience; this opens a multiline free-form response.",
 			"Use multiSelect: true only when you provide options and need multiple answers to the same question.",
-			"Ask only when the answer will change the exploration or next action; use open-ended questions before narrowing an exploratory conversation to a menu.",
+			"Before asking, use the request, existing context, and practical investigation to separate findable facts, safe reversible assumptions, and decisions that belong to the user. Form a provisional judgment; no question is a good outcome when you can proceed.",
+			"Ask only when plausible answers would materially change your next action and you cannot responsibly resolve the difference yourself. Briefly show the relevant finding or trade-off and what the answer changes. For technical choices, investigate and recommend a path before asking the user to choose; for exploration, begin open-ended rather than forcing a premature menu.",
+			"After an answer, use it to update your understanding and work. Ask a follow-up only if a new consequential uncertainty emerges; do not ask just to keep a question loop going.",
 			"Do not mark an option as suggested just because it is first, familiar, or conventional. Use suggestion with kind and a concrete basis tied to evidence or the user's stated priorities; include a caveat when it could change. Leave options unendorsed if the deciding criterion is unknown.",
 			"The suggestion is your judgment, not verification by this tool. Distinguish evidence from inferred personal fit; do not use the deprecated recommended flag or a '(Recommended)' label.",
-			"Prefer this tool over guessing when requirements, preferences, or implementation choices are unclear.",
-			"Use this tool when multiple valid implementation paths exist and the preferred path depends on user choice.",
-			"If ask_user_question returns clarification_requested, answer the clarification and immediately call ask_user_question again with the original question before continuing work.",
+			"Do not guess at consequential user preferences. Multiple valid paths alone do not require a question when available evidence supports a reversible choice.",
+			"If clarification_requested, answer the clarification, then reconsider whether the original question still matters. Re-ask only if it does; otherwise explain the changed understanding and proceed.",
 		],
 		parameters: AskUserQuestionParams,
 
@@ -130,18 +131,18 @@ export default function askUserQuestion(pi: ExtensionAPI) {
 		label: "Questions",
 		renderShell: "self",
 		description:
-			"Ask the user multiple related questions in a sequential form. Review shows answered, explicitly skipped and unanswered questions separately; a single Submit action finalizes the stated answers.",
+			"Ask multiple related, consequential questions in a sequential form only when their answers are needed together. Investigate and form a provisional judgment first; omit questions that do not change the next action. Review shows answered, explicitly skipped and unanswered questions separately; Submit finalizes the stated answers.",
 		promptSnippet:
 			"Use this tool to ask multiple related questions at once in a sequential form.",
 		promptGuidelines: [
-			"Use ask_questions for 2+ related questions where the answers are needed together. For a single question, use ask_user_question instead.",
+			"Use ask_questions only for 2+ related, independently consequential questions whose answers are needed together. Prefer one pivotal question over a comprehensive questionnaire; for a single question use ask_user_question.",
 			"Provide options for choice and decision questions; use concise, neutral option labels that still make sense beneath the question in a completed record, with rationale in description or suggestion. Omit options for open-ended prompts that ask the user to describe, explain, or share an experience. Use multiSelect only with options.",
 			"Add a short label for semantic progress when useful; notes are optional.",
 			"The user reviews completed answers before an explicit Submit and may intentionally skip unanswered questions; custom answers remain distinct.",
-			"Ask only when an answer will change the exploration or next action. For exploration, use open-ended questions before narrowing to a menu. Do not suggest an option merely because it is first or conventional.",
+			"First use existing context and practical investigation to form a provisional judgment. Ask only when plausible answers materially change the next action and the answer belongs to the user, not to available evidence or a safe reversible assumption. Show the trade-off and why the answer matters; for exploration use open-ended questions before narrowing to a menu. No questions is a valid outcome. Do not suggest an option merely because it is first or conventional.",
 			"Use suggestion with kind and a concrete basis tied to evidence or stated priorities, plus a caveat when needed. Leave choices unendorsed if the deciding criterion is unknown. This tool does not verify your suggestion; do not use the deprecated recommended flag or a '(Recommended)' label.",
-			"If the result status is regenerate, use the answered entries and notes as new understanding, do not repeat resolved questions, and immediately call ask_questions again with revised unanswered questions only.",
-			"If ask_questions returns clarification_requested, answer the clarification, keep resolved answers as context, and immediately call ask_questions again with revised unanswered questions only.",
+			"If the result status is regenerate, incorporate answered entries and notes, then reconsider every unanswered question. Drop resolved or inconsequential questions; ask only the essential revised questions, or explain why none remain and proceed.",
+			"If clarification_requested, answer the clarification and keep resolved answers as context. Reconsider the unresolved questions before re-asking; withdraw questions that no longer matter and proceed when none remain.",
 		],
 		parameters: AskQuestionsParams,
 
