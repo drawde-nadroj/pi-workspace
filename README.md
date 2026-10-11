@@ -1,4 +1,4 @@
-# Pi workspace suite (private)
+# Pi workspace suite
 
 Source for four related Pi components in **one Git repository**:
 
@@ -9,16 +9,16 @@ Source for four related Pi components in **one Git repository**:
 | Home | [`extensions/pi-home`](extensions/pi-home/README.md) | Editor, footer, transcript surfaces and workspace host |
 | Tasks | [`extensions/pi-tasks`](extensions/pi-tasks/README.md) | Plans, task tool, history, and independent fallback |
 
-**Status:** The private root package `pi-workspace-suite` now has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. Home is Composer-only in this checkout, including on a fresh install; retired presets and the old design lab have been removed. A packed suite was installed and cold-loaded in an isolated Pi agent directory; a partial interactive terminal review and rollback-settings drill are recorded in [acceptance](docs/ACCEPTANCE.md). Physical IME and human visual checks remain open. After explicit approval, the live `~/.pi/agent/settings.json` now loads this checkout once and excludes the older Home/Tasks auto-discovery entries; the originals remain backed up and on disk. A fresh Pi process is required to use the suite in an existing session. The package is **not published**; do not also load the separate Frame/Ask package entries, as that would double-register resources.
+**Status:** The npm-private root package `pi-workspace-suite` has an explicit Pi manifest for Home, Tasks and Ask. Frame is bundled as a library; Ask and Frame also retain their standalone package manifests. Home is Composer-only in this checkout, including on a fresh install; retired presets and the old design lab have been removed. A packed suite was installed and cold-loaded in an isolated Pi agent directory; a partial interactive terminal review and rollback-settings drill are recorded in [acceptance](docs/ACCEPTANCE.md). Physical IME and human visual checks remain open. After explicit approval, the live `~/.pi/agent/settings.json` now loads this checkout once and excludes the older Home/Tasks auto-discovery entries; the originals remain backed up and on disk. A fresh Pi process is required to use the suite in an existing session. The package is **not published**; do not also load the separate Frame/Ask package entries, as that would double-register resources.
 
 ## Install on another computer
 
-This is a **private Git repository and local Pi package**, not an npm release. A Pi package is a directory with a `package.json` manifest telling Pi which extensions to load. The root package loads Home, Tasks and Ask; Frame is their runtime library. The optional Chronomancer prototype under `packages/chronomancer/` is **not** loaded by the root package.
+This is a **public Git repository and local Pi package**, not an npm release. A Pi package is a directory with a `package.json` manifest telling Pi which extensions to load. The root package loads Home, Tasks and Ask; Frame is their runtime library. The optional Chronomancer prototype under `packages/chronomancer/` is **not** loaded by the root package.
 
-1. Install [Pi](https://pi.dev/) (use a compatible Pi 1.0 host), Node.js, npm and Git. Sign in to GitHub with an account that can read this private repository. Clone it and install its locked dependencies:
+1. Install [Pi](https://pi.dev/) (use a compatible Pi 1.0 host), Node.js, npm and Git. Clone the repository and install its locked dependencies:
 
    ```bash
-   git clone git@github.com:drawde-nadroj/pi-workspace.git ~/code/pi-workspace
+   git clone https://github.com/drawde-nadroj/pi-workspace.git ~/code/pi-workspace
    cd ~/code/pi-workspace
    npm ci
    npm test
@@ -56,6 +56,6 @@ npm run pack:check
 
 `npm test` includes a package smoke test that packs the root, installs it into a temporary npm prefix without network access, then asks a separate `PI_CODING_AGENT_DIR` to load it. The test cleans up its temporary directory. For a local source installation in another isolated agent directory, run `npm ci` first: Pi does not install dependencies for local packages. For a packed installation, Frame is already bundled; Pi host modules remain peers and are not packaged. The root is intentionally private and cannot be published by accident.
 
-The root is private and uses npm workspaces for the existing Frame and Ask packages. Tests for Home and Tasks remain in their source directories and preserve their relative imports from `lib/`. This repository intentionally contains **no** authentication, sessions, personal preferences or machine configuration. Before committing, check `git status --short` and `git diff --cached --name-only`.
+The root manifest is marked `private: true` for npm and uses npm workspaces for the existing Frame and Ask packages. Tests for Home and Tasks remain in their source directories and preserve their relative imports from `lib/`. This repository intentionally contains **no** authentication, sessions, personal preferences or machine configuration. Before committing, check `git status --short` and `git diff --cached --name-only`.
 
 See [architecture](docs/ARCHITECTURE.md), the [surface workspace specification](docs/SURFACE-WORKSPACE.md), [isolated acceptance and remaining human checks](docs/ACCEPTANCE.md), [project language for sharing and teaching](docs/POSITIONING.md), [migration plan](docs/MIGRATION.md), and [contributing](CONTRIBUTING.md). End-user usage remains documented in each component's README, with [footer customization](extensions/pi-home/FOOTER.md) and [Frame feature guide](packages/pi-frame/FEATURE-GUIDE.md) as the current visual-design references.
