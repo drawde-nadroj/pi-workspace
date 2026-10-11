@@ -56,17 +56,24 @@ export function renderOptionalNote(
 	const note = sanitizeDisplayText(noteEditor.getExpandedText());
 	if (!noteFocused) {
 		const action = note ? `+ Note: ${note.replace(/\n/g, " / ")}` : "+ Note";
-		lines.push(truncateToWidth(`${labelPrefix}${theme.fg(noteActionFocused ? "accent" : "muted", `${noteActionFocused ? "› " : ""}${action}`)}${noteActionFocused ? theme.fg("dim", " · Enter") : ""}`, width));
+		lines.push(truncateToWidth(`${labelPrefix}${theme.fg(noteActionFocused ? "accent" : "muted", `${noteActionFocused ? "› " : ""}${action}`)}${noteActionFocused ? theme.fg("dim", " · Enter/+ to edit") : ""}`, width));
 		return;
 	}
 
-	// The + Note control stays put; an active note gets the same orange-outlined
+	// The + Note control stays put; an active note gets the same accent-outlined
 	// SafeEditor as an answer or clarification. At narrow widths give the box
 	// priority over indentation, without replacing the note's editor instance.
 	lines.push(truncateToWidth(`${labelPrefix}${theme.fg("accent", theme.bold("+ Note"))}`, width));
 	const editorPrefix = width - visibleWidth(labelPrefix) >= 7 ? labelPrefix : "";
-	for (const editorLine of noteEditor.render(Math.max(1, width - visibleWidth(editorPrefix)))) {
-		lines.push(truncateToWidth(`${editorPrefix}${sanitizeEditorDisplay(editorLine)}`, width));
+	const editorWidth = Math.max(1, width - visibleWidth(editorPrefix));
+	for (const editorLine of noteEditor.render(editorWidth)) {
+		const safe = sanitizeEditorDisplay(editorLine);
+		// Sanitization removes the editor's trusted SGR too. Restyle only its
+		// perimeter after sanitizing, leaving input, cursor and interior neutral.
+		const framed = editorWidth >= 7 && /^[╭╰].*[╮╯]$/.test(safe) ? theme.fg("accent", safe)
+			: editorWidth >= 7 && /^│.*│$/.test(safe) ? safe.replace(/^│/, (edge: string) => theme.fg("accent", edge))
+				.replace(/│$/, (edge: string) => theme.fg("accent", edge)) : safe;
+		lines.push(truncateToWidth(`${editorPrefix}${framed}`, width));
 	}
 }
 
@@ -180,23 +187,12 @@ export function createQuestionEditor(tui: any, theme: any, options: EditorOption
 	return editor;
 }
 
-/** Note controls are shared by standalone and tabbed question forms. */
-class NoteEditor extends SafeEditor {
-	override handleInput(data: string): void {
-		if (matchesKey(data, Key.ctrl("c"))) {
-			// setText preserves the editor's undo history; do not cancel the form.
-			this.setText("");
-			return;
-		}
-		super.handleInput(data);
-	}
-}
-
+/** Note edits are committed or discarded by the owning form, not by Editor. */
 export function createNoteEditor(tui: any, theme: any, cwd = process.cwd()): Editor {
-	const editor = new NoteEditor(tui, questionEditorTheme(theme), { paddingX: 0 });
+	const editor = new SafeEditor(tui, questionEditorTheme(theme), { paddingX: 0 });
 	editor.setAutocompleteProvider(fileProvider(cwd));
-	// Enter must never clear a note. Shift+Enter/Ctrl+J insert new lines;
-	// Tab leaves the note and Ctrl/Alt+Enter submits the question form.
+	// Enter/Tab save a note; Ctrl+C/Esc discard an edit. Shift+Enter/Ctrl+J
+	// insert new lines; Ctrl/Alt+Enter submits the question form.
 	editor.disableSubmit = true;
 	return editor;
 }
@@ -392,13 +388,11 @@ export class WrappedChoiceList {
 			),
 		);
 		const endIndex = Math.min(startIndex + this.maxVisible, this.items.length);
+		const maxRenderedLines = options.availableLines === undefined
+			? Number.POSITIVE_INFINITY
+			: Math.max(0, Math.floor(options.availableLines));
 
 		for (let itemIndex = startIndex; itemIndex < endIndex; itemIndex++) {
-			const firstLine = lines.length;
-			const highlight = () => {
-				if (itemIndex !== this.selectedIndex) return;
-				for (let i = firstLine; i < lines.length; i++) lines[i] = this.theme.bg("selectedBg", lines[i] + " ".repeat(Math.max(0, width - visibleWidth(lines[i]))));
-			};
 			const item = this.items[itemIndex];
 			const hasCursor = itemIndex === this.selectedIndex;
 			const answerKey = item.id;
@@ -429,7 +423,6 @@ export class WrappedChoiceList {
 				for (const editorLine of editorLines) {
 					lines.push(truncateToWidth(`${editorIndent}${sanitizeEditorDisplay(editorLine)}`, width));
 				}
-				highlight();
 				continue;
 			}
 
@@ -448,7 +441,6 @@ export class WrappedChoiceList {
 					`${descriptionPrefix}${truncateToWidth(this.theme.fg("muted", item.description ?? ""), descriptionWidth)}`,
 					width,
 				));
-				highlight();
 				continue;
 			}
 
@@ -462,16 +454,12 @@ export class WrappedChoiceList {
 				addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Why: ${sanitizeDisplayText(suggestion.basis)}`), width, wrappedPrefix);
 				if (suggestion.caveat) addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Caveat: ${sanitizeDisplayText(suggestion.caveat)}`), width, wrappedPrefix);
 			}
-			highlight();
 		}
 
 		if (startIndex > 0 || endIndex < this.items.length) {
 			addWrappedWithPrefix(lines, "  ", this.theme.fg("dim", `(${this.selectedIndex + 1}/${this.items.length})`), width);
 		}
 
-		const maxRenderedLines = options.availableLines === undefined
-			? Number.POSITIVE_INFINITY
-			: Math.max(0, Math.floor(options.availableLines));
 		if (lines.length > maxRenderedLines) {
 			if (maxRenderedLines === 0) return [];
 			const editorCursorLine = lines.findIndex((line) => line.includes(CURSOR_MARKER));

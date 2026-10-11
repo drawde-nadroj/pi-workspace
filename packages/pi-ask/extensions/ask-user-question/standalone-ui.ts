@@ -67,6 +67,7 @@ export function askText(
 		let cachedLines: string[] | undefined;
 		let noteFocused = false;
 		let noteActionFocused = false;
+		let savedNote = "";
 		let feedback = "";
 		let cancelArmed = false;
 		let _focused = false;
@@ -101,6 +102,7 @@ export function askText(
 		}
 
 		function openNote(): void {
+			savedNote = noteEditor.getExpandedText();
 			noteActionFocused = false;
 			noteFocused = true;
 			noteEditor.focused = _focused;
@@ -114,6 +116,10 @@ export function askText(
 			answerEditor.focused = _focused;
 			invalidate();
 			tui.requestRender();
+		}
+		function discardNote(): void {
+			noteEditor.setText(savedNote);
+			focusPrimary();
 		}
 
 		return {
@@ -139,8 +145,8 @@ export function askText(
 					lines.push(...clarification.render(width));
 				} else {
 					addActionHints(lines, width, theme, [
-						noteFocused ? "Tab Close note" : noteActionFocused ? "Enter Edit note" : answerEditor.getExpandedText().trim() ? "Enter Submit" : "Write answer",
-						"Ctrl+S Skip question", cancelArmed ? "Esc again Close" : "Esc Close", "F2 More",
+						noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : answerEditor.getExpandedText().trim() ? "Enter Submit" : "Write answer",
+						noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", cancelArmed ? "Esc again Close" : "Esc Close", "F2 More",
 					]);
 				}
 				add(theme.fg("accent", "─".repeat(width)));
@@ -159,13 +165,14 @@ export function askText(
 				data = normalizeFocusCycleKey(data);
 				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
 				if (noteActionFocused) {
-					if (isSubmitEnter(data) || matchesKey(data, Key.space)) return openNote();
+					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
 					return;
 				}
 				if (noteFocused) {
 					if (matchesKey(data, Key.ctrl("enter")) || matchesKey(data, Key.alt("enter"))) return finish();
-					if (matchesKey(data, Key.escape) || matchesKey(data, Key.tab) || isSubmitEnter(data)) return focusPrimary();
+					if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) return discardNote();
+					if (matchesKey(data, Key.tab) || isSubmitEnter(data)) return focusPrimary();
 					noteEditor.handleInput(data);
 				} else {
 					if (matchesKey(data, Key.tab)) return focusNote();
@@ -216,6 +223,7 @@ export function askSingleChoice(
 		let cachedRows: number | undefined;
 		let cachedLines: string[] | undefined;
 		let otherEditorValue = "";
+		let savedNote = "";
 		let feedback = "";
 		let cancelArmed = false;
 		let stagedAnswer: AskAnswer | null = null;
@@ -251,6 +259,7 @@ export function askSingleChoice(
 			tui.requestRender();
 		}
 		function openNote(): void {
+			savedNote = noteEditor.getExpandedText();
 			noteActionFocused = false;
 			noteFocused = true;
 			noteEditor.focused = _focused;
@@ -263,6 +272,7 @@ export function askSingleChoice(
 			invalidate();
 			tui.requestRender();
 		}
+		function discardNote(): void { noteEditor.setText(savedNote); focusPrimary(); }
 		function openOtherEditor(): void {
 			stagedAnswer = null;
 			choiceList.selectOther();
@@ -315,10 +325,10 @@ export function askSingleChoice(
 				if (context) { lines.push(""); addWrapped(lines, theme.fg("muted", sanitizeDisplayText(context)), width, " "); }
 				lines.push("");
 				const tail: string[] = feedback ? [theme.fg("warning", ` ${feedback}`), ""] : [""];
-				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 5, noteActionFocused);
+				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
-				const hints = [noteFocused ? "Tab Close note" : noteActionFocused ? "Enter Edit note" : editMode ? "Enter Save answer" : stagedAnswer ? "Enter Confirm or replace" : "Enter Select",
-					"Ctrl+S Skip question", noteFocused ? "Esc Note" : stagedAnswer ? "Esc Clear selection" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"];
+				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : stagedAnswer ? "Enter Confirm or replace" : "Enter Select",
+					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : stagedAnswer ? "Esc Clear selection" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
 				} else {
@@ -350,7 +360,7 @@ export function askSingleChoice(
 				data = normalizeFocusCycleKey(data);
 				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
 				if (noteActionFocused) {
-					if (isSubmitEnter(data) || matchesKey(data, Key.space)) return openNote();
+					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
 					return;
 				}
@@ -362,7 +372,8 @@ export function askSingleChoice(
 						if (item.isOther) return openOtherEditor();
 						return finish(answerForItem(item));
 					}
-					if (matchesKey(data, Key.escape) || matchesKey(data, Key.tab)) return focusPrimary();
+					if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) return discardNote();
+					if (matchesKey(data, Key.tab)) return focusPrimary();
 					noteEditor.handleInput(data);
 				} else if (editMode) {
 					if (matchesKey(data, Key.ctrl("c"))) {
@@ -377,6 +388,7 @@ export function askSingleChoice(
 					} else editor.handleInput(data);
 				} else {
 					if (matchesKey(data, Key.tab)) return focusNote();
+					if (data === "+") { focusNote(); openNote(); return; }
 					if (/^[1-9]$/.test(data)) {
 						const index = parseInt(data, 10) - 1;
 						if (index < choiceList.length) { choiceList.setSelectedIndex(index); return stageOrConfirm(choiceList.selectedItem); }
@@ -434,6 +446,7 @@ export function askMultiChoice(
 		let cachedLines: string[] | undefined;
 		let _focused = false;
 		let otherPending = false;
+		let savedNote = "";
 		let feedback = "";
 		let cancelArmed = false;
 		const selected = new Map<string, AskAnswer>();
@@ -482,6 +495,7 @@ export function askMultiChoice(
 			tui.requestRender();
 		}
 		function openNote(): void {
+			savedNote = noteEditor.getExpandedText();
 			noteActionFocused = false;
 			noteFocused = true;
 			noteEditor.focused = _focused;
@@ -494,6 +508,7 @@ export function askMultiChoice(
 			invalidate();
 			tui.requestRender();
 		}
+		function discardNote(): void { noteEditor.setText(savedNote); focusPrimary(); }
 		function toggleOption(item: WrappedChoiceItem): void {
 			const option = item.option;
 			if (!option) return;
@@ -554,8 +569,8 @@ export function askMultiChoice(
 				const tail: string[] = feedback ? [theme.fg("warning", ` ${feedback}`), ""] : [""];
 				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
-				const hints = [noteFocused ? "Tab Close note" : noteActionFocused ? "Enter Edit note" : editMode ? "Enter Save answer" : choiceList.selectedItem.isOther ? "Enter Edit" : selected.size ? "Enter Submit" : "Space Select",
-					"Ctrl+S Skip question", noteFocused ? "Esc Note" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"];
+				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : choiceList.selectedItem.isOther ? "Enter Edit" : selected.size ? "Enter Submit" : "Space Select",
+					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
 				} else {
@@ -584,7 +599,7 @@ export function askMultiChoice(
 				data = normalizeFocusCycleKey(data);
 				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
 				if (noteActionFocused) {
-					if (isSubmitEnter(data) || matchesKey(data, Key.space)) return openNote();
+					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
 					return;
 				}
@@ -602,7 +617,8 @@ export function askMultiChoice(
 						}
 						return finish();
 					}
-					if (matchesKey(data, Key.escape) || matchesKey(data, Key.tab)) return focusPrimary();
+					if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) return discardNote();
+					if (matchesKey(data, Key.tab)) return focusPrimary();
 					noteEditor.handleInput(data);
 				} else if (editMode) {
 					if (matchesKey(data, Key.ctrl("c"))) {
@@ -628,6 +644,7 @@ export function askMultiChoice(
 					} else otherEditor.handleInput(data);
 				} else {
 					if (matchesKey(data, Key.tab)) return focusNote();
+					if (data === "+") { focusNote(); openNote(); return; }
 					if (matchesKey(data, Key.ctrl("enter")) || matchesKey(data, Key.alt("enter"))) {
 						return finish();
 					}

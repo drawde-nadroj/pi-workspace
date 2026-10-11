@@ -223,6 +223,7 @@ export class TabbedQuestions {
 	}
 
 	private openNote(): void {
+		this.noteEditor.setText(this.getActiveTab().note);
 		this.noteActionFocused = false;
 		this.noteFocused = true;
 		this.noteEditor.focused = this._focused;
@@ -232,6 +233,13 @@ export class TabbedQuestions {
 
 	private leaveNoteFocus(): void {
 		this.focusAnswer();
+	}
+
+	private discardNote(): void {
+		this.noteEditor.setText(this.getActiveTab().note);
+		this.focusAnswer();
+		this.feedback = "Note changes discarded.";
+		this.invalidate(); this.tui.requestRender();
 	}
 
 	private focusAnswer(): void {
@@ -258,7 +266,7 @@ export class TabbedQuestions {
 			tab.answer = vals.length > 0 ? vals : null;
 		}
 		if (tab.mode !== "text") tab.otherText = this.otherText;
-		tab.note = this.noteEditor.getExpandedText();
+		if (!this.noteFocused) tab.note = this.noteEditor.getExpandedText();
 	}
 
 	private syncMultiSelectState(): void {
@@ -273,6 +281,7 @@ export class TabbedQuestions {
 
 	private selectTab(index: number): void {
 		if (index < 0 || index >= this.tabs.length || (!this.reviewing && index === this.activeTab)) return;
+		if (this.noteFocused) this.leaveNoteFocus();
 		this.feedback = "";
 		this.reviewEditDigits = "";
 		if (!this.reviewing) {
@@ -309,6 +318,7 @@ export class TabbedQuestions {
 	}
 
 	private regenerate(): void {
+		if (this.noteFocused) this.leaveNoteFocus();
 		// Ctrl+R preserves, but does not commit, an unfinished custom draft.
 		if (this.editMode) this.preserveOtherDraft();
 		this.syncAnswerFromTab();
@@ -364,6 +374,7 @@ export class TabbedQuestions {
 	}
 
 	private openReview(allowSkipped = false): void {
+		if (this.noteFocused) this.leaveNoteFocus();
 		// Ctrl+Enter preserves unfinished drafts without treating them as answers.
 		if (this.editMode) this.preserveOtherDraft();
 		else this.syncAnswerFromTab();
@@ -492,6 +503,7 @@ export class TabbedQuestions {
 		}
 		data = normalizeFocusCycleKey(data);
 		if (this.reviewing) {
+			if (matchesKey(data, Key.ctrl("r"))) { this.regenerate(); return; }
 			if (this.keybindings.matches(data, "tui.select.up")) {
 				this.reviewScroll = Math.max(0, this.reviewScroll - 1);
 				this.invalidate();
@@ -586,20 +598,18 @@ export class TabbedQuestions {
 				this.leaveNoteFocus();
 				return;
 			}
-			if (matchesKey(data, Key.escape)) {
-				this.leaveNoteFocus();
+			if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
+				this.discardNote();
 				return;
 			}
 			this.noteEditor.handleInput(data);
-			const tab = this.getActiveTab();
-			if (tab) tab.note = this.noteEditor.getExpandedText();
 			this.invalidate();
 			this.tui.requestRender();
 			return;
 		}
 
 		if (this.noteActionFocused) {
-			if (isSubmitEnter(data) || matchesKey(data, Key.space)) this.openNote();
+			if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") this.openNote();
 			else if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) this.focusAnswer();
 			return;
 		}
@@ -665,6 +675,10 @@ export class TabbedQuestions {
 				this.tui.requestRender();
 			}
 			return;
+		}
+
+		if (tab.mode !== "text" && data === "+") {
+			this.focusNote(); this.openNote(); return;
 		}
 
 		// A draft is not an answer until the user chooses Continue.
@@ -831,20 +845,21 @@ export class TabbedQuestions {
 			{ label: "Clear question", key: "\x03", hint: "Ctrl+C" },
 			{ label: "Insert a new line", key: "\x1b[13;2u", hint: "Shift+Enter" },
 		];
-		if (this.reviewing) return this.questions.map((q, index) => ({
-			label: `Edit ${index + 1}: ${sanitizeDisplayText(q.question)}`,
-			run: () => this.selectTab(index),
-		}));
+		if (this.reviewing) return [
+			...(this.canRegenerate() ? [{ label: "Regenerate unanswered questions", key: "\x12", hint: "Ctrl+R" }] : []),
+			...this.questions.map((q, index) => ({ label: `Edit ${index + 1}: ${sanitizeDisplayText(q.question)}`, run: () => this.selectTab(index) })),
+		];
 		const actions = [
-			{ label: this.noteFocused || this.noteActionFocused ? "Back to answer" : "Add or edit note", run: () => this.noteFocused || this.noteActionFocused ? this.focusAnswer() : (this.focusNote(), this.openNote()) },
+			{ label: this.noteFocused ? "Save note and return to answer" : this.noteActionFocused ? "Back to answer" : "Add or edit note", run: () => this.noteFocused || this.noteActionFocused ? this.focusAnswer() : (this.focusNote(), this.openNote()) },
 			{ label: this.getActiveTab().skipped ? "Restore question" : "Skip question (keep draft)", key: "\x13", hint: "Ctrl+S" },
 			{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
 			{ label: "Review answers", key: "\x1b[13;5u", hint: "Ctrl/Alt+Enter" },
 			{ label: "Previous question", run: () => this.selectTab(Math.max(0, this.activeTab - 1)) },
 			{ label: "Next question", run: () => this.selectTab(Math.min(this.tabs.length - 1, this.activeTab + 1)) },
 		];
-		if (this.canRegenerate()) actions.push({ label: "Revise unanswered questions", key: "\x12", hint: "Ctrl+R" });
-		if (this.noteFocused || this.editMode || this.getActiveTab().mode === "text") {
+		if (this.canRegenerate()) actions.push({ label: "Regenerate unanswered questions", key: "\x12", hint: "Ctrl+R" });
+		if (this.noteFocused) actions.push({ label: "Discard note changes", key: "\x03", hint: "Ctrl+C" });
+		if (this.editMode || (this.getActiveTab().mode === "text" && !this.noteFocused)) {
 			actions.push({ label: "Clear this field", key: "\x03", hint: "Ctrl+C" });
 			actions.push({ label: "Insert a new line", key: "\x1b[13;2u", hint: "Shift+Enter" });
 		}
@@ -860,19 +875,20 @@ export class TabbedQuestions {
 			const editHint = this.questions.length <= 9 ? `1–${this.questions.length} Edit` : `1–${this.questions.length} then Enter Edit`;
 			tokens = this.reviewEditDigits
 				? [`Enter Edit ${this.reviewEditDigits}`, "Esc Clear number"]
-				: [pending ? `Enter Submit without ${pending} unanswered` : "Enter Submit", editHint, "Esc Back"];
+				: [pending ? `Enter Submit without ${pending} unanswered` : "Enter Submit", ...(this.canRegenerate() ? ["Ctrl+R Regenerate unanswered"] : []), editHint, "Esc Back"];
 		} else if (this.cancelArmed) tokens = ["Esc again to close", "Any other key to continue"];
 		else {
 			const tab = this.getActiveTab();
 			const item = tab.mode === "text" ? undefined : this.getOrCreateChoiceList(this.questions[this.activeTab]).selectedItem;
 			const selected = item ? tab.selected.has(item.id) : false;
-			const primary = this.noteFocused ? "Tab Close note" : this.noteActionFocused ? "Enter Edit note" : this.editMode ? "Enter Save answer"
+			const primary = this.noteFocused ? "Enter/Tab Save note" : this.noteActionFocused ? "Enter/+ Edit note" : this.editMode ? "Enter Save answer"
 				: tab.skipped ? "Enter Restore" : tab.mode === "text" ? tab.textBuffer.trim() ? "Enter Continue" : "Write answer"
 				: tab.mode === "single-select" ? item?.isOther && !selected ? "Enter Edit" : selected ? "Enter Continue" : "Enter Select"
 				: item?.isOther ? "Enter Edit" : "Enter/Space Toggle";
-			tokens = [primary, this.getActiveTab().skipped ? "Ctrl+S Restore" : "Ctrl+S Skip question",
+			tokens = [primary, this.noteFocused ? "Ctrl+C/Esc Discard note" : this.getActiveTab().skipped ? "Ctrl+S Restore" : "Ctrl+S Skip question",
+				...(this.canRegenerate() ? ["Ctrl+R Regenerate unanswered"] : []),
 				...(this.tabs.some((candidate) => this.isAnswered(candidate)) || this.tabs.every((candidate) => candidate.skipped) ? ["Ctrl+Enter Review"] : []),
-				...(this.tabs.length > 1 ? [tab.mode === "text" ? "Ctrl+←/→ Questions" : "←/→ Questions"] : []), this.noteActionFocused ? "Tab Answer" : this.noteFocused ? "Esc Note" : "Esc Close"];
+				...(this.tabs.length > 1 ? [tab.mode === "text" ? "Ctrl+←/→ Questions" : "←/→ Questions"] : []), this.noteActionFocused ? "Tab Answer" : this.noteFocused ? "" : "Esc Close"].filter(Boolean);
 		}
 		addActionHints(lines, width, this.theme, [...tokens, "F2 More"]);
 		return lines;
@@ -890,8 +906,6 @@ export class TabbedQuestions {
 
 		// The frame shows the current position; Review carries the full overview.
 		if (width < 10) add(th.fg("muted", `${this.reviewing ? "Review" : `${this.activeTab + 1} of ${this.tabs.length}`}`));
-
-		add(th.fg("borderMuted", "─".repeat(width)));
 
 		if (!compactHeight) lines.push("");
 
@@ -963,7 +977,7 @@ export class TabbedQuestions {
 		if (!compactHeight) lines.push("");
 
 		const notePreview: string[] = [];
-		renderOptionalNote(notePreview, width, th, this.noteEditor, this.noteFocused, tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 6 : 2, this.noteActionFocused);
+		renderOptionalNote(notePreview, width, th, this.noteEditor, this.noteFocused, tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 10 : 2, this.noteActionFocused);
 		const actionLines = this.renderActionBar(width);
 		const reservedTailLines = notePreview.length + (compactHeight ? 0 : 2) + actionLines.length + 2;
 		const availableBodyLines = Math.max(0, (this.tui.terminal?.rows ?? Number.POSITIVE_INFINITY) - lines.length - reservedTailLines);
@@ -981,7 +995,7 @@ export class TabbedQuestions {
 		if (!compactHeight) lines.push("");
 
 		// A native one-line note action, not a second bordered editor panel.
-		const noteIndent = tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 6 : 2;
+		const noteIndent = tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 10 : 2;
 		renderOptionalNote(lines, width, th, this.noteEditor, this.noteFocused, noteIndent, this.noteActionFocused);
 
 		if (!compactHeight) lines.push("");

@@ -25,9 +25,9 @@ Adaptive questions for building shared context with the [Pi Coding Agent](https:
 
 ## Highlights
 
-- **Regenerate unanswered questions from completed answers.** Answer the useful parts of a batch, press **Ctrl+R**, and let the agent replace only the questions that no longer fit. Your resolved answers and notes become context for the new questions instead of being asked again.
+- **Regenerate unanswered questions from completed answers.** Once a batch has both an answered and an unanswered question, **Ctrl+R Regenerate unanswered** appears on the question and Review screens (also under **F2 More**). Press it to let the agent replace only the questions that no longer fit. Your resolved answers and notes become context for the new questions instead of being asked again.
 - **Review before deciding what to omit.** Press **Ctrl+Enter** to compare answered, explicitly skipped, and still-unanswered questions. Only **Submit without N unanswered** marks the remaining questions skipped.
-- **Attach notes to individual answers.** Focus the persistent **+ Note** row and press Enter to type; Tab saves the note and returns to the answer. A note on a skipped question stays in the form but is not sent.
+- **Attach notes to individual answers.** Focus the persistent **+ Note** row and press Enter or + to type; Enter or Tab saves the note and returns to the answer, while Ctrl+C or Escape discards that edit. A note on a skipped question stays in the form but is not sent.
 - **Ask the agent what a question means without leaving the dialog.** Clarify ambiguous wording before a misunderstanding becomes part of the work.
 - **Mix the right response types.** Use single-choice, multi-select, custom **Something else…** answers, and multiline free-form input in the same batch.
 - **Review the whole batch before submitting it.** Catch accidental choices and see related decisions together before committing them to the conversation.
@@ -40,7 +40,7 @@ The package exposes two tools:
 
 ## Rounded question panel
 
-Questions temporarily replace the main input area with a **Questions** panel: rounded framing, the terminal’s own background, and native multiline fields. The panel, the **What are you wondering about?** clarification field, the inline **Something else…** editor, and the active note editor embed the installable `pi-embeddable-frame` renderer; their text input, focus, completion and submit behavior remain owned by pi-ask. The default lower-left **1 of N** indicator replaces the former question-summary bar; the full overview appears on Review. A question-local orange accent highlights focus without changing the global theme. The **Questions** title and progress match its orange border by default and both frame-rail labels are bold; question wording and answer text retain their own emphasis rules. In the suite, `/footer` → **Ask** can edit a synthetic preview and save bounded title/rail, question-emphasis and hint-tone settings in `pi-footer.json` → `ask` (version 1); standalone Ask reads that section once when a question opens, with legacy `questionLabels` as a fallback. The question wording, focus and answer actions never come from appearance settings. Choice markers and native cursor/selection behavior remain. On a small terminal the panel reduces its frame rather than discarding answer state. There is no continuous animation while you are reading or typing.
+Questions temporarily replace the main input area with a **Questions** panel: rounded framing, the terminal’s own background, and native multiline fields. The panel, the **What are you wondering about?** clarification field, the inline **Something else…** editor, and the active note editor embed the installable `pi-embeddable-frame` renderer; their text input, focus, completion and submit behavior remain owned by pi-ask. The default lower-left **1 of N** indicator replaces the former question-summary bar; the full overview appears on Review. The question surface shares Pi’s active accent (purple in the current workspace theme) without changing global theme settings. The **Questions** title and progress match its accent border by default and both frame-rail labels are bold; question wording and answer text retain their own emphasis rules. In the suite, `/footer` → **Ask** can edit a synthetic preview and save bounded title/rail, question-emphasis and hint-tone settings in `pi-footer.json` → `ask` (version 1); standalone Ask reads that section once when a question opens, with legacy `questionLabels` as a fallback. The question wording, focus and answer actions never come from appearance settings. Choice markers and native cursor/selection behavior remain. On a small terminal the panel reduces its frame rather than discarding answer state. There is no continuous animation while you are reading or typing.
 
 Keyboard hints use **↵** for Enter and **⇧↵** for Shift+Enter, with readable action words. The primary action and **Ctrl+S Skip question** stay visible while answering or editing a note. No Nerd Font is required. Tool cards use **Question** / **Questions** rather than internal tool names.
 
@@ -72,7 +72,7 @@ More useful context usually produces better work. A question batch creates a qui
 
 ### Revise unanswered questions
 
-You do not have to finish a batch whose later questions no longer fit. After answering at least one question, leave the questions that need rethinking unanswered and press **Ctrl+R**. The plugin returns your completed answers and notes to the agent as new context and preserves them as resolved. The agent should reassess the unanswered questions: revise only those still consequential, or explain why none remain and continue the work. You should not have to answer the same question again.
+You do not have to finish a batch whose later questions no longer fit. After answering at least one question, leave the questions that need rethinking unanswered and use the visible **Ctrl+R Regenerate unanswered** action on the question or Review screen (also in **F2 More**). The plugin returns your completed answers and notes to the agent as new context and preserves them as resolved. The agent should reassess the unanswered questions: revise only those still consequential, or explain why none remain and continue the work. You should not have to answer the same question again.
 
 This loop can continue until you and the agent share enough context to proceed:
 
@@ -231,23 +231,23 @@ Controls vary with the active field; the UI shows the available actions.
 - **Space**: also toggle the highlighted option in a batch multi-select question
 - **Left/Right**: move between choice questions; inside free text, move the text cursor
 - **Ctrl+Left/Right**: move between batch questions, including while editing free text
-- **Tab / Shift+Tab**: focus **+ Note** from the answer or close its editor directly back to the answer; press **Enter** on the focused row to type
+- **Tab / Shift+Tab**: focus **+ Note** from the answer or save an active note and return to the answer; press **Enter** or **+** on the focused row to edit
 - **Shift+Enter** (Ctrl+J in supported terminals): insert a newline in an editor
 - **Ctrl+Enter / Alt+Enter** (single question): submit a free-form question while editing its note
-- **Ctrl+C**: clear the active text editor where shown; in a note, clear only that note and keep the question open
+- **Ctrl+C**: clear an answer editor where shown; while editing a note, discard that note edit and return to the answer
 - **Escape**: go back, clear/cancel, or require a second press when answers would be discarded
 - **Ctrl+S** (single or batch): skip the question; in a batch, restore a previously skipped question
 - **Ctrl+Enter / Alt+Enter** (batch): open Review without silently skipping unanswered questions; an explicitly all-skipped batch is also allowed
 - **Number keys in Review**: with up to nine questions, press `1` through the question count to edit immediately; with ten or more, type the question number and press **Enter** to edit, or **Esc** to clear the number
-- **Ctrl+R**: revise unanswered batch questions when some questions are already resolved
+- **Ctrl+R**: regenerate unanswered batch questions after at least one has been answered; visible on eligible question and Review screens, also under **F2 More**
 - **Ctrl+?** (Ctrl+/ equivalent): ask the agent for clarification; Enter sends it and Escape returns
 
 ### Editing notes
 
-The **+ Note** row stays in place whether empty, showing a preview, or being edited. Press **Tab** to focus its + control, then **Enter** or **Space** to start typing in an orange-outlined field below it. The field has a plain interior, like the answer and clarification editors; the control itself does not show a text cursor.
+The **+ Note** row stays in place whether empty, showing a preview, or being edited. Press **Tab** to focus its + control, then **Enter** or **+** to open the accent-outlined note editor below it. From a choice list, **+** opens the note directly; within a free-text answer, **+** inserts a literal plus. The editor has a plain interior, like the answer and clarification editors; the control itself does not show a text cursor.
 
-- **Ctrl+C** clears the note without changing your answer or other questions. The editor's undo binding (**Ctrl+_** by default) can restore the cleared text.
-- **Shift+Enter / Ctrl+J** adds a new line. **Tab** saves the note and returns directly to the answer; **Enter** or **Escape** also leaves the editor without submitting the answer.
+- **Enter** or **Tab** saves the note and returns directly to the answer. **Ctrl+C** or **Escape** discards changes since opening the note and restores its last saved text; neither closes the question.
+- **Shift+Enter / Ctrl+J** adds a new line. The editor's native undo binding (**Ctrl+_** by default) still works while typing.
 - **Ctrl+Enter / Alt+Enter** submits a single question or opens batch Review when an answer is ready.
 - **Ctrl+S** skips the whole question, not only the note. An unsent skipped note stays in the form until submission or cancellation.
 

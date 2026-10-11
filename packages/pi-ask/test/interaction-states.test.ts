@@ -37,6 +37,73 @@ test("frame shows 1 of N at the bottom left instead of a question-summary bar", 
   assert.match(h.view(), /Review 0 answers · 3 skipped/);
 });
 
+test("Regenerate is visible on an eligible question and in partial Review", () => {
+  const h = form();
+  h.shell.handleInput("First answer");
+  h.shell.handleInput(keys.enter);
+  assert.match(h.view(), /Ctrl\+R Regenerate unanswered/);
+  assert.ok(h.component.getMoreActions().some(action => action.label === "Regenerate unanswered questions"));
+  h.shell.handleInput(keys.review);
+  assert.match(h.view(), /Review 1 answer · 0 skipped · 1 unanswered/);
+  assert.match(h.view(), /Ctrl\+R Regenerate unanswered/);
+  assert.ok(h.component.getMoreActions().some(action => action.label === "Regenerate unanswered questions"));
+  h.shell.handleInput("\x12");
+  assert.equal(h.result.action, "regenerate");
+  assert.equal(h.result.answers[0].answer, "First answer");
+  assert.equal(h.result.answers[1].answer, null);
+});
+
+test("+ opens a choice note; discarded edits restore saved text; + in an answer stays literal", () => {
+  const h = formWithQuestions([
+    { question: "Choose?", mode: "single-select", options: [{ label: "One", value: "one" }] },
+    { question: "Why?", mode: "text", options: [] },
+  ]);
+  h.shell.handleInput("+");
+  h.shell.handleInput("Keep this");
+  assert.equal(h.component["tabs"][0].note, "", "editing does not commit the note");
+  h.shell.handleInput(keys.enter);
+  assert.equal(h.component["tabs"][0].note, "Keep this");
+  h.shell.handleInput("+");
+  h.shell.handleInput("Unwanted");
+  h.shell.handleInput("\x03");
+  assert.equal(h.component["tabs"][0].note, "Keep this");
+  assert.match(h.view(), /\+ Note: Keep this/);
+  h.shell.handleInput(keys.enter); // select choice
+  h.shell.handleInput(keys.enter); // continue
+  h.shell.handleInput("a+b");
+  assert.match(h.view(), /a\+b/);
+  assert.equal(h.component["tabs"][1].note, "");
+});
+
+test("choice focus is text-only without shifting rows; note alignment and bottom divider remain", () => {
+  const h = formWithQuestions([
+    { question: "Which project?", mode: "single-select", options: [
+      { label: "First option", value: "first", description: "First description" },
+      { label: "Second option", value: "second", description: "Second description" },
+    ] },
+    { question: "Why?", mode: "text", options: [] },
+  ]);
+  const lines = h.view().split("\n");
+  assert.match(lines[0], /^╭ Questions /);
+  assert.doesNotMatch(lines[1], /─{5}/, "no duplicate rule immediately under the title");
+  assert.ok(!lines.some(line => /╭─+╮|╰─+╯/.test(line)), "choices have no focus box");
+  assert.match(lines.find(line => line.includes("First option"))!, /→ ○ 1\. First option/);
+  h.shell.handleInput("\x1b[B");
+  const moved = h.view().split("\n");
+  assert.equal(moved.length, lines.length, "moving focus does not shift any rows");
+  assert.equal(moved.findIndex(line => line.includes("+ Note")), lines.findIndex(line => line.includes("+ Note")));
+  assert.match(moved.find(line => line.includes("Second option"))!, /→ ○ 2\. Second option/);
+  const option = lines.find(line => line.includes("Second option"))!;
+  const note = lines.find(line => line.includes("+ Note"))!;
+  assert.equal(note.indexOf("+ Note"), option.indexOf("Second option"), "note aligns with option labels");
+  assert.match(h.view(), /─{20}[\s\S]*↵ Select/, "the bottom action divider remains");
+  h.shell.handleInput(keys.tab);
+  h.shell.handleInput(keys.enter);
+  const editing = h.view().split("\n");
+  const noteRow = editing.findIndex(line => line.includes("+ Note"));
+  assert.equal(editing[noteRow + 1].indexOf("╭"), editing[noteRow].indexOf("+ Note"), "note editor shares note indentation");
+});
+
 test("Review advertises only the available numbered edit shortcuts", () => {
   const h = form(3);
   for (let i = 0; i < 3; i++) h.shell.handleInput(keys.skip);

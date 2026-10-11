@@ -1,5 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { parseColor, truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import { shouldAnimate, type HomeState } from "./state.ts";
 import { clean, duration, type ActivityClock, type FooterPrefs } from "./footer-state.ts";
 import { splitRow } from "./ui.ts";
@@ -39,7 +39,7 @@ export function composerStatusRows(home: HomeState, clock: ActivityClock, prefs:
   const glyph = waiting ? "" : failed ? "! " : stopped || incomplete ? "○ " : busy ? "" : d.lastRunMs !== undefined ? "✓ " : "";
   const quiet = now - home.lastInputAt < 1200;
   const pulse = animate ? composerGlow(theme, now, quiet) : theme.colors.toolTitle;
-  const left = waiting ? theme.style(label, { fg: parseColor(theme.appearance === "light" ? "#ad4a10" : "#f2a45f"), bold: true }) : busy ? theme.style(label, { fg: pulse, bold: true }) : theme.fg(tone, `${glyph}${label}`);
+  const left = waiting ? theme.style(label, { fg: theme.colors.accent, bold: true }) : busy ? theme.style(label, { fg: pulse, bold: true }) : theme.fg(tone, `${glyph}${label}`);
   const showTime = prefs.run === "on" && prefs.timing !== "hidden";
   const time = !showTime || waiting ? "" : clock.running ? duration(clock.runElapsed(now)!)
     : d.lastRunMs !== undefined ? `${failed ? "failed" : stopped ? "stopped" : "last run"} ${duration(d.lastRunMs)}` : "";

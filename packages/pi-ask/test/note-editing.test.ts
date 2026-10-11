@@ -72,27 +72,53 @@ test("sanitizer preserves only the focused editor's generated cursor", () => {
 	assert.ok(!blurred.includes("\x1b[7m"), "inactive editors do not show a competing cursor");
 });
 
-test("note editor clears legacy and enhanced Ctrl+C, retains focus, and supports undo", () => {
-	for (const clear of [keys.clear, keys.enhancedClear]) {
+test("note editor leaves cancellation to the form and keeps native cursor and undo", () => {
+	for (const cancel of [keys.clear, keys.enhancedClear]) {
 		const editor = createNoteEditor(runtime(), theme);
 		editor.focused = true;
 		editor.handleInput("A note");
 		editor.handleInput(keys.enter);
-		assert.equal(editor.getText(), "A note", "Enter must not clear or submit notes");
+		assert.equal(editor.getText(), "A note", "Enter does not submit inside the native editor");
 		editor.handleInput(keys.newline);
 		editor.handleInput("第二行 👩‍💻");
 		const original = editor.getText();
-		editor.handleInput(clear);
-		assert.equal(editor.getText(), "");
-		assert.equal(editor.focused, true);
+		editor.handleInput(cancel);
+		assert.equal(editor.getText(), original, "the form, not the editor, owns discard");
 		assertCursor(editor.render(32).map(sanitizeEditorDisplay), 32);
+		editor.handleInput("New note");
 		editor.handleInput("\x1f"); // Ctrl+_ is Pi's default undo binding.
 		assert.equal(editor.getText(), original);
-		editor.handleInput(clear);
-		editor.handleInput(clear);
-		editor.handleInput("New note");
-		assert.equal(editor.getText(), "New note");
 	}
+});
+
+test("standalone Ctrl+C restores an earlier committed note rather than erasing it", async () => {
+	const h = standalone("text");
+	h.component.handleInput("Answer");
+	h.component.handleInput(keys.tab);
+	h.component.handleInput(keys.enter);
+	h.component.handleInput("Saved note");
+	h.component.handleInput(keys.enter);
+	h.component.handleInput(keys.tab);
+	h.component.handleInput(keys.enter);
+	h.component.handleInput("Unwanted change");
+	h.component.handleInput(keys.clear);
+	assert.match(sanitizeDisplayText(h.component.render(80).join("\n")), /\+ Note: Saved note/);
+	h.component.handleInput(keys.enter);
+	assert.equal((await h.pending as any).note, "Saved note");
+});
+
+test("active note editor has a purple perimeter without coloring its input", () => {
+	const purple = "\x1b[38;2;150;110;230m";
+	const palette = { ...theme, fg: (role: string, text: string) => role === "accent" ? `${purple}${text}\x1b[39m` : text };
+	const editor = createNoteEditor(runtime(), palette);
+	editor.focused = true;
+	editor.setText("Neutral text");
+	const rows: string[] = [];
+	renderOptionalNote(rows, 45, palette, editor, true, 10);
+	assert.match(rows[1], /\x1b\[38;2;150;110;230m╭/);
+	assert.match(rows[2], /\x1b\[38;2;150;110;230m│/);
+	assert.ok(!rows[2].includes(`${purple}Neutral text`), "input text stays neutral");
+	assertCursor(rows, 45);
 });
 
 test("inline note cursor remains visible at narrow widths and wide grapheme boundaries", () => {
@@ -119,14 +145,16 @@ for (const mode of ["text", "single-select", "multi-select"] as const) {
 		assertCursor(h.component.render(80), 80);
 		h.component.handleInput("Remove this note");
 		h.component.handleInput(keys.clear);
-		assert.equal(h.result, undefined, "Ctrl+C must not close the question");
+		assert.equal(h.result, undefined, "Ctrl+C discards the note, not the question");
 		assert.ok(!sanitizeDisplayText(h.component.render(80).join("\n")).includes("Remove this note"));
+		h.component.handleInput(keys.tab);
+		h.component.handleInput(keys.enter);
 		h.component.handleInput("Keep this note");
 		assert.equal(h.result, undefined);
 		h.component.handleInput(keys.newline);
 		h.component.handleInput("第二行");
 		const hints = sanitizeDisplayText(h.component.render(32).join("\n"));
-		for (const hint of ["Tab Close note", "Ctrl+S Skip question"]) assert.ok(hints.includes(hint), hint);
+		for (const hint of ["Save note", "Discard note"]) assert.ok(hints.includes(hint), hint);
 		assertCursor(h.component.render(32), 32);
 		h.component.handleInput(keys.backTab);
 		h.component.handleInput(keys.tab);
@@ -152,15 +180,16 @@ for (const mode of ["text", "single-select", "multi-select"] as const) {
 		h.component.handleInput("First note");
 		assertCursor(h.component.render(80), 80);
 		h.component.handleInput(keys.enhancedClear);
+		h.component.handleInput(keys.tab);
+		h.component.handleInput(keys.enter);
 		h.component.handleInput("Retained first note");
-		h.component.handleInput(keys.escape);
+		h.component.handleInput(keys.enter);
 		h.component.handleInput(next);
 		h.component.handleInput("Second answer");
 		h.component.handleInput(keys.tab);
 		h.component.handleInput(keys.enter);
 		h.component.handleInput("Second note");
 		h.component.handleInput(keys.clear);
-		h.component.handleInput(keys.escape);
 		h.component.handleInput(keys.enter);
 		assert.equal(h.result, undefined, "Review requires explicit submission");
 		assert.equal(cursorCount(h.component.render(80)), 0);
@@ -251,6 +280,8 @@ for (const Renderer of [TuiMainScreen, TuiAltScreen]) {
 			assert.match(writes.join(""), /\x1b\[7m \x1b\[0m/, "cursor remains visible with hardware cursor disabled");
 			assert.ok(!writes.join("").includes(CURSOR_MARKER), "Pi consumes the positioning marker before terminal output");
 			input(keys.clear);
+			input(keys.tab);
+			input(keys.enter);
 			tui.renderNow(true);
 			const lines = component.render(80);
 			assertCursor(lines, 80, 24);

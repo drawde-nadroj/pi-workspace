@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CURSOR_MARKER, getKeybindings, Input, TuiAltScreen, TuiMainScreen, visibleWidth } from "@earendil-works/pi-tui";
 import { TabbedQuestions } from "../extensions/ask-user-question/batch-ui.ts";
-import { frameQuestion, questionHeight, questionViewport, questionTheme } from "../extensions/ask-user-question/question-surface.ts";
+import { frameQuestion, questionAccent, questionHeight, questionViewport, questionTheme } from "../extensions/ask-user-question/question-surface.ts";
 import { addActionHints, actionHint, createQuestionEditor, sanitizeDisplayText, WrappedChoiceList } from "../extensions/ask-user-question/tui-primitives.ts";
 import { askText, askSingleChoice, askMultiChoice } from "../extensions/ask-user-question/standalone-ui.ts";
 const theme = {
@@ -11,26 +11,30 @@ const theme = {
   bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
 };
 
-test("question accents match waiting role without changing the global theme", () => {
-  const calls: string[] = [];
-  const base = { fg(role: string, text: string) { calls.push(role); return text; }, style(text: string, _options: unknown) { calls.push("orange"); return text; }, bold(text: string) { return text; } };
+test("question accents use the active Pi workspace accent without changing the global theme", () => {
+  const calls: Array<{ role?: string; fg?: unknown }> = [];
+  const accent = { r: 128, g: 91, b: 215 };
+  const base = { colors: { accent }, fg(role: string, text: string) { calls.push({ role }); return text; }, style(text: string, options: { fg?: unknown }) { calls.push({ fg: options.fg }); return text; }, bold(text: string) { return text; } };
   const palette = questionTheme(base);
+  assert.equal(questionAccent(base), accent);
   palette.fg("accent", "Selected"); palette.fg("borderAccent", "Your turn"); palette.fg("success", "Done");
-  assert.deepEqual(calls, ["orange", "orange", "success"]);
+  assert.deepEqual(calls, [{ fg: accent }, { fg: accent }, { role: "success" }]);
   base.fg("accent", "Unchanged");
-  assert.equal(calls.at(-1), "accent");
+  assert.deepEqual(calls.at(-1), { role: "accent" });
 });
 
-test("question progress matches the orange title by default", () => {
+test("question progress matches the theme-accent title by default", () => {
   const styled: Array<{ text: string; fg: unknown }> = [];
-  const palette = { ...theme, appearance: "dark", style(text: string, options: { fg?: unknown }) { styled.push({ text, fg: options.fg }); return text; } };
+  const accent = { r: 128, g: 91, b: 215 };
+  const palette = { ...theme, colors: { accent }, appearance: "dark", style(text: string, options: { fg?: unknown }) { styled.push({ text, fg: options.fg }); return text; } };
   const tui: any = { terminal: { rows: 30 }, requestRender() {} };
   const form = new TabbedQuestions([{ question: "Why?", mode: "text", options: [] }], questionViewport(tui), palette, getKeybindings(), () => {});
   frameQuestion(form, palette, tui).render(90);
   const title = styled.find(item => item.text === " Questions ");
   const progress = styled.find(item => item.text === " 1 of 1 ");
   assert.ok(title && progress);
-  assert.deepEqual(progress.fg, title.fg);
+  assert.deepEqual(progress.fg, accent);
+  assert.deepEqual(title.fg, accent);
 });
 
 test("question editor closes both sides and keeps typing inside left padding", () => {
@@ -53,6 +57,35 @@ test("question editor closes both sides and keeps typing inside left padding", (
   editor.handleMouse({ type: "click", button: "left", x: 2, y: 1, width: 40, height: 3, screenX: 2, screenY: 1, shift: false, alt: false, ctrl: false });
   editor.handleInput("!");
   assert.equal(editor.getText(), "!abcdef", "mouse origin agrees with the padded text origin");
+});
+
+test("text-only choice focus stays within widths without adding a background or rows", () => {
+  const tui: any = { terminal: { rows: 30 }, requestRender() {} };
+  const editor = createQuestionEditor(tui, theme);
+  editor.focused = true;
+  editor.setText("Custom answer");
+  const choices = new WrappedChoiceList([{ label: "A long option with 界面 and wrapping", value: "one", description: "More context" }], "Something else…", 2, getKeybindings(), theme);
+  for (const width of [1, 2, 4, 8, 9, 10, 16, 35]) for (const availableLines of [3, 12, 30]) {
+    const lines = choices.render(width, { availableLines });
+    assert.ok(lines.length <= availableLines);
+    assert.ok(lines.every(line => visibleWidth(line) <= width), `overflow at ${width}`);
+    assert.ok(!lines.some(line => line.includes("\x1b[44m")), `focus background at ${width}x${availableLines}`);
+    if (availableLines === 30) {
+      assert.ok(!lines.some(line => /╭─+╮|╰─+╯/.test(sanitizeDisplayText(line))), `focus border at ${width}`);
+      const before = lines.length;
+      choices.setSelectedIndex(1);
+      const moved = choices.render(width, { availableLines });
+      assert.equal(moved.length, before, `focus shifted rows at ${width}`);
+      assert.ok(!moved.some(line => line.includes("\x1b[44m")));
+      choices.setSelectedIndex(0);
+    }
+  }
+  choices.selectOther();
+  for (const width of [12, 30, 80]) {
+    const lines = choices.render(width, { inlineOtherEditor: editor, availableLines: 20 });
+    assert.ok(lines.every(line => visibleWidth(line) <= width));
+    assert.equal(lines.join("").split(CURSOR_MARKER).length - 1, 1);
+  }
 });
 
 test("Something else editor embeds the shared closed frame in both choice-list layouts", () => {

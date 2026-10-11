@@ -3,9 +3,9 @@ import { savedAskAppearance, type AskAppearance } from "./appearance.ts";
 import { frameRows } from "./frame.ts";
 import { backgroundAnsi, foregroundAnsi, Key, matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-export const questionAccent = (theme: any) => parseColor(theme.appearance === "light" ? "#ad4a10" : "#f2a45f");
+export const questionAccent = (theme: any) => theme.colors?.accent ?? parseColor(theme.appearance === "light" ? "#6546aa" : "#bbadff");
 
-/** Question-local orange identity; independent of global warning colors. */
+/** Share Pi's active accent with Composer, assistant chat and Tasks; keep warning/error roles semantic. */
 export function questionTheme(theme: any, appearance?: AskAppearance): any {
   return new Proxy(theme, {
     get(target, property) {
