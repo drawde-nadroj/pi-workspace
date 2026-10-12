@@ -274,7 +274,7 @@ export function buildStructuredResult(
 }
 
 export function skippedResult(question: string, mode: AskUserQuestionMode, context?: string) {
-	const message = "User skipped this question. Continue without an answer; do not treat this as a cancellation.";
+	const message = "User skipped this question. The answer remains unknown, not agreement or consent. Continue only within already authorized scope; do not cross an unresolved approval boundary or treat this as a cancellation.";
 	return {
 		content: [{ type: "text" as const, text: message }],
 		details: buildStructuredResult("skipped", question, mode, [], context, message),

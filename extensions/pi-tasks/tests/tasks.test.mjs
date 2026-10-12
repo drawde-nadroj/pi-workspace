@@ -92,6 +92,17 @@ test("standalone task extension loads through the real host with no Home depende
   assert.deepEqual(result.errors, []);
   assert.ok(result.extensions[0].commands.has("tasks"));
 });
+test("completion guidance defines sufficient evidence without weakening acceptance", async () => {
+  const { ATOMIC_GUIDANCE } = await jiti.import(join(source, "requirements.ts"));
+  for (const pattern of [
+    /Use doneWhen and requirement acceptance/, /sufficient verification before checks expand/,
+    /distinct risk, changed state, inconclusive result, or known instability/,
+    /Keep unfinished or unverified work explicitly unresolved/,
+    /not permission to weaken acceptance conditions/,
+    /not independent verification/,
+  ]) assert.match(ATOMIC_GUIDANCE, pattern);
+});
+
 test("atomic revisioned updates, stable IDs, explicit start, dependencies and outcomes", () => {
   const empty = emptyPlan(), p = add(empty);
   assert.equal(empty.tasks.length, 0);
@@ -277,14 +288,14 @@ test("hide/unhide only controls the dock, persists, and leaves tracking and pane
   }
 });
 
-test("tasks off is immediate, hides the tool/context/UI, preserves plan, survives reload, has no continuation hooks", async () => {
+test("tasks off is immediate, hides the tool/context/UI, preserves plan, and prevents reconciliation", async () => {
   const h = await harness();
   try {
     await h.emit("session_start");
     await h.command("tasks", "add Preserve this task");
     const before = (await h.call({ op: "list" })).details.plan;
     assert.ok(h.widgets.has("pi-tasks:fallback"));
-    assert.equal(h.handlers.has("agent_before_settle"), false);
+    assert.equal(h.handlers.has("agent_before_settle"), true);
     assert.equal(h.handlers.has("turn_end"), false);
     const off = h.command("tasks", "off");
     assert.equal(h.tools.get("tasks").exposure, "hidden", "off takes effect before filesystem save completes");
@@ -450,14 +461,26 @@ test("tool results show committed checklist state without raw revisions, and upd
     assert.doesNotMatch(render({ op: "add" }).split("\n")[0], /\bresult\b/);
     assert.match(render({ op: "add" }), /One.*\n.*Two.*\n.*Three/);
     assert.doesNotMatch(render({ op: "add" }), /revision|t1|0\/3/);
-    assert.match(render({ op: "add" }), /Added task · pending: One/);
-    assert.match(render({ op: "update", id: "t2" }), /Updated task · pending: Two/);
-    assert.doesNotMatch(render({ op: "update", id: "t2" }), /pending: One|pending: Three/);
+    assert.match(render({ op: "add" }), /\+ Added 3 tasks · not started/);
+    assert.equal((render({ op: "add" }).match(/Added 3 tasks/g) ?? []).length, 1, "one acknowledgment for a batch");
+    assert.match(render({ op: "add" }), /○ One/);
+    assert.doesNotMatch(render({ op: "add" }), /\bpending\b/);
+    assert.equal(result.details.plan.tasks[0].status, "pending", "the display label does not change stored state");
+    for (const selected of [getThemeByName("dark"), getThemeByName("light")]) {
+      const card = tool.renderResult(result, {}, selected, { args: { op: "add", items: [1, 2, 3] } }).render(80);
+      assert.ok(card.some(line => line.includes(selected.fg("accent", "+ Added 3 tasks · not started"))));
+    }
+    assert.match(render({ op: "update", id: "t2" }), /Updated task · not started: Two/);
+    assert.doesNotMatch(render({ op: "update", id: "t2" }), /not started: One|not started: Three/);
     const emptyHistory = tool.renderResult({ content: [], details: { plan: result.details.plan, plans: [] } }, {}, theme, { args: { op: "plans" } }).render(80).map(plain).join("\n");
     assert.match(emptyHistory, /No saved plans/);
     const error = tool.renderResult({ content: [{ type: "text", text: "Update rejected" }] }, {}, theme, { args: { op: "update" } }).render(80);
     assert.match(plain(error.join("\n")), /Update rejected/);
     assert.ok(error[1].includes(theme.fg("error", "Update rejected")));
+    const next = await h.call({ op: "add", revision: JSON.parse(result.content[0].text).revision, items: [{ title: "Four" }] });
+    const single = tool.renderResult(next, {}, theme, { args: { op: "add", items: [{ title: "Four" }] } }).render(80).map(plain).join("\n");
+    assert.match(single, /\+ Added 1 task · not started/);
+    assert.match(single, /○ Four/);
   } finally { await h.close(); }
 });
 test("task transcript cards wrap full titles and show status without a row cutoff", async () => {
@@ -473,8 +496,9 @@ test("task transcript cards wrap full titles and show status without a row cutof
       const lines = tool.renderResult(result, { expanded: false }, theme, { args }).render(width).map(plain);
       assert.ok(lines.every(line => visibleWidth(line) <= width));
       const joined = lines.slice(1, -1).map(line => line.slice(1, -1).trimEnd()).join("").replace(/\s+/g, "");
-      for (let i = 0; i < 15; i++) assert.ok(joined.includes(`Added task · pending: ${i} ${title}`.replace(/\s+/g, "")));
-      assert.doesNotMatch(joined, /…/);
+      for (let i = 0; i < 15; i++) assert.ok(joined.includes(`○ ${i} ${title}`.replace(/\s+/g, "")));
+      assert.ok(joined.includes("Added15tasks·notstarted"));
+      assert.doesNotMatch(joined, /…|pending/);
     }
     const updateArgs = { op: "update", revision: JSON.parse(result.content[0].text).revision, id: "t15", changes: { status: "active" } };
     const updated = await h.call(updateArgs);
@@ -657,7 +681,235 @@ test("tool creates and reads plan history without switching it; stale cross-plan
     assert.equal(archived.selectedId, null);
     const firstPage = await payload({ op: "plans", limit: 1 }); assert.equal(firstPage.nextOffset, 1); assert.equal(firstPage.total, 2);
     const secondPage = await payload({ op: "plans", offset: 1 }); assert.equal(secondPage.plans[0].state, "archived");
-    assert.equal(h.handlers.has("agent_before_settle"), false);
+    assert.equal(h.handlers.has("agent_before_settle"), true);
+  } finally { await h.close(); }
+});
+
+test("requirements preserve the small request when a larger follow-up is completed", async () => {
+  for (const home of [false, true]) {
+    const h = await harness({ home });
+    const payload = async args => JSON.parse((await h.call(args)).content[0].text);
+    try {
+      await h.emit("session_start"); await h.emit("agent_start");
+      let p = await payload({ op: "list" });
+      p = await payload({ op: "create", revision: p.revision, title: "Tasks reliability",
+        items: [{ title: "Reconcile run-end work", doneWhen: "One bounded checkpoint" }],
+        requirements: [
+          { title: "Clarify the added-task wording", source: "User: it still says added task: pending", acceptance: "Card says not started without changing stored pending" },
+          { title: "Reconcile unfinished tasks", source: "User asks to reconcile stale unfinished plans", acceptance: "One bounded checkpoint", taskIds: ["t1"] },
+        ] });
+      assert.equal(p.coverage.uncovered, 1);
+      p = await payload({ op: "update", revision: p.revision, id: "t1", changes: { status: "done", note: "Lifecycle regressions pass" } });
+      const saved = h.entries.at(-1).data;
+      assert.equal(saved.plans[0].requirements.length, 2);
+      assert.equal(saved.plans[0].closedAt, null, "100% of tasks is not 100% of accepted requests");
+      assert.equal(planInfo(saved.plans[0], saved).state, "open");
+      const render = [...h.widgets.values()].flatMap(w => w.render(100)).map(plain).join("\n");
+      assert.match(render, /requirement.*review/);
+      await assert.rejects(() => h.call({ op: "archive", revision: p.revision }), /unfinished/);
+      const before = structuredClone(h.entries);
+      const checkpoint = (await h.emit("agent_before_settle", { outcome: "completed", context: { canContinue: false, pendingMessages: [] } })).find(r => r?.continue);
+      assert.match(checkpoint.entries[0].content, /Clarify the added-task wording/);
+      assert.match(checkpoint.entries[0].content, /conversation with the requirement records AND tasks/);
+      assert.match(checkpoint.entries[0].content, /"state":"uncovered"/);
+      assert.deepEqual(h.entries, before, "coverage checks never invent outcomes");
+      await h.emit("agent_start");
+      assert.equal((await h.emit("agent_before_settle", { outcome: "completed", context: { pendingMessages: [] } })).some(r => r?.continue), false);
+      p = await payload({ op: "add", revision: p.revision, items: [{ title: "Clarify result card", doneWhen: "Card says not started" }] });
+      p = await payload({ op: "requirements", revision: p.revision, requirements: [{ id: "r1", taskIds: ["t2"] }] });
+      assert.equal(p.requirements[0].source, "User: it still says added task: pending");
+      p = await payload({ op: "update", revision: p.revision, id: "t2", changes: { status: "done", note: "Card tests pass", evidence: "test log" } });
+      assert.equal(p.coverage.reportedDone, 2);
+      assert.notEqual(h.entries.at(-1).data.plans[0].closedAt, null);
+      await h.emit("agent_settled");
+    } finally { await h.close(); }
+  }
+});
+
+test("requirement mutations are atomic, bounded, source-preserving and respect user boundaries", () => {
+  let b = create(emptyBook(), "Coverage", ["Small outcome"]);
+  const record = { title: "Small visible change", source: "User asks for wording 界面", acceptance: "Not-started label is visible", taskIds: ["t1"] };
+  const amend = (base, requirements, actor = "agent") => bookWrite(base, { op: "requirements", requirements }, actor);
+  b = amend(b, [record]);
+  const before = structuredClone(b);
+  for (const input of [
+    [{ title: "Missing source", acceptance: "Observable" }],
+    [{ ...record, source: " " }], [{ ...record, taskIds: ["t99"] }],
+    [{ id: "r1", title: "Silently rewrite the request" }],
+    [{ id: "r1", disposition: "superseded" }],
+    [{ id: "r1", taskIds: [] }, { id: "r1", taskIds: ["t1"] }],
+    Array.from({ length: 101 }, () => record),
+  ]) assert.throws(() => amend(b, input));
+  assert.deepEqual(b, before);
+  assert.throws(() => mutateBook(b, "stale", { op: "requirements", requirements: [record] }, "agent"), /plan changed/);
+  b = taskWrite(b, "t1", { status: "cancelled", note: "No longer needed" });
+  assert.equal(b.plans[0].closedAt, null, "cancellation is not requirement satisfaction");
+  assert.match(bookContext(b), /needs disposition/);
+  b = amend(b, [{ id: "r1", disposition: "superseded", reason: "User changed the requested wording" }]);
+  assert.equal(b.plans[0].requirements[0].source, record.source);
+  assert.notEqual(b.plans[0].closedAt, null);
+  assert.throws(() => amend(b, [{ id: "r1", disposition: "accepted" }]), /read-only/);
+  b = amend(b, [{ ...record, title: "Replacement outcome", taskIds: [] }], "user");
+  assert.equal(b.plans[0].requirements[1].id, "r2");
+  assert.throws(() => amend(b, [{ id: "r2", taskIds: ["t1"] }]), /user's requirement/);
+  const archived = bookWrite(b, { op: "archive", planId: "p1" }, "user");
+  assert.throws(() => amend(archived, [record]), /No matching|editable/);
+  const cleared = bookWrite(b, { op: "task", mutation: { op: "clear" } }, "user");
+  assert.throws(() => amend(cleared, [record]), /uncleared/);
+  assert.deepEqual(restoreBook(cleared), cleared);
+  const switched = create(b, "Other work", []);
+  assert.throws(() => bookWrite(switched, { op: "requirements", planId: "p1", requirements: [record] }), /editable/);
+  assert.deepEqual(switched.plans[0], b.plans[0]);
+});
+
+test("v2 libraries migrate without invented coverage; malformed/future requirements fail closed", async () => {
+  const legacy = create(emptyBook(), "Existing work");
+  legacy.version = 2;
+  for (const p of legacy.plans) delete p.requirements;
+  const migrated = restoreBook(legacy);
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(migrated.plans[0].requirements, []);
+  assert.deepEqual(migrated.plans[0].state, legacy.plans[0].state);
+  assert.match(bookContext(migrated), /not recorded/);
+  assert.throws(() => restoreBook({ ...migrated, version: 4 }), /Unsupported/);
+  for (const requirements of [undefined, [{ id: "r1" }], Array(101).fill({})]) {
+    assert.throws(() => restoreBook({ ...migrated, plans: [{ ...migrated.plans[0], requirements }] }), /requirement/i);
+  }
+  const h = await harness();
+  try {
+    h.entries.push({ type: "custom", customType: BOOK_ENTRY, data: legacy });
+    await h.emit("session_start");
+    assert.equal(h.entries.length, 1, "migration is read-only until a mutation");
+    let p = JSON.parse((await h.call({ op: "requirements" })).content[0].text);
+    assert.deepEqual(p.requirements, []);
+    const record = { title: "Accepted request", source: "User's request reference", acceptance: "Visible outcome" };
+    await h.call({ op: "requirements", revision: p.revision, requirements: [record] });
+    assert.equal(h.entries.at(-1).data.version, 3);
+    const expected = JSON.parse((await h.call({ op: "requirements" })).content[0].text).requirements;
+    await h.emit("session_compact");
+    assert.deepEqual(JSON.parse((await h.call({ op: "requirements" })).content[0].text).requirements, expected);
+    await h.emit("session_start");
+    assert.deepEqual(JSON.parse((await h.call({ op: "requirements" })).content[0].text).requirements, expected);
+    h.branch([h.entries[0]]); await h.emit("session_tree");
+    assert.deepEqual(JSON.parse((await h.call({ op: "requirements" })).content[0].text).requirements, []);
+    h.failStorage();
+    await assert.rejects(() => h.call({ op: "requirements", revision: p.revision, requirements: [record] }), /disk failed/);
+    assert.deepEqual(JSON.parse((await h.call({ op: "requirements" })).content[0].text).requirements, []);
+  } finally { await h.close(); }
+});
+
+test("requirement pages and read-only panel expose full sources without task edits", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    let p = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const result = await h.call({ op: "create", revision: p.revision, title: "Coverage", requirements: Array.from({ length: 25 }, (_, i) => ({
+      title: `Outcome ${i} 界面`, source: `User request ${i}: retain this small change`, acceptance: `Observable result ${i}`,
+    })) });
+    p = JSON.parse(result.content[0].text);
+    const first = await h.call({ op: "requirements" });
+    const page = JSON.parse(first.content[0].text);
+    assert.equal(page.requirements.length, 20); assert.equal(page.nextOffset, 20);
+    assert.equal(JSON.parse((await h.call({ op: "requirements", offset: 20 })).content[0].text).requirements.length, 5);
+    const b = h.entries.at(-1).data, before = structuredClone(b);
+    assert.match(bookContext(b), /13 more; use tasks requirements/);
+    for (const th of [getThemeByName("dark"), getThemeByName("light")]) for (const width of [12, 30, 80, 120]) {
+      const toolLines = h.tools.get("tasks").renderResult(first, {}, th, { args: { op: "requirements" } }).render(width);
+      assert.ok(toolLines.every(l => visibleWidth(l) <= width));
+      const panel = new TaskPanel(h.tui, th, () => b, () => undefined, () => assert.fail("coverage must not edit"));
+      panel.render(width); panel.handleInput("q");
+      const lines = panel.render(width);
+      assert.ok(lines.every(l => visibleWidth(l) <= width));
+      if (width >= 80) assert.match(lines.map(plain).join("\n"), /Source: User request 0/);
+      panel.handleInput("\r"); panel.handleInput("a");
+      for (let i = 0; i < 999; i++) { panel.handleInput("\x1b[B"); panel.render(width); }
+      const last = panel.render(width).map(plain).join("\n");
+      if (width >= 80) assert.match(last, /Observable result 24/);
+      panel.handleInput("\x1b");
+      assert.ok(panel.render(width).every(l => visibleWidth(l) <= width));
+    }
+    assert.deepEqual(b, before);
+  } finally { await h.close(); }
+});
+
+test("reconciliation grants at most one guarded pass to an agent-edited current plan", async () => {
+  const h = await harness();
+  const settle = (overrides = {}) => h.emit("agent_before_settle", {
+    outcome: "completed", context: { canContinue: false, pendingMessages: [] }, ...overrides,
+  }).then(results => results[0]);
+  const payload = async args => JSON.parse((await h.call(args)).content[0].text);
+  try {
+    await h.emit("session_start");
+    await h.command("tasks", "add Older unrelated work");
+    await h.emit("agent_start");
+    assert.equal(await settle(), undefined, "a carried-over plan does not start another call");
+    let p = await payload({ op: "list" });
+    p = await payload({ op: "add", revision: p.revision, items: [{ title: "Implement within scope" }] });
+    assert.equal(await settle({ outcome: "aborted" }), undefined);
+    assert.equal(await settle({ outcome: "error" }), undefined);
+    // Before appending the reminder, Pi normally reports canContinue=false (last role: assistant).
+    assert.equal(await settle({ context: { canContinue: false, pendingMessages: [{ role: "user" }] } }), undefined);
+    const before = structuredClone(h.entries);
+    const result = await settle();
+    assert.equal(result.continue, true);
+    assert.equal(result.entries[0].display, false);
+    assert.match(result.entries[0].content, /Implement within scope/);
+    assert.match(result.entries[0].content, /Continue only clearly authorized/);
+    for (const pattern of [
+      /original accepted requests and follow-ups/, /apparently closed plans/,
+      /Missing requested work/, /Record-only updates/, /Unresolved evidence or blockers/,
+      /Optional improvements/, /do not repeat successful checks merely to mark a task done/,
+      /distinct risk, changed state, inconclusive result, or known instability/,
+      /do not execute or turn them into accepted requirements without authorization/,
+      /avoid a second completion announcement/,
+    ]) assert.match(result.entries[0].content, pattern);
+    assert.deepEqual(h.entries, before, "the hook does not claim task outcomes or alter plan state");
+    const recall = [{ role: "custom", customType: "pi-tasks:reconcile-v1", content: "old checkpoint" },
+      { role: "custom", customType: "pi-tasks:reconcile-v1", content: result.entries[0].content }];
+    assert.deepEqual((await h.emit("context", { messages: recall }))[0].messages.filter(m => m.customType === "pi-tasks:reconcile-v1").map(m => m.content), [result.entries[0].content]);
+    await h.emit("agent_start"); // Pi starts another agent loop for the boundary continuation.
+    assert.equal(await settle(), undefined, "subsequent agent loops in the same run cannot continue again");
+    await h.emit("agent_settled");
+    assert.equal((await h.emit("context", { messages: recall }))[0].messages.some(m => m.customType === "pi-tasks:reconcile-v1"), false,
+      "settled checkpoints are absent from future model context");
+    await h.emit("agent_start");
+    assert.equal(await settle(), undefined, "untouched carried-over tasks do not trigger on the next request");
+    await h.emit("agent_settled");
+    await h.emit("agent_start");
+    p = await payload({ op: "list" });
+    p = await payload({ op: "update", revision: p.revision, id: "t1", changes: { status: "done", note: "Observed done" } });
+    p = await payload({ op: "update", revision: p.revision, id: "t2", changes: { status: "cancelled", note: "Superseded" } });
+    assert.equal((await settle()).continue, true, "closed task lists still need the request-to-plan coverage check");
+    await h.emit("agent_settled");
+    await h.emit("agent_start");
+    p = await payload({ op: "create", revision: p.revision, title: "Awaiting approval", items: [{ title: "Requires user choice" }] });
+    await payload({ op: "update", revision: p.revision, id: "t1", changes: { status: "blocked", reason: "Needs user choice" } });
+    assert.equal(await settle(), undefined, "all-blocked plans should wait for the user, not request another model call");
+    await h.emit("agent_settled");
+  } finally { await h.close(); }
+});
+
+test("reconciliation respects plan selection, off and restore boundaries", async () => {
+  const h = await harness();
+  const settle = () => h.emit("agent_before_settle", { outcome: "completed", context: { canContinue: false, pendingMessages: [] } }).then(r => r[0]);
+  const payload = async args => JSON.parse((await h.call(args)).content[0].text);
+  try {
+    await h.emit("session_start"); await h.emit("agent_start");
+    let p = await payload({ op: "plans" });
+    p = await payload({ op: "create", revision: p.revision, title: "Run plan", items: [{ title: "Step" }] });
+    await h.command("tasks", "new Another plan");
+    assert.equal(await settle(), undefined, "switching plans removes automatic permission to resume earlier work");
+    await h.command("tasks", "use p1");
+    assert.equal((await settle()).continue, true);
+    await h.emit("agent_settled");
+    await h.emit("agent_start");
+    p = await payload({ op: "list" });
+    await payload({ op: "update", revision: p.revision, id: "t1", changes: { title: "Revised step" } });
+    await h.command("tasks", "off");
+    assert.equal(await settle(), undefined);
+    await h.command("tasks", "on");
+    await h.emit("session_tree");
+    assert.equal(await settle(), undefined, "branch restoration clears old run eligibility");
   } finally { await h.close(); }
 });
 

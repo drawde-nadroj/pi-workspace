@@ -46,12 +46,14 @@
     "pi-vim": "0.14.2"
   },
   "scripts": {
-    "test": "npm run test:frame && npm run test:ask && npm run test:home && npm run test:tasks && npm run test:suite",
+    "test": "npm run test:frame && npm run test:ask && npm run test:home && npm run test:tasks && npm run test:harness && npm run test:suite",
     "test:frame": "node --test packages/pi-frame/test/*.test.mjs",
     "test:ask": "node --test packages/pi-ask/test/host.test.mjs",
     "test:home": "node --test extensions/pi-home/tests/*.test.mjs",
     "test:tasks": "node --test extensions/pi-tasks/tests/*.test.mjs",
     "test:suite": "node --test tests/suite-package.test.mjs",
+    "test:harness": "node --test eval/harness/*.test.mjs",
+    "eval:harness": "node eval/harness/cli.mjs",
     "pack:check": "npm pack --dry-run --workspace=pi-embeddable-frame && npm pack --dry-run --workspace=pi-ask && npm pack --dry-run"
   }
 }

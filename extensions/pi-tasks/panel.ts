@@ -2,13 +2,16 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from "@earendil-works/pi-tui";
 import { cleanText, type DockColors, type Tone } from "../../lib/home-dock.ts";
 import { counts, SYMBOLS } from "./state.ts";
-import { isClosed, planInfo, selectedPlan, type PlanBook, type SavedPlan } from "./book.ts";
+import { isPlanClosed, planInfo, selectedPlan, type PlanBook, type SavedPlan } from "./book.ts";
+
+import { coverageGaps, requirementCoverage } from "./requirements.ts";
 
 export type PanelResult = { op: "new"; revision: string } | { op: "add" | "clear" | "rename" | "archive" | "restore" | "select" | "edit"; planId: string; revision: string; id?: string } | "off" | undefined;
 export interface PanelNavigation { viewId?: string; history?: boolean; selected?: number; planIndex?: number }
 /** Looking at history never changes the current plan. Selection/restoration is an explicit action. */
 export class TaskPanel implements Component {
   private details = false;
+  private coverage = false;
   private scroll = 0;
   private renderedRevision?: string;
   private listTop = 0;
@@ -25,7 +28,8 @@ export class TaskPanel implements Component {
     const b = this.book(), p = this.viewed();
     if (matchesKey(data, "ctrl+c")) return this.done(undefined);
     if (matchesKey(data, "escape")) {
-      if (this.details) { this.details = false; this.scroll = 0; }
+      if (this.coverage) { this.coverage = false; this.scroll = 0; }
+      else if (this.details) { this.details = false; this.scroll = 0; }
       else if (this.nav.history && p) this.nav.history = false;
       else return this.done(undefined);
       this.tui.requestRender(); return;
@@ -33,7 +37,7 @@ export class TaskPanel implements Component {
     if (matchesKey(data, "n")) return this.done({ op: "new", revision: b.revision });
     if (matchesKey(data, "o")) return this.done("off");
     if (matchesKey(data, "h") || matchesKey(data, "tab")) {
-      this.nav.history = !this.nav.history; this.details = false; this.scroll = 0; this.tui.requestRender(); return;
+      this.nav.history = !this.nav.history; this.coverage = false; this.details = false; this.scroll = 0; this.tui.requestRender(); return;
     }
     if (this.nav.history) {
       const plans = this.plans();
@@ -45,6 +49,11 @@ export class TaskPanel implements Component {
       this.tui.requestRender(); return;
     }
     if (!p) { this.tui.requestRender(); return; }
+    if (matchesKey(data, "q")) { this.coverage = !this.coverage; this.details = false; this.scroll = 0; this.tui.requestRender(); return; }
+    if (this.coverage) {
+      if (matchesKey(data, "up") || matchesKey(data, "down")) this.scroll = Math.max(0, this.scroll + (matchesKey(data, "up") ? -1 : 1));
+      this.tui.requestRender(); return; // Read-only coverage view cannot dispatch task edits.
+    }
     const action = (op: Exclude<PanelResult, string | undefined>["op"], id?: string) => {
       if (this.renderedRevision !== b.revision) { this.tui.requestRender(); return; }
       this.done({ op, planId: p.id, revision: b.revision, id } as PanelResult);
@@ -76,7 +85,7 @@ export class TaskPanel implements Component {
     const previewText = previewTask?.reason || (previewTask?.doneWhen ? `Done when: ${previewTask.doneWhen}` : previewTask?.note ? `${previewTask.noteBy}-reported: ${previewTask.note}` : "");
     const preview = previewText ? wrapTextWithAnsi(cleanText(previewText), Math.max(1, width - 6)) : [];
     const preferred = this.nav.history || !p ? Math.max(14, b.plans.length * 2 + 9)
-      : this.details ? 24 : Math.max(16, p.state.tasks.length + 12 + Math.max(0, preview.length - 1));
+      : this.details || this.coverage ? 24 : Math.max(16, p.state.tasks.length + 12 + Math.max(0, preview.length - 1));
     const height = Math.min(available, preferred);
     const color = (tone: Tone) => colors ? parseColor(colors[tone]) : this.theme.colors[tone];
     // Raised relative to Composer and the native transcript; never transparent terminal-default rows.
@@ -121,8 +130,21 @@ export class TaskPanel implements Component {
     }
     const current = p.id === b.selectedId && p.archivedAt === null;
     const status = p.archivedAt !== null ? "Archived · R to restore" : current ? "Current plan" : "History · S to make current";
-    const completion = isClosed(p.state) ? " · closed, saved in history" : "";
-    const rows = [line(p.title, "accent", false, true), line(`${status} · ${counts(p.state)}${completion}`, "muted"), line()];
+    const completion = isPlanClosed(p) ? " · closed, saved in history" : "";
+    const gaps = coverageGaps(p.requirements, p.state);
+    const rows = [line(p.title, "accent", false, true), line(`${status} · ${counts(p.state)}${completion}`, "muted"),
+      gaps.length ? line(`${gaps.length} requirement(s) need review · Q coverage`, "warning") : line()];
+    if (this.coverage) {
+      const records = requirementCoverage(p.requirements, p.state);
+      const detail = (records.length ? records.flatMap(r => [`${r.id} · ${r.state}: ${r.title}`, `Source: ${r.source}`,
+        `Accept when: ${r.acceptance}`, `Tasks: ${r.taskIds.join(", ") || "not linked"}`, ...(r.reason ? [`Reason: ${r.reason}`] : []), ""])
+        : ["No requirements recorded. Coverage is not established; compare the accepted requests in the conversation."])
+        .flatMap(s => wrapTextWithAnsi(cleanText(s), Math.max(1, contentWidth)));
+      const room = Math.max(1, height - 6);
+      this.scroll = Math.min(this.scroll, Math.max(0, detail.length - room));
+      rows.push(...detail.slice(this.scroll, this.scroll + room).map(s => line(s)));
+      return finish(rows, [line(`↑↓ scroll · ${this.scroll + 1}–${Math.min(detail.length, this.scroll + room)}/${detail.length} · Q/Esc back`, "muted")]);
+    }
     this.nav.selected = Math.max(0, Math.min(p.state.tasks.length - 1, this.nav.selected ?? 0));
     const task = p.state.tasks[this.nav.selected];
     if (this.details && task) {
@@ -163,6 +185,6 @@ export class TaskPanel implements Component {
       if (clipped) rows.push(line("… D for full details", "muted"));
     }
     const controls = current ? "Enter edit · D details · A add · T rename" : `D details · ${p.archivedAt !== null ? "R restore" : "S make current"} · T rename`;
-    return finish(rows, [line(controls, "muted"), line(`H plans · N new · ${p.archivedAt === null ? "X archive · " : ""}Esc close`, "muted")]);
+    return finish(rows, [line(controls, "muted"), line(`Q coverage · H plans · N new · ${p.archivedAt === null ? "X archive · " : ""}Esc close`, "muted")]);
   }
 }

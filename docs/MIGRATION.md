@@ -2,6 +2,16 @@
 
 **Current state:** `~/.pi/agent/settings.json` loads `/Users/jordan/code/pi-workspace`. The old personal `~/.pi/agent/extensions/pi-home/` was deleted at the user's request and its exclusion removed; the old personal Tasks directory and its exclusion remain. No new backup was made for this cleanup. The migration steps below describe the **2026-10-09 historical switch**, not current settings or an executable rollback. Start a fresh Pi process after settings changes; do not load both generations concurrently.
 
+## Tasks requirement-ledger payload migration
+
+Tasks now writes plan-library payload version **3** under the existing `pi-tasks:plans-v2` custom-entry key. Version-2 libraries and single-plan v1 entries migrate in memory; opening, reading and reloading do not rewrite session history. Existing plans keep tasks, outcomes, IDs, user locks, selection and archives, with empty requirement records (coverage not established). The next successful mutation persists v3. This changes session data, not `pi-tasks.json` or live Pi settings.
+
+The stable entry key is deliberate: older readers reject the unknown payload version rather than skip new entries and overwrite them using stale v2 state. Do not downgrade and reset an unreadable v3 plan library as a workaround. Unknown versions or malformed requirement data fail closed. Test with an isolated session before live use; the running Pi process retains its old tool schema until reload or restart.
+
+## Proportionate harness guidance
+
+The Tasks stopping/reconciliation guidance and Ask answer handoff require no additional schema, session, preference, or installation migration. The single-question skip result now explicitly preserves unknown consent; its structured status remains `skipped`. Reload the extensions or start a fresh Pi process to adopt updated guidance; a fresh process also picks up global context-file instructions. No live settings were changed. The evaluation kit is development-only and does not start model runs; see `eval/harness/README.md` in the source checkout. Roll back only these guidance/test/documentation edits if needed, preserving unrelated uncommitted work and existing requirement-ledger history.
+
 ## Planned phases
 
 1. **Record a baseline:** run `npm ci`, `npm test`, package dry-runs and the isolated terminal checklist in [ACCEPTANCE.md](ACCEPTANCE.md). Record compatible Pi and dependency versions. Review this repository's tracked-file list for private data. Automated checks and partial isolated terminal review are recorded; physical IME, visual legibility and authenticated interactions still need human observation.

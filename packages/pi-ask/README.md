@@ -46,13 +46,13 @@ Keyboard hints use **↵** for Enter and **⇧↵** for Shift+Enter, with readab
 
 Pi holds the real prompt draft while the question owns the input area, then restores it. Composer’s Vim integration preserves the existing editor instance and skips the unchanged-draft reset during native dialog restoration. Selection, `@` file-completion, clarification, skip, and review/submit controls remain available. Run `/reload` after updating the local package.
 
-## Best usage: ask when an answer changes direction
+## Best usage: ask when inquiry is worth the interruption
 
 If you want the agent to check for important unknowns, try:
 
-> **Before you start, identify any unknowns only I can answer that would materially change your exploration or next action. Ask focused questions about those; if none are needed, proceed. If I'm exploring ideas, begin open-ended rather than forcing a decision menu.**
+> **Before you start, investigate what you can. Ask me only about matters that need my perspective and would change the work. If I've invited exploration, contribute your thinking first; then ask an open question if it could help us see something important differently. If no question is needed, proceed.**
 
-Give the agent relevant context, especially context already shared in the conversation or project. It can use `ask_questions` to gather related unknowns rather than guessing or interrupting repeatedly. It should not ask questions simply to fill a batch. First it should inspect what it can, make a provisional judgment, and ask only when different answers would materially change its next action. It can proceed with a stated, reversible assumption when the choice does not belong to you.
+Give the agent relevant context, especially context already shared in the conversation or project. It can use `ask_questions` to gather related unknowns rather than guessing or interrupting repeatedly. It should not ask questions simply to fill a batch. For practical work, it should inspect what it can, make a provisional judgment, and ask only when different answers would materially change its next action. It can proceed with a stated, reversible assumption when the choice does not belong to you. For exploration you invited, a question can instead help reveal an overlooked possibility or reconsider an aim; it should still earn the interruption.
 
 ### Inquiry charter
 
@@ -60,15 +60,22 @@ Give the agent relevant context, especially context already shared in the conver
 
 - **Attend before intervening.** Read what has already been said and investigate available evidence. Do not ask someone to repeat a fact the agent can find.
 - **Separate kinds of uncertainty.** Findable facts call for research; low-risk, reversible choices can be made with stated assumptions; consequential preferences, consent, and lived experience belong to the person.
-- **Ask at a real fork.** A question is earned when plausible answers would change the next action. Show the finding, trade-off, or uncertainty that makes the answer matter. One pivotal question beats a long questionnaire; zero questions can be the right result.
+- **Ask at a real fork.** In practical work, a question is earned when plausible answers would change the next action. Show the finding or trade-off that makes the answer matter. One pivotal question beats a long questionnaire; zero questions can be the right result.
+- **Make space for discovery.** In exploration the person invited, a question can instead help uncover a possibility or reconsider an aim, even without an immediate action. Offer a substantive thought first. Do not turn reflection into an unsolicited interrogation or presume the person's values.
 - **Recommend without taking over.** Offer a reasoned provisional path for technical choices, including what could change it. For open exploration, reflect the problem before narrowing it to a menu. Keep room to disagree.
-- **Learn from the answer.** Show what changed, do the work, and drop stale follow-ups. When the person asks for clarification or revision, reconsider whether a question is still necessary instead of mechanically re-asking it.
+- **Learn from the answer.** Show what changed in the work or understanding, and drop stale follow-ups. When the person asks for clarification or revision, reconsider whether a question is still necessary instead of mechanically re-asking it.
 
 This is a design ethic, not a claim that the tool verifies an agent's judgment. The educational ambition is to cultivate attention, evidence, judgment, creation, and revision while preserving the learner's agency. The software currently provides question and answer affordances plus agent-facing guidance; its real effect must be evaluated in use, including whether people leave better informed and more capable of acting without it.
 
-For example, a weak question is *“Which architecture do you want: A, B, or C?”* before investigating the code. A stronger agent first inspects the project: *“A preserves your current editor state; B replaces it and risks losing Vim undo. I would use A. Is replacing the editor acceptable for a specific reason I have missed?”* If that difference does not affect the task, it should simply proceed with A.
+For example, a weak practical question is *“Which architecture do you want: A, B, or C?”* before investigating the code. A stronger agent first inspects the project: *“A preserves your current editor state; B replaces it and risks losing Vim undo. I would use A. Is replacing the editor acceptable for a specific reason I have missed?”* If that difference does not affect the task, it should simply proceed with A. In an invited philosophical exploration, the agent might instead offer an interpretation and ask *“What in your experience resists that account?”*—but only when the answer would help deepen the inquiry, not as a reflexive closing line.
 
 More useful context usually produces better work. A question batch creates a quick path to shared understanding: answer what you know, add notes where nuance matters, and ask the agent for clarification from inside any question you do not understand.
+
+### Answer-to-action handoff
+
+Both tools instruct the agent to apply submitted answers **with their notes and caveats**, explain material changes briefly, and drop obsolete questions. An answer that changes authorized scope or acceptance should be reconciled through the requirement owner's existing tools when available, preserving provenance and explicitly superseding changed requirements. Ask itself never writes Tasks state and does not require Tasks to be installed.
+
+Skipped, unanswered, cancelled, and unavailable questions are not agreement or consent. An unresolved approval boundary remains a boundary. Exploratory answers are not authorization to implement, and not every answer should become a task. These are model-facing instructions; deterministic tests check their presence and result fidelity, not whether a model obeys them. The suite's `eval/harness/README.md` describes opt-in behavioral comparison and human interruption review.
 
 ### Revise unanswered questions
 

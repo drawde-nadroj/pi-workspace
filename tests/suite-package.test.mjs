@@ -29,6 +29,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     assert.ok(paths.includes("packages/pi-ask/extensions/questions.ts"));
     assert.ok(!paths.some(path => path.includes("/tests/") || path.includes("/test/") || path.includes("auth.json")));
     assert.ok(!paths.some(path => path.startsWith("node_modules/@earendil-works/")), "host packages must not be bundled");
+    assert.ok(!paths.some(path => path.startsWith("eval/")), "evaluation fixtures and review records are development-only");
 
     const archive = join(sandbox, packed.filename);
     command("npm", ["install", "--prefix", runtime, archive, "--offline", "--legacy-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: project, env });

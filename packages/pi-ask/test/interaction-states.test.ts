@@ -280,5 +280,6 @@ test("single free-text Skip returns skipped rather than cancelled", async () => 
   const result = await pending;
   assert.equal(result.details.status, "skipped");
   assert.deepEqual(result.details.answers, []);
-  assert.match(result.content[0].text, /Continue without an answer/);
+  assert.match(result.content[0].text, /unknown, not agreement or consent/);
+  assert.match(result.content[0].text, /Continue only within already authorized scope/);
 });
