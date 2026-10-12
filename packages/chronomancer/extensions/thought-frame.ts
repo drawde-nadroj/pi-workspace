@@ -6,7 +6,7 @@ import { localDay, type Entry } from "./journal.ts";
 
 // Match Home's default sent-user frame: native message body and zone markers,
 // terminal-background interior, speaker at top-left and sourced Sent at bottom-right.
-// Only the frame/identity color changes as a thought deepens.
+// A root revisited by rewind is shown in orange without changing its saved red stage.
 const colors = {
   dark: ["#f0a3b1", "#efa456", "#e9c865", "#83c988", "#8cb9eb"],
   light: ["#a84760", "#9b4e0e", "#786008", "#317438", "#276197"],
@@ -65,11 +65,12 @@ export function renderThought(entry: Entry & { day: string; visit?: boolean }, t
     const last = lines.pop()!;
     lines[lines.length - 1] += (last.match(/\x1b]133;[A-Z]\x07/g) ?? []).join("");
   }
-  const color = thoughtColor(theme, entry.depth);
-  const actual = new Date(entry.createdAt), actualDay = localDay(actual);
+  const color = thoughtColor(theme, entry.visit && entry.depth === 1 ? 2 : entry.depth);
+  const actual = entry.createdAt ? new Date(entry.createdAt) : undefined;
+  const actualDay = actual && Number.isFinite(actual.getTime()) ? localDay(actual) : undefined;
   const fullDate = entry.day !== localDay() || actualDay !== entry.day;
-  const clock = actual.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  const time = Number.isFinite(actual.getTime()) ? `${fullDate ? `${actualDay} ` : ""}${clock}` : "";
+  const clock = actualDay ? actual!.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "";
+  const time = actualDay ? `${fullDate ? `${actualDay} ` : ""}${clock}` : "";
   const sent = time ? theme.style(` \u{f10dd} ${time} `, { fg: color, bold: true }) : "";
   return frameRows({ theme, width, rows: lines.map(terminalBackground), color,
     corners: { topLeft: theme.style(` ${entry.visit ? "↶ " : ""}jordan `, { fg: color, bold: true }), bottomRight: sent },

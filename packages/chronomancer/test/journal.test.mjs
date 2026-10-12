@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createJournal, connectJournal, openLocalJournal, list, localDay, store, validateDay } from '../extensions/journal.ts';
+import { createJournal, connectJournal, openLocalJournal, list, loadProgress, saveProgress, localDay, store, validateDay } from '../extensions/journal.ts';
 
 const fixture = () => mkdtempSync(join(tmpdir(), 'chronomancer-'));
 test('create or reconnect; day files are independent of Pi and start only on first thought', async () => {
@@ -26,6 +26,17 @@ test('create or reconnect; day files are independent of Pi and start only on fir
     assert.equal(entries[5].parent, null);
     assert.match(readFileSync(join(directory, '2026-09-30.md'), 'utf8'), /<!-- chronomancer:created-at=2026-10-10T16:20:12.000Z -->/);
     assert.deepEqual((await list(created, '2026-10-10')).entries, []);
+    const legacyPath = join(directory, '2026-09-30.md');
+    writeFileSync(legacyPath, readFileSync(legacyPath, 'utf8')
+      .replace(/^(# )(\d\d:\d\d:)\d\d$/m, '$1$2/example/screenshot.png')
+      .replace('First red', 'First red\n```md\n## fenced heading\n```')
+      .replace(/<!-- chronomancer:created-at=2026-10-10T16:20:12.000Z -->/,
+        '<!-- chronomancer:created-at=unknown -->'));
+    const legacy = (await list(created, '2026-09-30')).entries[0];
+    assert.equal(legacy.createdAt, null, 'legacy creation time is never fabricated');
+    assert.match(legacy.legacyTitle, /\/example\/screenshot\.png$/, 'an irregular original heading remains recoverable');
+    assert.match(legacy.body, /## fenced heading/, 'Markdown inside fences is not a structural entry');
+    assert.equal((await store(created, '2026-09-30', 'A later root')).depth, 1);
     await assert.rejects(store(created, '2026-09-30', 'Beyond blue', chain.id));
     await assert.rejects(createJournal(directory), /already exists/);
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -73,6 +84,22 @@ test('refuses malformed dates, headings, foreign files, missing parents, locks a
     symlinkSync(join(root, 'external.md'), path);
     await assert.rejects(store(journal, day, 'Blocked'), /regular file/);
     assert.throws(() => readFileSync(join(root, 'external.md')), { code: 'ENOENT' });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('a per-person checkpoint resumes and rejects stale updates without changing saved thoughts', async () => {
+  const root = fixture();
+  try {
+    const journal = await createJournal(join(root, 'chronomancer'));
+    const first = await store(journal, '2026-10-10', 'Red');
+    const state = { day: '2026-10-10', pass: 2, route: [first.id], index: 1, edge: false };
+    assert.deepEqual(await loadProgress(journal), { state: null, bytes: null });
+    const bytes = await saveProgress(journal, state, null);
+    assert.deepEqual((await loadProgress(journal)).state.route, [first.id]);
+    await assert.rejects(saveProgress(journal, { ...state, edge: true }, null), /changed elsewhere/);
+    await saveProgress(journal, { ...state, edge: true }, bytes);
+    assert.equal((await loadProgress(journal)).state.edge, true);
+    assert.equal((await list(journal, '2026-10-10')).entries.length, 1);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

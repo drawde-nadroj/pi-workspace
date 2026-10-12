@@ -5,6 +5,11 @@ import { actionHint, addActionHints, handleFileCompletion, addWrapped, addWrappe
 
 export type BatchUIResult = TabAnswer[] | { action: "regenerate"; answers: TabAnswer[] } | { action: "clarification"; clarification: string; answers: TabAnswer[]; activeQuestionIndex: number } | null;
 
+export interface QuestionDraft {
+	answer: TabAnswer["answer"]; textBuffer: string; otherText: string; selected: [string, AskAnswer][];
+	note: string; skipped: boolean; committed: boolean;
+}
+
 export class TabbedQuestions {
 	private questions: QuestionDef[];
 	private tabs: TabState[];
@@ -43,6 +48,7 @@ export class TabbedQuestions {
 		keybindings: KeybindingsManager,
 		done: (result: any) => void,
 		cwd = process.cwd(),
+		draft?: QuestionDraft,
 	) {
 		this.questions = questions;
 		this.tui = tui;
@@ -122,6 +128,7 @@ export class TabbedQuestions {
 			});
 		}
 		this.tabs = tabs;
+		if (draft && tabs.length === 1) Object.assign(tabs[0], structuredClone(draft), { selected: new Map(draft.selected) });
 
 		// Prepare active tab
 		this.prepareActiveTab();
@@ -129,6 +136,16 @@ export class TabbedQuestions {
 		if (this.tabs.length > 0) {
 			this.noteEditor.setText(this.tabs[this.activeTab].note || "");
 		}
+	}
+
+	/** Posted-question navigation preserves unsubmitted input; this is not an answer result. */
+	captureDraft(): QuestionDraft {
+		if (this.editMode) this.preserveOtherDraft();
+		this.syncAnswerFromTab();
+		const tab = this.getActiveTab();
+		return structuredClone({ answer: tab.answer, textBuffer: tab.textBuffer, otherText: tab.otherText,
+			selected: [...tab.selected.entries()], note: this.noteFocused ? this.noteEditor.getExpandedText() : tab.note,
+			skipped: tab.skipped, committed: tab.committed });
 	}
 
 	private snapshot(): TabAnswer[] {

@@ -14,7 +14,9 @@ import { appearanceBorder, appearanceRow } from "./appearance-render.ts";
 export function composerPadding(width: number, rows: number, density: "spaced" | "compact" = "spaced"): number { return density === "spaced" && width >= 44 && rows >= 34 ? 1 : 0; }
 /** Composer, assistant transcript, and Tasks use the same active Pi accent. */
 export function composerBorder(theme: Theme): Color { return theme.colors.accent; }
-export function composerThinkingBorder(theme: Theme, _level?: string): Color { return composerBorder(theme); }
+export function composerThinkingBorder(theme: Theme, _level?: string, home?: HomeState): Color {
+  return home ? appearanceBorder(theme, home) : composerBorder(theme);
+}
 /** User-send metadata uses the same red/pink identity as the user message frame. */
 export function userFrameColor(theme: Theme): Color {
   return parseColor(theme.appearance === "light" ? "#a84760" : "#f0a3b1");
@@ -44,8 +46,8 @@ export function composerMessageRail(theme: Theme, width: number, home: HomeState
   const busy = home.clock.active || home.compacting;
   const age = Math.max(0, now - home.clock.transitionAt);
   const arriving = !busy && home.clock.timing?.outcome === "done" && home.clock.transitionAt > 0 && age < 800;
-  const resting = composerBorder(theme);
-  const border = arriving && shouldAnimate(home, now, home.editorFocused?.() ?? true)
+  const resting = appearanceBorder(theme, home);
+  const border = arriving && !home.chronomancerDay && shouldAnimate(home, now, home.editorFocused?.() ?? true)
     ? mixColors(mixColors(resting, theme.colors.text, .25), resting, 1 - Math.pow(1 - Math.min(1, age / 800), 3)) : resting;
   const status = home.railStatus?.() ?? { text: busy ? "Working" : "What’s next?", tone: busy ? "toolTitle" : "muted" };
   const runningTime = busy && home.promptDepth === 0 && home.clock.active && home.clock.timing
@@ -140,7 +142,7 @@ export function composerBottomRail(theme: Theme, width: number, home: HomeState,
   context: { cwd?: string; model?: { name?: string; id?: string } }, mode = "", nativeHint = ""): string {
   home.appearanceMode = mode;
   if (home.layout?.appearance) return composerSurface(theme, appearanceRow(theme, width, home, "bottom", Date.now(), nativeHint), width);
-  const border = composerBorder(theme);
+  const border = appearanceBorder(theme, home);
   const meta = home.layout?.railDetails !== "off";
   const left = meta && home.layout?.directory !== "off"
     ? quietFrameLabel(theme, ` ${home.layout?.icons === "plain" ? "" : `${COMPOSER_ICONS.directory} `}${homePath(context.cwd || "")} `, border) : "";

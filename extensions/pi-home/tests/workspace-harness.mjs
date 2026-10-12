@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { jiti, source, root, theme, initTheme, plain, kb, visibleWidth, CURSOR_MARKER } from "./host.mjs";
 const { chooseFooter } = await jiti.import(join(source, "footer-settings.ts"));
+const { settingName, settingValue, partName } = await jiti.import(join(source, "workspace-setting-layout.ts"));
 const { FOOTER_DEFAULTS, footerPrefs } = await jiti.import(join(source, "footer-state.ts"));
 const { DEFAULTS, RunClock } = await jiti.import(join(source, "state.ts"));
 const { appearanceDefaults, POSITIONS, STATES } = await jiti.import(join(source, "appearance.ts"));
@@ -32,12 +33,15 @@ export function workspace(prefs = FOOTER_DEFAULTS, width = 120, height = 40, sig
   const rows = () => panel.render(tui.terminal.columns).map(plain);
   const clickAt = (x, y) => panel.handleMouse({ type: "click", button: "left", x, y, screenX: x, screenY: y, width: tui.terminal.columns, height: tui.terminal.rows, shift: false, alt: false, ctrl: false });
   const click = (label, last = false) => {
+    label = ({ "[Elements]": "[Input]", "[Other options]": "[More settings]", "[Workspace]": "[General]" })[label] ?? label;
+    label = partName(settingName(label));
     const lines = rows(), indices = lines.flatMap((line, i) => line.includes(label) ? [i] : []), y = last ? indices.at(-1) : indices[0];
     assert.notEqual(y, undefined, `${label} not visible:\n${lines.join("\n")}`);
     clickAt(visibleWidth(lines[y].slice(0, lines[y].indexOf(label))), y);
   };
   const pick = label => {
-    for (let i = 0; i < 40; i++) { if (rows().some(row => row.includes(label))) { click(label); return; } panel.handleInput("\x1b[B"); }
+    const shown = settingValue(label);
+    for (let i = 0; i < 40; i++) { if (rows().some(row => row.includes(shown))) { click(shown); return; } panel.handleInput("\x1b[B"); }
     assert.fail(`choice ${label} not found`);
   };
   const text = value => { panel.handleInput("\x01"); panel.handleInput("\x0b"); panel.handleInput(value); panel.handleInput("\r"); };

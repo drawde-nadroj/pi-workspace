@@ -25,7 +25,7 @@ test('versioned transcript settings migrate old controls and preserve unknown ve
 test('transcript list and synthetic preview select only visible labels; Undo/Discard preserve native draft', async () => {
   const h = workspace();
   h.click('[Transcript]');
-  assert.match(h.rows().join('\n'), /Demo chat \/ tool · display only/);
+  assert.match(h.rows().join('\n'), /Example messages · nothing is sent/);
   const { COMPOSER_ICONS } = await jiti.import(join(source, 'composer-icons.ts'));
   h.click(`${COMPOSER_ICONS.sent} 9:41:05 AM`);
   assert.match(h.rows().join('\n'), /Workspace · Transcript · Sourced Sent time/);
@@ -36,7 +36,9 @@ test('transcript list and synthetic preview select only visible labels; Undo/Dis
   assert.equal(h.latest.transcript, undefined);
   h.click('Tool identity');
   assert.match(h.rows().join('\n'), /Read  sample.txt/);
-  h.click('Tool identity  quiet'); h.pick('matched');
+  const settingY = h.rows().findIndex(row => /Tool identity\s+Quieter/.test(row));
+  assert.ok(settingY >= 0);
+  h.clickAt(h.rows()[settingY].indexOf('Tool identity'), settingY); h.pick('matched');
   assert.equal(h.latest.transcript.tools.identity, 'matched');
   h.click('failed');
   assert.match(h.rows().join('\n'), /Workspace · Transcript · Tool status/);

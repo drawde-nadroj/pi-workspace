@@ -14,7 +14,7 @@ export interface TranscriptAppearance {
   tools: { identity: "matched" | "quiet"; status: "semantic" | "matched" };
 }
 export type TranscriptElementId = "chatFrame" | "chatIdentity" | "chatSent" | "toolFrame" | "toolIdentity" | "toolStatus";
-export interface TranscriptHit { id: TranscriptElementId; x: number; y: number; width: number }
+export interface TranscriptHit { id: TranscriptElementId; x: number; y: number; width: number; affected?: boolean }
 export function transcriptDefaults(prefs?: Pick<FooterPrefs, "messageTime" | "toolLabels">): TranscriptAppearance {
   return { version: 1, chat: { assistantLabel: "matched", showSent: prefs?.messageTime !== "off", sentPosition: "bottomRight" },
     tools: { identity: "quiet", status: prefs?.toolLabels === "matched" ? "matched" : "semantic" } };
@@ -46,14 +46,14 @@ export function transcriptPreview(theme: Theme, width: number, style: Transcript
   { rows: string[]; hits: TranscriptHit[] } {
   if (width < 24) return { rows: ["Preview needs 24 columns".slice(0, width)], hits: [] };
   const rows: string[] = [], hits: TranscriptHit[] = [];
-  const add = (lines: string[], labels: Array<{ id: TranscriptElementId; text: string; y: number }>, frame: TranscriptElementId) => {
+  const add = (lines: string[], labels: Array<{ id: TranscriptElementId; text: string; y: number; affected?: boolean }>, frame: TranscriptElementId) => {
     const start = rows.length;
     rows.push(...lines);
-    for (const { id, text, y } of labels) {
+    for (const { id, text, y, affected } of labels) {
       const plain = stripVTControlCharacters(lines[y] ?? ""), at = plain.indexOf(text);
       if (at < 1 || plain.indexOf(text, at + 1) !== -1) continue;
       const x = visibleWidth(plain.slice(0, at)), cells = visibleWidth(text);
-      if (x + cells < width) hits.push({ id, x, y: start + y, width: cells });
+      if (x + cells < width) hits.push({ id, x, y: start + y, width: cells, ...(affected === undefined ? {} : { affected }) });
     }
     for (const y of [0, lines.length - 1]) hits.push({ id: frame, x: 0, y: start + y, width });
   };
@@ -64,7 +64,7 @@ export function transcriptPreview(theme: Theme, width: number, style: Transcript
     const userRows = frameRows({ theme, width, rows: ["  Sample user message"], color: user,
       corners: { topLeft: theme.style(" jordan ", { fg: user, bold: true }), [style.chat.sentPosition]: styledSentLabel(theme, style.chat.showSent ? "9:41:05 AM" : "", user, "user", icons) },
       surface: (text, cells) => composerSurface(theme, text, cells) });
-    add(userRows, [{ id: "chatIdentity", text: " jordan ", y: 0 }, { id: "chatSent", text: userSent, y: userRows.length - 1 }], "chatFrame");
+    add(userRows, [{ id: "chatIdentity", text: " jordan ", y: 0, affected: false }, { id: "chatSent", text: userSent, y: userRows.length - 1 }], "chatFrame");
     const assistantRows = frameRows({ theme, width, rows: ["  Sample assistant reply"], color: assistant,
       corners: { topLeft: assistantIdentity(theme, " Assistant ", assistant, style),
         [style.chat.sentPosition]: styledSentLabel(theme, style.chat.showSent ? "9:42:09 AM" : "", assistant, "quiet", icons) },
@@ -72,14 +72,17 @@ export function transcriptPreview(theme: Theme, width: number, style: Transcript
     add(assistantRows, [{ id: "chatIdentity", text: " Assistant ", y: 0 }, { id: "chatSent", text: assistantSent, y: assistantRows.length - 1 }], "chatFrame");
   } else {
     const rail = taskFrameColor(theme), heading = " Read  sample.txt ", status = " ✓ returned ";
+    const body = (text: string) => frameRows({ theme, width, rows: [text], color: rail,
+      surface: (line, cells) => composerSurface(theme, line, cells) })[1];
     const toolRows = [composerRail(theme, width, toolIdentity(theme, heading, rail, style),
       matchedToolStatus(style, false) ? quietFrameLabel(theme, status, rail) : theme.style(status, { fg: theme.colors.success, bold: true }), true, rail),
-      composerSurface(theme, "│  Sample tool output  │", width), composerRail(theme, width, "", "", false, rail)];
+      body("  Sample tool output"), composerRail(theme, width, "", "", false, rail)];
     add(toolRows, [{ id: "toolIdentity", text: heading, y: 0 }, { id: "toolStatus", text: status, y: 0 }], "toolFrame");
     const failed = " × failed ";
     const failedRows = [composerRail(theme, width, toolIdentity(theme, " Edit  sample.txt ", rail, style), theme.style(failed, { fg: theme.colors.error, bold: true }), true, rail),
-      composerSurface(theme, "│  Sample error (not executed)  │", width), composerRail(theme, width, "", "", false, rail)];
-    add(failedRows, [{ id: "toolStatus", text: failed, y: 0 }], "toolFrame");
+      body("  Sample error (not executed)"), composerRail(theme, width, "", "", false, rail)];
+    add(failedRows, [{ id: "toolIdentity", text: " Edit  sample.txt ", y: 0 },
+      { id: "toolStatus", text: failed, y: 0, affected: false }], "toolFrame");
   }
   return { rows, hits };
 }

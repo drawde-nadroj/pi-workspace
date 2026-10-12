@@ -33,10 +33,27 @@ Adaptive questions for building shared context with the [Pi Coding Agent](https:
 - **Review the whole batch before submitting it.** Catch accidental choices and see related decisions together before committing them to the conversation.
 - **Spend context on decisions, not repairs.** Batch related unknowns, preserve resolved answers, and regenerate only what is stale instead of burning tokens on repeated clarification or work based on bad assumptions.
 
-The package exposes two tools:
+The package exposes three tools:
 
 - **`ask_user_question`** asks one free-form, single-choice, or multiple-choice question.
 - **`ask_questions`** collects several related answers in a sequential form with a compact **1 of N** header and a Review screen.
+- **`question_queue`** posts one durable question without stopping independent work, lists history, and records application, withdrawal or replacement. `/questions` opens the standalone inbox; `/tasks questions` opens the integrated view when Tasks is installed.
+
+## Posted questions: one continuous thread
+
+Use existing synchronous tools for an immediate decision where the agent should pause. Use `question_queue post` when other authorized work can continue. Each post includes **why**, a concrete **boundary**, and **blocking** or **deferred** urgency; optional `planId`/`taskIds` link existing non-archived Tasks work. A blocking label is local to that boundary, not a declaration that all agent work has stopped. Unlinked questions work without Tasks.
+
+Select a question in `/tasks` → **Questions** and press Enter. Ask opens as a raised overlay above the existing panel; Escape returns to the same question and preserves the draft, including custom/free-text answers and notes. Enter Continue opens Review; a separate **Submit** finalizes the response. Existing synchronous forms retain their original input/skip/cancel semantics. Ask appearance and density are read from the existing `/workspace` settings at opening; there are no new live appearance preferences.
+
+The branch-local lifecycle is **Awaiting answer → Answer submitted → Delivered to agent → Agent reports applied**. Delivery means the response has entered the model context, not that the model has acted on it. Notes and caveats remain part of the response. Skips and clarification requests can be delivered but cannot be reported applied as answers; the agent must clarify, replace or withdraw the question. Application requires a concrete consequence and does not mutate Tasks. Linked agent task starts/completions wait on unresolved records; a deferred linked question becomes blocking when the agent reaches that task boundary. Ask records the needed-now reason without rewriting the original question or losing the submitted response identity. Independent work remains available. This is a Tasks-state gate, **not a universal enforcement layer for arbitrary shell commands, tools, or external side effects**. Use the synchronous consent/permission path for immediate high-risk actions.
+
+`question_queue list` returns full records with per-question revisions. `apply`, `withdraw` and `replace` require the current question revision and a reason/consequence. Replacement keeps the original question and links to the new record; it never silently rewrites submitted wording. Withdrawal is not approval, and neither withdrawal nor application automatically changes a task. Reconcile changed scope through the requirement owner before proceeding. Stale session/revision responses are rejected rather than applied to a revised question.
+
+Submitted responses use Pi steering and are available after the current turn's tool calls, not inside a running tool. Submitting while idle can start an agent turn. If delivery is interrupted, the response stays Submitted; `/questions retry q1` requires explicit confirmation and reuses the original submission identity. There is **no automatic retry** on reload. A prior uncertain send may still be queued; the same answer must not be applied twice. Refreshing the inbox is safe and does not send anything.
+
+State uses version-1 `pi-ask:posted-v1` custom entries on the active branch, bounded to 100 retained records and 1 MiB. Drafts save on returning from the overlay; crashes can lose currently open, unsaved input. Restore/reload/tree/compaction read branch entries without rewriting them. Invalid or future versions fail closed and are not automatically reset. Posted tool results, submission messages and delivery entries each own one immutable chat event; opening an old event does not rewrite its past status. Standalone Ask provides an attention widget when Tasks is unavailable or off. Non-TUI modes may post/list/disposition records; answering requires the TUI.
+
+The Home clock keeps tracking independent work during the Tasks browser and posted Ask overlays, while visual motion stays still. Existing synchronous questions still pause the clock. No new timers, network calls, live-settings changes or input-editor replacement are introduced by posting a question.
 
 ## Rounded question panel
 

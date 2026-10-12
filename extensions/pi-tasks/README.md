@@ -14,6 +14,8 @@ The agent is instructed and equipped to create a concise named plan for a **new 
 | --- | --- |
 | `/tasks` or `/tasks show` | Open the current plan in a distinct, raised panel |
 | `/tasks history` | Browse all saved plans, including completed and archived ones |
+| `/tasks requests` | Open readable request coverage with full source/acceptance in details |
+| `/tasks questions` | Open Ask's branch-local question projections; Enter answers above Tasks |
 | `/tasks prev` / `/tasks next` | Move the three-task window one task; freeze the view without changing agent work |
 | `/tasks follow` | Follow the active task again |
 | `/tasks view focus` | Save the three-task appearance (default) |
@@ -50,16 +52,19 @@ The visible Tasks dock now uses the same active Pi accent (purple in the Compose
 
 ## Panel controls
 
-The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Home is absent. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
+The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Home is absent. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
 
 ### Plan view
 
-- **Up/Down:** choose a task
-- **D:** full scrollable task details; Up/Down scrolls
-- **Q:** read-only requirement coverage: original request source, acceptance condition, linked task IDs, and disposition; Up/Down scrolls, Q/Escape returns
-- **Enter:** edit a task in the current plan: status, title, phase, completion criterion, dependencies or outcome/evidence
+- **Tab / Shift+Tab / Left / Right:** switch **Work**, **Requests**, and **Questions**
+- **Up/Down:** choose a record; scroll within full details
+- **Enter / D:** inspect full task/request details; Enter on a question opens Ask above the panel
+- **E:** edit the selected task in the current plan; Enter from task details also edits
+- **Q:** toggle readable **Requests**; technical IDs, original wording, acceptance and links are in selected details
+- **J:** open **Questions**; **W:** return to **Work**
+- **F:** show/hide completed work (quiet and collapsed by default)
 - **A:** add a task to the current plan
-- **H / Tab:** open the plan library
+- **H:** open the plan library
 - **N:** create a named plan
 - **T:** rename the viewed plan
 - **X:** archive the viewed plan (confirm if unfinished)
@@ -69,6 +74,20 @@ The modal has an **opaque raised surface, accent perimeter and contrasting selec
 - **O:** turn Tasks off
 - **Escape:** return from details/history, or close the panel
 - **Ctrl+C:** close the panel directly
+
+### Questions and coherent presentation
+
+Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. The Questions view includes the session's posted questions, including other plans and unlinked questions. Selection follows the question ID across answer-state reordering. Enter opens a focused Ask overlay; Escape keeps the draft and returns to the same row. `/questions` remains available without Tasks or Home, and existing synchronous Ask tools are unchanged.
+
+Blocking and deferred questions are distinct. The dock/Home overview shows a separate question count and attention hint; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
+
+Request tool cards lead with neutral bold titles and plain-language coverage. Expand for **Criterion**, **Original request**, **Linked work**, **Reference**, and any supersession **Disposition**. Full values remain available; prose wraps at up to 80 cells plus indentation even in a wide terminal. Field spacing and stronger gaps between records separate inspection from audit. Shared coverage is stated once in the card body (for example **Reported complete**), never only on a rail that can be clipped. Mixed states keep individual labels. Reported completion is structural coverage, not independent verification.
+
+Compact work cards replace repeated `Task · done:` prefixes with small semantic marks: green `✓` complete, accent `●` active status, neutral `○` not started, amber `!` blocked, and `–` cancelled. Titles remain normal text, not green paragraphs. Completion/status summaries appear once; blocker reasons and cancellation labels remain explicit. Expand for textual status, attributed outcome notes, evidence and references. Wrapping aligns continuation lines beneath the title. Tiny unframed cards retain textual summaries; essential states do not depend on color. The transcript and native `/tasks` browser share this status vocabulary through `typography.ts`. In the browser, selection uses its own `›` marker and raised selection fill; status colors affect marks rather than entire titles. Work completion is summarized rather than repeated beneath every completed item. Requests and question attention retain explicit qualifications, with gaps between records. Native overview/dock layout and preferences remain unchanged.
+
+**Enter opens panel details; E edits. Tab switches views; H opens history.** All other work/history actions remain available.
+
+`/workspace` → Tasks still owns the persistent **Home overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/workspace` → Ask's existing shell settings. Eligible Home transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
 
 ### Plan library
 
@@ -162,7 +181,7 @@ Only the user controls enable/disable, restores archived plans and clears lists.
 
 The Home host now consumes a separate, data-only overview: sourced done/total/blocker/cancelled counts, active identity, and open tasks ordered active → blocked → pending. This does not reorder the stored plan or change any task status. Completed work stays in the counts and full `/tasks` browser rather than occupying the persistent overview.
 
-Customize this surface through **`/footer` → Tasks**. Home uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
+Customize this surface through **`/workspace` → Tasks**. Home uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
 
 The legacy `/tasks prev`, `next`, `follow`, and `view focus|compact` controls remain available for the independent native fallback. They do not page the new Home overview away from active work. `/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
 

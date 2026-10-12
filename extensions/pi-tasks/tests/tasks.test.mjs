@@ -19,6 +19,8 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { emptyPlan, mutate, restorePlan, counts, dockRows, progressLabel, contextSummary, ENTRY } = await jiti.import(join(source, "state.ts"));
 const { BOOK_ENTRY, COMPLETION_MS, emptyBook, mutateBook, migratePlan, restoreBook, selectedPlan, resultPlan, bookContext, planInfo } = await jiti.import(join(source, "book.ts"));
 const factory = await jiti.import(join(source, "index.ts"), { default: true });
+const askFactory = await jiti.import(join(source, "../../packages/pi-ask/extensions/questions.ts"), { default: true });
+const { POSTED } = await jiti.import(join(source, "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts"));
 const homeFactory = await jiti.import(join(source, "../pi-home/index.ts"), { default: true });
 const { TaskPanel } = await jiti.import(join(source, "panel.ts"));
 const { FocusWindow } = await jiti.import(join(source, "focus.ts"));
@@ -160,13 +162,13 @@ test("persisted data, bounds and terminal controls are validated; memory is boun
   assert.doesNotMatch(dockRows(p, true)[0].text, /paused/);
 });
 
-async function harness({ home = false, order = "home-first", mode = "tui", prefs } = {}) {
+async function harness({ home = false, ask = false, order = "home-first", mode = "tui", prefs } = {}) {
   const scratch = mkdtempSync(join(tmpdir(), "pi-tasks-test-"));
   const previousDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = scratch;
   if (prefs !== undefined) writeFileSync(join(scratch, "pi-tasks.json"), typeof prefs === "string" ? prefs : JSON.stringify(prefs));
   const handlers = new Map(), commands = new Map(), tools = new Map(), entries = [], widgets = new Map(), notices = [], active = new Set(["read", "bash"]);
-  const events = createEventBus();
+  const events = createEventBus(), messages = [];
   let branch = entries, currentFactory, editor, footer, renderCount = 0, failStorage = false;
   const tui = { terminal: { rows: 40 }, requestRender() { renderCount++; } };
   const data = { getGitBranch: () => undefined, getExtensionStatuses: () => new Map(), onBranchChange: () => () => {} };
@@ -183,19 +185,23 @@ async function harness({ home = false, order = "home-first", mode = "tui", prefs
   const api = { events,
     on(name, fn) { if (!handlers.has(name)) handlers.set(name, []); handlers.get(name).push(fn); return () => {}; },
     registerCommand: (name, command) => commands.set(name, command),
-    registerEntryRenderer() {},
+    registerEntryRenderer() {}, registerMessageRenderer() {},
+    sendMessage(message, options) { messages.push({ ...structuredClone(message), role: "custom", options }); },
     registerTool(tool) { tools.set(tool.name, tool); active.delete(tool.name); if (tool.exposure === "direct") active.add(tool.name); },
     getActiveTools: () => [...active], setActiveTools(names) { active.clear(); names.forEach((n) => active.add(n)); },
     getThinkingLevel: () => "high",
     appendEntry(customType, value) { if (failStorage) throw new Error("disk failed"); const entry = { type: "custom", customType, data: structuredClone(value) }; branch.push(entry); },
   };
   if (home && order === "home-first") await homeFactory(api);
+  if (ask && order === "ask-first") await askFactory(api);
   await factory(api);
+  if (ask && order !== "ask-first") await askFactory(api);
   if (home && order !== "home-first") await homeFactory(api);
   const emit = async (name, value = {}) => { const results = []; for (const fn of handlers.get(name) ?? []) results.push(await fn({ type: name, ...value }, context)); return results; };
   const command = (name, args = "") => commands.get(name).handler(args, context);
   const call = (params, signal) => tools.get("tasks").execute("task-test", params, signal, undefined, context);
-  return { scratch, context, tools, handlers, entries, widgets, notices, events, active, tui, emit, command, call,
+  return { scratch, context, tools, handlers, entries, messages, widgets, notices, events, active, tui, emit, command, call,
+    callQuestion: params => tools.get("question_queue").execute("question-test", params, undefined, undefined, context),
     get editor() { return editor; }, get renders() { return renderCount; },
     branch(value) { branch = value; }, failStorage() { failStorage = true; },
     async close() { await emit("session_shutdown"); events.clear(); if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir; rmSync(scratch, { recursive: true, force: true }); },
@@ -423,12 +429,12 @@ test("task panel clips Unicode, shows cancelled separately, uses committed data 
   let result;
   for (const rows of [12, 24, 40]) {
     const b = migratePlan(p);
-    const panel = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, (r) => result = r);
+    const panel = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, (r) => result = r, { showDone: true });
     for (const width of [1, 2, 8, 20, 40, 80, 120]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
     panel.handleInput("d");
     for (const width of [1, 2, 8, 20, 80]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
     panel.handleInput("\x1b");
-    panel.handleInput("\x1b[B"); panel.handleInput("\r"); assert.deepEqual(result, { op: "edit", planId: "p1", revision: b.revision, id: "t2" });
+    panel.handleInput("\x1b[B"); panel.handleInput("e"); assert.deepEqual(result, { op: "edit", planId: "p1", revision: b.revision, id: "t2" });
     panel.handleInput("\x1b"); assert.equal(result, undefined);
   }
 });
@@ -468,10 +474,11 @@ test("tool results show committed checklist state without raw revisions, and upd
     assert.equal(result.details.plan.tasks[0].status, "pending", "the display label does not change stored state");
     for (const selected of [getThemeByName("dark"), getThemeByName("light")]) {
       const card = tool.renderResult(result, {}, selected, { args: { op: "add", items: [1, 2, 3] } }).render(80);
-      assert.ok(card.some(line => line.includes(selected.fg("accent", "+ Added 3 tasks · not started"))));
+      assert.ok(card.some(line => line.includes(selected.style("+ Added 3 tasks · not started", { fg: "muted", bold: false }))));
     }
-    assert.match(render({ op: "update", id: "t2" }), /Updated task · not started: Two/);
-    assert.doesNotMatch(render({ op: "update", id: "t2" }), /not started: One|not started: Three/);
+    assert.match(render({ op: "update", id: "t2" }), /Updated · not started/);
+    assert.match(render({ op: "update", id: "t2" }), /○ Two/);
+    assert.doesNotMatch(render({ op: "update", id: "t2" }), /○ One|○ Three|Task ·/);
     const emptyHistory = tool.renderResult({ content: [], details: { plan: result.details.plan, plans: [] } }, {}, theme, { args: { op: "plans" } }).render(80).map(plain).join("\n");
     assert.match(emptyHistory, /No saved plans/);
     const error = tool.renderResult({ content: [{ type: "text", text: "Update rejected" }] }, {}, theme, { args: { op: "update" } }).render(80);
@@ -515,7 +522,7 @@ test("task transcript cards wrap full titles and show status without a row cutof
       }
     }
     const text = tool.renderResult(updated, { expanded: false }, theme, { args: updateArgs }).render(30).map(plain).slice(1, -1).map(line => line.slice(1, -1).trimEnd()).join("").replace(/\s+/g, "");
-    assert.ok(text.includes(`Task active: 14 ${title}`.replace(/\s+/g, "")));
+    assert.ok(text.includes(`● 14 ${title}`.replace(/\s+/g, "")));
     assert.doesNotMatch(text, /pending/);
   } finally { await h.close(); }
 });
@@ -532,7 +539,7 @@ test("Pi transcript replaces a pending Tasks call with its final result, includi
     const result = { content: [], details: { plan: { tasks: [{ id: "t1", title: "Check the outcome", status: "active" }] } }, isError: false };
     card.updateResult(result);
     const completed = plain(card.render(80).join("\n"));
-    assert.match(completed, /Task active: Check the outcome/);
+    assert.match(completed, /● Check the outcome/);
     assert.doesNotMatch(completed, /Mark task active|in progress…/);
     const restored = component();
     restored.updateResult(result);
@@ -561,18 +568,22 @@ const bookWrite = (b, action, actor = "agent", now = 1000) => mutateBook(b, b.re
 const create = (b, title, titles = ["Read", "Build", "Check"], actor = "agent") => bookWrite(b, { op: "create", title, items: titles.map((title) => ({ title })) }, actor);
 const taskWrite = (b, id, changes, actor = "agent", now = 2000) => bookWrite(b, { op: "task", planId: b.selectedId, mutation: { op: "update", id, changes } }, actor, now);
 
-test("selected outcome preview wraps and marks height overflow explicitly", () => {
+test("completed work stays quiet and full outcome details wrap and scroll", () => {
   let b = create(emptyBook(), "Preview");
   b = taskWrite(b, "t1", { status: "done", note: "Inspected task state, dock hosts, question theme and rendering. Confirmed the final words remain visible." });
   const tui = { terminal: { rows: 40 }, requestRender() {} };
   const panel = new TaskPanel(tui, theme, () => b, () => undefined, () => {});
+  assert.doesNotMatch(plain(panel.render(60).join("\n")), /Inspected task state/);
+  panel.handleInput("f"); panel.handleInput("d");
   const lines = panel.render(60);
   assert.match(plain(lines.join("\n")), /remain visible\./);
   assert.ok(lines.every(line => visibleWidth(line) <= 60));
   b = taskWrite(b, "t1", { note: "Long finding with Unicode 界面. ".repeat(35) });
   tui.terminal.rows = 24;
   const clipped = panel.render(40);
-  assert.match(plain(clipped.join("\n")), /D for full details/);
+  assert.match(plain(clipped.join("\n")), /↑↓ scroll/);
+  for (let i = 0; i < 999; i++) panel.handleInput("\x1b[B");
+  assert.match(plain(panel.render(40).join("\n")), /Long finding|Unicode/);
   assert.ok(clipped.length <= Math.floor(24 * .85));
 });
 
@@ -820,8 +831,12 @@ test("requirement pages and read-only panel expose full sources without task edi
       panel.render(width); panel.handleInput("q");
       const lines = panel.render(width);
       assert.ok(lines.every(l => visibleWidth(l) <= width));
-      if (width >= 80) assert.match(lines.map(plain).join("\n"), /Source: User request 0/);
+      if (width >= 80) { assert.match(lines.map(plain).join("\n"), /Outcome 0/); assert.doesNotMatch(lines.map(plain).join("\n"), /User request 0/); }
       panel.handleInput("\r"); panel.handleInput("a");
+      if (width >= 80) assert.match(panel.render(width).map(plain).join("\n"), /User request 0/);
+      panel.handleInput("\x1b");
+      for (let i = 0; i < 999; i++) { panel.handleInput("\x1b[B"); panel.render(width); }
+      panel.handleInput("\r");
       for (let i = 0; i < 999; i++) { panel.handleInput("\x1b[B"); panel.render(width); }
       const last = panel.render(width).map(plain).join("\n");
       if (width >= 80) assert.match(last, /Observable result 24/);
@@ -1003,4 +1018,207 @@ test("Composer dock is responsive, motion-off stays still, and shows only source
   assert.deepEqual(workspace.render(100), [], "without a real provider, no demo or artwork appears");
   assert.equal(isSnapshot({ version: 1, sessionId: "test", id: "id", title: "Okay", rows: [{ text: "x", tone: "invalid" }] }), false);
   assert.equal(isHost({ version: 1, sessionId: "test", available: true, colors: {} }), false);
+});
+
+test("native question bridge validates links, blocks only linked agent task starts/completions and preserves independent work", async () => {
+  for (const order of ["ask-first", "tasks-first"]) {
+    const h = await harness({ ask: true, home: true, order });
+    try {
+      await h.emit("session_start");
+      const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+      const created = JSON.parse((await h.call({ op: "create", revision: initial.revision, title: "Native thread", items: [{ title: "Release boundary" }, { title: "Independent verification" }] })).content[0].text);
+      await h.callQuestion({ op: "post", question: { question: "Keep it local?", why: "Release scope belongs to you.", boundary: "Release waits; verification continues.", urgency: "blocking", planId: "p1", taskIds: ["t1"] } });
+      await assert.rejects(() => h.call({ op: "update", revision: created.revision, id: "t1", changes: { status: "active" } }), /waits on question q1/);
+      await assert.rejects(() => h.call({ op: "update", revision: created.revision, id: "t1", changes: { status: "done", note: "Pretend approval" } }), /No approval/);
+      await h.call({ op: "update", revision: created.revision, id: "t2", changes: { status: "active" } });
+      await assert.rejects(() => h.callQuestion({ op: "post", question: { question: "Unknown?", why: "Test", boundary: "Test", urgency: "blocking", planId: "p1", taskIds: ["t99"] } }), /unavailable/);
+      const display = [...h.widgets.values()].flatMap(w => w.render(120)).map(plain).join("\n");
+      assert.match(display, /blocking|question/); assert.match(display, /0\/2/);
+      assert.equal(h.widgets.has("pi-ask:posted"), false, "Tasks owns the hosted attention hint, not duplicate Ask fallback");
+      await h.command("tasks", "off"); assert.ok(h.widgets.has("pi-ask:posted"), "standalone Ask returns when Tasks is off");
+      await h.command("tasks", "on"); assert.equal(h.widgets.has("pi-ask:posted"), false);
+    } finally { await h.close(); }
+  }
+});
+
+test("Tasks keeps its selected question under an Ask overlay and stable across answer reordering", async () => {
+  const h = await harness({ ask: true });
+  try {
+    await h.emit("session_start");
+    await h.callQuestion({ op: "post", question: { question: "First question?", why: "First reason", boundary: "One boundary", urgency: "blocking" } });
+    await h.callQuestion({ op: "post", question: { question: "Second question?", why: "Second reason", boundary: "Can wait", urgency: "deferred" } });
+    const book = emptyBook(), nav = { section: "questions" }, forms = [];
+    const records = () => h.entries.filter(e => e.customType === "pi-ask:posted-v1").at(-1).data.questions.map(q => ({ id: q.id, revision: q.revision, question: q.definition.question, urgency: q.urgency, state: q.state, boundary: q.boundary, taskIds: q.taskIds }));
+    h.context.ui.custom = (make, options) => new Promise(resolve => { const component = make(h.tui, theme, kb, resolve); component.focused = true; forms.push({ component, options }); });
+    const panel = new TaskPanel(h.tui, theme, () => book, () => undefined, () => assert.fail("answering must not close/edit Tasks"), nav, () => true,
+      { available: true, records, open(q) { h.events.emit(POSTED.open, { version: 1, sessionId: "test-session", id: q.id, revision: q.revision }); } });
+    panel.render(100); panel.handleInput("\r");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(forms.at(-1).options.overlay, true);
+    forms.at(-1).component.handleInput("Keep it local"); forms.at(-1).component.handleInput("\x1b");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(nav.questionId, "q1"); assert.match(panel.render(100).map(plain).join("\n"), /› ! First question/);
+    panel.handleInput("\r"); await new Promise(resolve => setTimeout(resolve, 0));
+    assert.match(forms.at(-1).component.render(80).map(plain).join("\n"), /Keep it local/);
+    forms.at(-1).component.handleInput("\r"); forms.at(-1).component.handleInput("\r"); await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(h.messages.length, 1);
+    await h.emit("context", { messages: h.messages });
+    const q = JSON.parse((await h.callQuestion({ op: "list" })).content[0].text).questions[0];
+    await h.callQuestion({ op: "apply", id: q.id, revision: q.revision, reason: "A local handoff, not publication." });
+    panel.render(100); assert.equal(nav.questionId, "q1"); assert.equal(nav.questionIndex, 1, "same question stays selected after it moves below unanswered work");
+  } finally { await h.close(); }
+});
+
+test("deferred answers become needed at the linked task boundary without losing queued delivery", async () => {
+  const h = await harness({ ask: true });
+  try {
+    await h.emit("session_start"); const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const p = JSON.parse((await h.call({ op: "create", revision: initial.revision, title: "Dependency", items: [{ title: "Prepare the handoff" }] })).content[0].text);
+    await h.callQuestion({ op: "post", question: { question: "How detailed?", why: "Changes the handoff.", boundary: "Can wait until handoff starts.", urgency: "deferred", planId: "p1", taskIds: ["t1"] } });
+    let form;
+    h.context.ui.custom = make => new Promise(resolve => { form = make(h.tui, theme, kb, resolve); form.focused = true; });
+    const answer = h.command("questions", "q1"); await new Promise(resolve => setTimeout(resolve, 0));
+    form.handleInput("Detailed, but keep it local"); form.handleInput("\r"); form.handleInput("\r"); await answer;
+    const originalSubmission = h.messages[0].details.submissionRevision;
+    await assert.rejects(() => h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "active" } }), /waits on question/);
+    let q = JSON.parse((await h.callQuestion({ op: "list" })).content[0].text).questions[0];
+    assert.equal(q.urgency, "blocking"); assert.equal(q.state, "submitted"); assert.equal(q.submissionRevision, originalSubmission);
+    assert.match(q.neededNow, /linked work/);
+    await h.emit("context", { messages: h.messages });
+    q = JSON.parse((await h.callQuestion({ op: "list" })).content[0].text).questions[0]; assert.equal(q.state, "delivered");
+    await h.callQuestion({ op: "apply", id: "q1", revision: q.revision, reason: "A detailed local handoff; no publishing." });
+    await h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "active" } });
+  } finally { await h.close(); }
+});
+
+test("request cards use progressive disclosure and attention metadata is validated", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const result = await h.call({ op: "create", revision: initial.revision, title: "Readable", requirements: [{ title: "Readable request", source: "Exact original wording", acceptance: "Observable condition" }] });
+    const read = await h.call({ op: "requirements" }), tool = h.tools.get("tasks");
+    const compact = tool.renderResult(read, { expanded: false }, theme, { args: { op: "requirements" } }).render(100).map(plain).join("\n");
+    assert.match(compact, /Readable request/); assert.match(compact, /Needs linked work/); assert.doesNotMatch(compact, /Exact original wording|Reference r1/);
+    const expanded = tool.renderResult(read, { expanded: true }, theme, { args: { op: "requirements" } }).render(100).map(plain).join("\n");
+    assert.match(expanded, /Reference\s+r1/); assert.match(expanded, /Exact original wording/); assert.match(expanded, /Observable condition/);
+    const base = { version: 1, sessionId: "test", id: "tasks", title: "Tasks", rows: [], overview: { revision: "r", total: 0, done: 0, blocked: 0, cancelled: 0, rows: [], more: 0 } };
+    assert.equal(isSnapshot({ ...base, overview: { ...base.overview, questions: { blocking: -1, deferred: 0 } } }), false);
+    assert.equal(isSnapshot({ ...base, overview: { ...base.overview, questions: { blocking: 1, deferred: 2 } } }), true);
+  } finally { await h.close(); }
+});
+
+test("compact typography uses semantic glyphs and neutral titles without changing records", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const result = await h.call({ op: "create", revision: initial.revision, title: "Synthetic typography", items: ["Complete item", "Active item", "Blocked item", "Pending item", "Cancelled item"].map(title => ({ title })) });
+    const states = ["done", "active", "blocked", "pending", "cancelled"];
+    result.details.plan.tasks.forEach((t, i) => Object.assign(t, { status: states[i], note: i === 0 ? "Checked locally; not independently verified." : "", reason: i === 2 ? "Waiting for permission." : "" }));
+    const before = structuredClone(result), tool = h.tools.get("tasks");
+    for (const th of [getThemeByName("dark"), getThemeByName("light")]) {
+      const lines = tool.renderResult(result, { expanded: false }, th, { args: { op: "list" } }).render(120);
+      const text = lines.map(plain).join("\n");
+      assert.match(text, /✓ Complete item/); assert.match(text, /● Active item/); assert.match(text, /! Blocked item/);
+      assert.match(text, /○ Pending item/); assert.match(text, /– Cancelled item · cancelled/);
+      assert.match(text, /Blocked: Waiting for permission/); assert.match(text, /1 active/);
+      assert.doesNotMatch(text, /Task ·|Task done:|Task active:|verified complete/i);
+      const complete = lines.find(line => plain(line).includes("Complete item"));
+      assert.ok(complete.includes(th.fg("success", "✓ ")));
+      assert.ok(complete.includes(th.style("Complete item", { fg: "text", bold: false })));
+      assert.ok(!complete.includes(th.fg("success", "Complete item")), "success colors the mark, not the title");
+      const expanded = tool.renderResult(result, { expanded: true }, th, { args: { op: "list" } }).render(120).map(plain).join("\n");
+      assert.match(expanded, /Outcome · agent report/); assert.match(expanded, /not independently verified/); assert.match(expanded, /Reference\s+t1/);
+    }
+    assert.deepEqual(result, before, "rendering must never mutate stored outcomes");
+  } finally { await h.close(); }
+});
+
+test("expanded requests group readable exact content with bounded prose and truthful coverage", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    await h.call({ op: "create", revision: initial.revision, title: "Synthetic audit", requirements: [
+      { title: "Prepare the implementation plan", source: "Original request first paragraph.\nSecond paragraph preserves Unicode 界面 é and permission caveats.", acceptance: "Give a sequenced, verifiable implementation plan before changing code. Preserve pre-existing work and make the approval boundary visible." },
+      { title: "Review the remaining issue", source: "Keep the original words available.", acceptance: "Identify unresolved work without asserting approval." }
+    ] });
+    const read = await h.call({ op: "requirements" }), tool = h.tools.get("tasks");
+    read.details.requirements[0].state = "reported done";
+    read.details.requirements[0].taskIds = ["t1", "t2"];
+    // Historical renderer input can retain paragraphs even though new canonical records normalize controls.
+    read.details.requirements[0].source = read.details.requirements[0].source.replace(". Second", ".\nSecond");
+    const before = structuredClone(read);
+    for (const th of [getThemeByName("dark"), getThemeByName("light")]) {
+      const lines = tool.renderResult(read, { expanded: true }, th, { args: { op: "requirements" } }).render(200);
+      const body = lines.map(plain).slice(1, -1).map(line => line.slice(1, -1).trimEnd());
+      const text = body.join("\n");
+      assert.match(text, /Reported complete/); assert.match(text, /Needs linked work/);
+      assert.match(text, /Criterion/); assert.match(text, /Original request/); assert.match(text, /Linked work\s+t1, t2/); assert.match(text, /Reference\s+r1/);
+      assert.doesNotMatch(text, /What satisfaction looks like|Original wording:|Completion reported ·|verified complete/i);
+      const heading = lines.find(line => plain(line).includes("Prepare the implementation plan"));
+      assert.ok(heading.includes(th.style("Prepare the implementation plan", { fg: "text", bold: true })));
+      const start = body.findIndex(line => line.trim() === "Criterion");
+      const end = body.findIndex(line => line.trim() === "Original request");
+      const criterion = body.slice(start + 1, end).filter(line => line.trim());
+      assert.ok(criterion.length > 1, "wide windows still use a reading column");
+      assert.ok(criterion.every(line => visibleWidth(line) <= 83));
+      assert.equal(criterion.join("").replace(/\s/g, ""), read.details.requirements[0].acceptance.replace(/\s/g, ""));
+      assert.ok(body.some(line => line.trim() === "Original request first paragraph."));
+      assert.ok(body.some(line => line.trim().startsWith("Second paragraph")), "source paragraph boundaries survive rendering");
+      assert.ok(body.some((line, i) => !line && body[i + 1] === ""), "records have a stronger boundary than fields");
+    }
+    assert.deepEqual(read, before);
+  } finally { await h.close(); }
+});
+
+test("coverage qualifications survive narrow uncolored cards and all widths remain bounded", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+    const result = await h.call({ op: "create", revision: initial.revision, title: "Width fixture", items: [{ title: "A long title 界面 🧭 é with the final words preserved at normal widths" }], requirements: [{ title: "Review 界面", source: "First\nSecond\u001b[31m unsafe styling", acceptance: "No implied approval." }] });
+    const read = await h.call({ op: "requirements" }); read.details.requirements[0].state = "reported done";
+    const tool = h.tools.get("tasks");
+    for (const th of [getThemeByName("dark"), getThemeByName("light")]) for (const width of [0, 1, 2, 8, 12, 30, 80, 200]) for (const expanded of [false, true]) {
+      for (const [value, op] of [[read, "requirements"], [result, "list"]]) {
+        const lines = tool.renderResult(value, { expanded }, th, { args: { op } }).render(width);
+        assert.ok(lines.every(line => visibleWidth(line) <= width), `${op} width ${width}`);
+        assert.ok(lines.every(line => !line.includes("\n")), "one physical line per rendered row");
+      }
+      if (width >= 8) {
+        const text = tool.renderResult(read, { expanded }, th, { args: { op: "requirements" } }).render(width).map(plain);
+        const body = width < 12 ? text : text.slice(1, -1).map(line => line.slice(1, -1).trimEnd());
+        assert.ok(body.join("").replace(/\s/g, "").includes("Reportedcomplete"), "qualification is in the body, not a possibly clipped rail");
+      }
+    }
+  } finally { await h.close(); }
+});
+
+test("native Tasks shares neutral status typography, short grouped details and distinct selection", () => {
+  let b = create(emptyBook(), "Typography fixture", ["Completed item", "Active item", "Blocked item", "Pending item"]);
+  b = taskWrite(b, "t1", { status: "done", note: "Synthetic outcome only.", evidence: "local fixture" });
+  b = taskWrite(b, "t2", { status: "active" });
+  b = taskWrite(b, "t3", { status: "blocked", reason: "Explicit permission is required." });
+  b = bookWrite(b, { op: "requirements", requirements: [{ title: "Preserve the original intent", source: "Exact original request, with scope and approval caveats.", acceptance: "Retain a visible approval boundary and preserve original user work.", taskIds: ["t1"] }] });
+  const before = structuredClone(b);
+  for (const th of [getThemeByName("dark"), getThemeByName("light")]) {
+    const nav = { showDone: true }, panel = new TaskPanel({ terminal: { rows: 60 }, requestRender() {} }, th, () => b, () => undefined, () => {}, nav, () => true);
+    const work = panel.render(150), text = work.map(plain).join("\n");
+    assert.match(text, /› ✓ Completed item/); assert.match(text, /● Active item/); assert.match(text, /! Blocked item/);
+    assert.match(text, /Blocked · Explicit permission is required/); assert.match(text, /Working/);
+    assert.doesNotMatch(text, /Completion reported|Task · done|Current plan/);
+    const complete = work.find(line => plain(line).includes("Completed item"));
+    assert.ok(complete.includes(th.style("✓ ", { fg: th.colors.success })));
+    assert.ok(complete.includes(th.style("Completed item", { fg: th.colors.text, bold: false })));
+    assert.ok(work.some(line => line.includes(th.style("Typography fixture", { fg: th.colors.text, bold: true }))));
+    panel.handleInput("q"); const requests = panel.render(150).map(plain).join("\n");
+    assert.match(requests, /Reported complete · 1 linked/); assert.doesNotMatch(requests, /linked task/);
+    panel.handleInput("\r"); const details = panel.render(150).map(plain).join("\n");
+    assert.match(details, /Criterion/); assert.match(details, /Original request/); assert.match(details, /Exact original request/);
+    assert.doesNotMatch(details, /What satisfaction looks like|Original wording/);
+    panel.handleInput("\x1b"); panel.handleInput("w"); panel.handleInput("\r");
+    const outcome = panel.render(150).map(plain).join("\n"); assert.match(outcome, /Outcome · agent report/); assert.match(outcome, /Synthetic outcome only/);
+    for (const width of [1, 2, 8, 12, 30, 80, 150]) {
+      const rendered = panel.render(width); assert.ok(rendered.every(line => visibleWidth(line) <= width));
+    }
+  }
+  assert.deepEqual(b, before, "panel appearance must not change canonical state");
 });

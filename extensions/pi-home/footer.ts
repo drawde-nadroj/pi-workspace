@@ -9,7 +9,7 @@ import { shouldAnimate, type HomeState } from "./state.ts";
 import { composerStatus } from "./composer-live.ts";
 import { composerInset, composerPadding, composerSurface } from "./composer-style.ts";
 import { ActivityClock, FOOTER_DEFAULTS, FOOTER_ENTRY, activityParts, clean, parseGit, type FooterPrefs, type GitState } from "./footer-state.ts";
-import { loadWorkspacePrefs, WORKSPACE_SETTINGS, WORKSPACE_VERSION } from "./workspace-preferences.ts";
+import { loadWorkspacePrefs, workspaceSnapshot, WORKSPACE_SETTINGS, WORKSPACE_VERSION } from "./workspace-preferences.ts";
 import { footerRows, timingRows } from "./footer-view.ts";
 import { chooseFooter } from "./footer-settings.ts";
 import { appearanceRow } from "./appearance-render.ts";
@@ -17,11 +17,13 @@ import { clonePrefs } from "./appearance.ts";
 import { decorateActivity, moving } from "./footer-effects.ts";
 
 const WIDGET = "pi-home:activity";
-export async function saveFooter(path: string, prefs: FooterPrefs): Promise<void> {
+export async function saveFooter(path: string, prefs: FooterPrefs, expectedSnapshot?: string): Promise<void> {
   const temp = `${path}.${randomUUID()}.tmp`;
   try {
     await mkdir(join(path, ".."), { recursive: true });
     await writeFile(temp, JSON.stringify({ version: WORKSPACE_VERSION, ...prefs }, null, 2) + "\n", { mode: 0o600 });
+    if (expectedSnapshot !== undefined && await workspaceSnapshot(join(path, "..")) !== expectedSnapshot)
+      throw new Error("Workspace settings changed in another session. Nothing was saved; reload and try again.");
     await rename(temp, path);
   } finally { await rm(temp, { force: true }).catch(() => {}); }
 }
@@ -43,7 +45,7 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
   let mountedWidget = false, unsubscribe: (() => void) | undefined;
   let createdAt: number | undefined, lastUserSentAt: number | undefined, outcome = "done";
   const path = join(getAgentDir(), WORKSPACE_SETTINGS);
-  let unreadableSettings = false;
+  let unreadableSettings = false, loadedSnapshot: string | undefined;
   const refresh = () => tui?.requestRender();
   const persist = () => { if (ctx?.mode === "tui") pi.appendEntry(FOOTER_ENTRY, clock.snapshot(Date.now())); };
   const composer = () => home.footerPickerOpen || home.prefs.enabled;
@@ -189,9 +191,9 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
     stop();
     if (context.mode !== "tui") return;
     ctx = context;
-    try { prefs = await loadWorkspacePrefs(); unreadableSettings = false; }
+    try { prefs = await loadWorkspacePrefs(); loadedSnapshot = await workspaceSnapshot(); unreadableSettings = false; }
     catch (error) {
-      prefs = { ...FOOTER_DEFAULTS }; unreadableSettings = true;
+      prefs = { ...FOOTER_DEFAULTS }; loadedSnapshot = undefined; unreadableSettings = true;
       context.ui.notify(`Workspace settings could not be read: ${String(error)}. Using defaults; saved files are unchanged.`, "warning");
     }
     restore(context); git = undefined; gitUnavailable = false; lastGitAt = 0;
@@ -250,6 +252,13 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
       if (context.mode !== "tui") { context.ui.notify("/workspace requires terminal UI mode.", "info"); return; }
       if (unreadableSettings) { context.ui.notify("Workspace settings could not be read; fix the saved file before editing so it is not overwritten.", "error"); return; }
       if (pickerOpen) return;
+      let openedSnapshot: string;
+      try {
+        openedSnapshot = await workspaceSnapshot();
+        if (openedSnapshot !== loadedSnapshot) {
+          context.ui.notify("Workspace settings changed since this session loaded. Run /reload before editing.", "warning"); return;
+        }
+      } catch (error) { context.ui.notify(`Workspace settings could not be checked: ${String(error)}`, "error"); return; }
       pickerOpen = true; home.footerPickerOpen = true; ctx = context; wake();
       const original = clonePrefs(prefs), gen = generation;
       const abort = new AbortController(); pickerAbort = abort; pickerBaseline = original;
@@ -271,9 +280,10 @@ export function registerFooter(pi: ExtensionAPI, home: HomeState): void {
         }, abort.signal);
         if (gen !== generation || !selected) return;
         // Persist first. A failed write cancels the preview rather than pretending it was saved.
-        await saveFooter(path, selected);
+        await saveFooter(path, selected, openedSnapshot);
         if (gen !== generation) return;
         prefs = selected; committed = true;
+        loadedSnapshot = await workspaceSnapshot();
         context.ui.notify("Workspace saved for all Pi sessions. Other open sessions adopt it after /reload.", "info");
       } catch (error) { context.ui.notify(`Workspace settings were not saved: ${String(error)}`, "error"); }
       finally {

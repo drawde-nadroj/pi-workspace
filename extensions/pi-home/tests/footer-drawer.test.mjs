@@ -25,7 +25,7 @@ for (const Renderer of [TuiAltScreen, TuiMainScreen]) for (const history of [0, 
       assert.doesNotMatch(screen.join("\n"), /TRANSCRIPT-MUST-NOT-LEAK/);
       assert.match(screen.join("\n"), /\[Discard\].*\[Save\]/);
       assert.equal(screen.filter(line => line.includes("Unsent native")).length, 1, "one visible native draft, not a duplicate sample");
-      const note = screen.findIndex(line => line.includes("Live input box"));
+      const note = screen.findIndex(line => line.includes("Your live input"));
       const draft = screen.findIndex(line => line.includes("Unsent native"));
       assert.ok(note > 0 && draft > note && draft - note <= 3);
       assert.equal(handle.getBounds().col, 0); assert.equal(handle.getBounds().row, 0);

@@ -43,9 +43,11 @@ function taskPanelLayout(theme: Theme, width: number, dock: DockSnapshot, prefs:
       text: i === count - 1 && lines.length > count ? truncateToWidth(lines[i], Math.max(0, inner - 1), "") + "…" : lines[i] });
   }
   if (!content.length) content.push({ text: info?.total ? info.done === info.total ? "✓ All tasks complete" : "No open tasks" : "No tasks", role: "muted" });
-  const hint = hidden > 0 ? `+ ${hidden} open · /tasks` : "";
+  const attention = (info?.questions?.blocking ?? 0) + (info?.questions?.deferred ?? 0);
+  const hint = hidden > 0 ? `+ ${hidden} open · /tasks` : attention ? "/tasks questions" : "";
   let summary = info ? `${info.done}/${info.total} done${info.blocked ? ` · ${info.blocked} blocked` : ""}${info.cancelled ? ` · ${info.cancelled} cancelled` : ""}` : cleanText(dock.summary ?? "");
   if (info && width < 36) summary = `✓ ${info.done}/${info.total}${info.blocked ? ` · !${info.blocked}` : ""}${info.cancelled ? ` · –${info.cancelled}` : ""}`;
+  if (attention) summary += width < 36 ? ` · ?${attention}` : ` · ${attention} question${attention === 1 ? "" : "s"}`;
   if (width < 16) {
     if (hint && content.length < bodyBudget) content.push({ text: hint, role: "muted" });
     return { rows: content.map(row => truncateToWidth(row.text, width, "…")), hits: [] };

@@ -5,9 +5,63 @@ import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 
 const MARKER = ".chronomancer.json";
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-export type Entry = { id: string; root: string; parent: string | null; depth: number; level: number; time: string; createdAt: string; body: string; revision: false };
+export type Entry = { id: string; root: string; parent: string | null; depth: number; level: number; time: string; createdAt: string | null; body: string; revision: false; legacyTitle?: string };
 export type Snapshot = { day: string; entries: Entry[] };
 export type Journal = { directory: string; id: string };
+export type PassProgress = { schema: 1; journal: string; day: string; pass: number;
+  route: string[]; index: number; edge: boolean; updatedAt: string };
+function progressPath(journal: Journal, profile: string): string {
+  if (!/^[\w-]+$/.test(profile)) throw new Error("Invalid progress profile.");
+  return join(journal.directory, `.chronomancer-progress-${profile}.json`);
+}
+export async function loadProgress(journal: Journal, profile = "owner"): Promise<{ state: PassProgress | null; bytes: string | null }> {
+  const path = progressPath(journal, profile);
+  let bytes: string;
+  try {
+    const info = await lstat(path);
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error("Pass checkpoint must be a regular file.");
+    bytes = await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: null, bytes: null };
+    throw error;
+  }
+  let state: PassProgress;
+  try { state = JSON.parse(bytes); } catch { throw new Error("Invalid pass checkpoint; left untouched."); }
+  if (state?.schema !== 1 || state.journal !== journal.id || typeof state.day !== "string" ||
+    !Number.isInteger(state.pass) || state.pass < 2 || state.pass > 5 ||
+    !Array.isArray(state.route) || !state.route.every(id => typeof id === "string") ||
+    !Number.isInteger(state.index) || state.index < 1 ||
+    (state.route.length > 0 && state.index > state.route.length) ||
+    typeof state.edge !== "boolean" || typeof state.updatedAt !== "string")
+    throw new Error("Invalid pass checkpoint; left untouched.");
+  validateDay(state.day);
+  return { state, bytes };
+}
+export async function saveProgress(journal: Journal, state: Omit<PassProgress, "schema" | "journal" | "updatedAt">,
+  expected: string | null, profile = "owner"): Promise<string> {
+  const path = progressPath(journal, profile);
+  validateDay(state.day);
+  return withFileMutationQueue(path, async () => {
+    let current: string | null;
+    try {
+      const info = await lstat(path);
+      if (!info.isFile() || info.isSymbolicLink()) throw new Error("Pass checkpoint must be a regular file.");
+      current = await readFile(path, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      current = null;
+    }
+    if (current !== expected) throw new Error("Pass position changed elsewhere; reopen Chronomancer to resume it.");
+    const bytes = JSON.stringify({ ...state, schema: 1, journal: journal.id, updatedAt: new Date().toISOString() }) + "\n";
+    const temp = `${path}.${randomUUID()}.tmp`;
+    try {
+      const handle = await open(temp, "wx", 0o600);
+      try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+      await rename(temp, path);
+    } finally { await rm(temp, { force: true }).catch(() => {}); }
+    return bytes;
+  });
+}
 
 export function localDay(now = new Date()): string {
   const n = (v: number) => String(v).padStart(2, "0");
@@ -50,7 +104,7 @@ export async function connectJournal(directory: string): Promise<Journal> {
 
 /** One journal per working directory. An existing marker takes precedence; never
  * turn an unrelated occupied directory into a journal without a user decision. */
-export async function openLocalJournal(cwd: string): Promise<Journal> {
+export async function openLocalJournal(cwd: string, options: { create?: boolean } = {}): Promise<Journal> {
   const directory = await realpath(cwd);
   const existing = async (path: string) => lstat(path).catch(error => {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -59,7 +113,10 @@ export async function openLocalJournal(cwd: string): Promise<Journal> {
   if (await existing(join(directory, MARKER))) return connectJournal(directory);
   const child = join(directory, "chronomancer");
   const info = await existing(child);
-  if (!info) return createJournal(child);
+  if (!info) {
+    if (options.create === false) throw new Error("No local journal exists. Use /chronomancer mirror to create one, or /chronomancer mirror connect <absolute directory> to read an existing journal. No files were changed.");
+    return createJournal(child);
+  }
   if (!info.isDirectory() || info.isSymbolicLink())
     throw new Error(`${child} already exists but is not a journal directory; no files were changed.`);
   if (!await existing(join(child, MARKER)))
@@ -73,24 +130,34 @@ function parse(source: string, day: string): { entry: Entry; start: number; fini
   const nodes: { entry: Entry; start: number; finish: number }[] = [];
   const byId = new Map<string, Entry>();
   let current: typeof nodes[number] | undefined;
+  let fence: { mark: string; length: number } | undefined;
   for (let i = 1; i < lines.length; i++) {
-    const heading = /^(#{1,6}) (\d{2}:\d{2}:\d{2})$/.exec(lines[i]);
+    const marker = /^\s*(`{3,}|~{3,})/.exec(lines[i])?.[1];
+    if (marker) {
+      if (!fence) fence = { mark: marker[0], length: marker.length };
+      else if (marker[0] === fence.mark && marker.length >= fence.length) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+    const heading = /^(#{1,6}) (\d{2}:\d{2}(?::\d{2}|:)?)(.*)$/.exec(lines[i]);
     if (!heading) {
       if (/^#{1,6}\s/.test(lines[i])) throw new Error(`Unrecognized heading at line ${i + 1}; no changes made.`);
       continue;
     }
     if (current) current.finish = i;
     const id = /^<!-- chronomancer:id=([0-9a-f-]{36}) -->$/.exec(lines[++i] ?? "")?.[1];
-    const createdAt = /^<!-- chronomancer:created-at=(\d{4}-\d{2}-\d{2}T[^ ]+) -->$/.exec(lines[++i] ?? "")?.[1];
+    const recorded = /^<!-- chronomancer:created-at=(\d{4}-\d{2}-\d{2}T[^ ]+|unknown) -->$/.exec(lines[++i] ?? "")?.[1];
+    const createdAt = recorded === "unknown" ? null : recorded;
     const parentRaw = /^<!-- chronomancer:parent=([0-9a-f-]{36}|none) -->$/.exec(lines[++i] ?? "")?.[1];
-    if (!id || !createdAt || !Number.isFinite(Date.parse(createdAt)) || !parentRaw || byId.has(id))
+    if (!id || !recorded || (createdAt && !Number.isFinite(Date.parse(createdAt))) || !parentRaw || byId.has(id))
       throw new Error(`Malformed or duplicate Chronomancer metadata near line ${i - 1}; no changes made.`);
     const parent = parentRaw === "none" ? null : byId.get(parentRaw);
     if (parentRaw !== "none" && !parent) throw new Error("A journal parent is missing; no changes made.");
     const depth = parent ? parent.depth + 1 : 1;
     if (depth !== heading[1].length || depth > 5) throw new Error("Journal heading depth disagrees with its parent; no changes made.");
     const entry: Entry = { id, root: parent?.root ?? id, parent: parent?.id ?? null, depth, level: depth,
-      time: heading[2], createdAt, body: "", revision: false };
+      time: heading[2], createdAt: createdAt ?? null, body: "", revision: false,
+      ...(heading[3] ? { legacyTitle: heading[2] + heading[3] } : {}) };
     current = { entry, start: i - 3, finish: lines.length - 1 };
     nodes.push(current); byId.set(id, entry);
   }

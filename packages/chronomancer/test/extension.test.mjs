@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const directory = resolve(fileURLToPath(new URL('..', import.meta.url)));
-test('Pi cold-loads the independent extension; RPC discovers one command without a model call', async () => {
+test('Pi cold-loads the independent extension; RPC discovers Chronomancer and rewind without a model call', async () => {
   const agent = mkdtempSync(join(tmpdir(), 'pi-chronomancer-test-'));
   const previous = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = agent;
@@ -19,6 +19,7 @@ test('Pi cold-loads the independent extension; RPC discovers one command without
     const result = await loadExtensions([join(directory, 'extensions/index.ts')], agent);
     assert.deepEqual(result.errors, []);
     assert.equal(result.extensions[0].commands.has('chronomancer'), true);
+    assert.equal(result.extensions[0].commands.has('rewind'), true);
     assert.equal(result.extensions[0].handlers.has('input'), true);
     const rpc = execFileSync('pi', ['--mode', 'rpc', '--no-session', '--offline', '--no-context-files', '--no-skills', '--no-prompt-templates', '--no-themes', '-e', directory], {
       encoding: 'utf8', input: '{"id":"commands","type":"get_commands"}\n',
@@ -27,6 +28,7 @@ test('Pi cold-loads the independent extension; RPC discovers one command without
     const response = rpc.find(record => record.id === 'commands');
     assert.equal(response?.success, true);
     assert.ok(response.data.commands.some(command => command.name === 'chronomancer'));
+    assert.ok(response.data.commands.some(command => command.name === 'rewind'));
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previous;

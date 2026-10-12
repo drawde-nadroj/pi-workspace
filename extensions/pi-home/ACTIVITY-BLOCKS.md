@@ -4,7 +4,7 @@ Available in the live Composer look after `/reload`. Rendering uses no classifie
 
 ## Compact is the default
 
-The header shows the tool, target, a semantic status marker and disclosure arrow. Routine completion needs no repeated “returned” label; running, failure, cancellation and child problems remain written. Ordinary compact cards have **at most two body rows**, plus their border/header. Explicit safety notices can add rows; compactness must not hide a tool's stated limits.
+The header shows the tool, target, a semantic status marker and disclosure arrow. Routine completion needs no repeated “returned” label; running, failure, cancellation and child problems remain written. Ordinary compact cards have **at most two body rows**, plus their border/header. Codemode additionally shows up to three recorded child-action rows and one omitted-action count. Explicit safety notices can add rows; compactness must not hide a tool's stated limits.
 
 | Tool/content | Compact | Expanded readable |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ The header shows the tool, target, a semantic status marker and disclosure arrow
 | Edit | Added/removed line counts from the supplied diff | Native colored diff and returned text; requested replacements remain in raw arguments |
 | Bash / PowerShell | Last two nonempty lines, with an explicit diagnostic line promoted when found | Full returned text and command as source |
 | Grep / Find / List | Short returned-text preview | Full returned text and remaining arguments |
-| Codemode | Call count and output summary; active child target when waiting/streaming; failed/cancelled/pending counts | Child identities, states, durations, errors and reported costs; readable result blocks; highlighted script |
+| Codemode | Call count and output summary; up to three recorded tool names/targets with states; omitted-action count; failed/cancelled/pending counts | Highlighted submitted script first; recorded child identities, states, durations, errors and reported costs; readable result blocks |
 | JSON / JSONL | Field/item/record counts; explicit diagnostic-field count and one excerpt | Readable nested fields and multiline string blocks |
 | Generic text | Two short text lines | Full returned text and readable arguments |
 | Error / cancellation | Short diagnostic preview and explicit lifecycle | Returned error content; input details remain inspectable |
@@ -30,8 +30,9 @@ Click anywhere on a collapsed card to expand. Click its heading to collapse. Pi'
 - Single JSON objects/arrays and complete JSONL records get a readable nested view. Strings are decoded **once**. Literal backslash-n text stays literal; actual newline characters become lines.
 - A bounded parser preserves numeric source lexemes and duplicate keys. It does not round large IDs, assign input keys onto objects, or evaluate anything.
 - Codemode drops **only** its exact first separate native `Script completed/failed / Wall time / Output` block from readable output. Duration is retained. A matching-looking prefix embedded in a script's own text stays visible.
+- Codemode shows **Script · submitted** before **Recorded calls** and results. Submitted source is not proof that every line ran. Compact action rows use recorded calls only, prioritizing failed, cancelled and running calls before routine calls; the selected subset keeps execution order. Each action is one terminal row, shortened with `…` when necessary. Expand to inspect full targets and commands. Missing call metadata never causes source parsing or invented actions.
 - Child calls retain their separate state, available error text, duration and reported cost. Successful child text is neutral, with a colored status symbol; entire rows no longer glow green.
-- Inputs follow results. Targets already shown in the header and requested edits already represented by a supplied diff are not duplicated; raw arguments remain available.
+- Other tool inputs follow results. Targets already shown in the header and requested edits already represented by a supplied diff are not duplicated; raw arguments remain available.
 - Expanded body clicks, modified clicks, drags and wheel events remain available for selection and scrolling, except the small explicit raw/readable link.
 
 ## Raw access

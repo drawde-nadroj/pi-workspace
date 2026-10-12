@@ -7,12 +7,14 @@ import { wrapTextWithAnsi, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { DOCK, isHost, cleanText, layoutDock, type DockAck, type DockColors, type DockSnapshot } from "../../lib/home-dock.ts";
 import { taskFrame } from "../../lib/task-frame.ts";
+import { taskResultCard, type TaskCardDetails } from "./transcript.ts";
 import { ENTRY, STATUSES, counts, dockRows, progressLabel, taskOverview, type Plan, type Change, type Mutation } from "./state.ts";
 import { BOOK_ENTRY, COMPLETION_MS, emptyBook, migratePlan, restoreBook, mutateBook, selectedPlan, resultPlan, planInfo, bookContext, isPlanClosed,
   type PlanBook, type BookMutation } from "./book.ts";
 import { TaskPanel, type PanelResult, type PanelNavigation } from "./panel.ts";
 
 import { FocusWindow } from "./focus.ts";
+import { POSTED, isQuestionSnapshot, unresolved, type QuestionSnapshot } from "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts";
 import { ATOMIC_GUIDANCE, coverageContext, coverageGaps, requirementCoverage, type Requirement } from "./requirements.ts";
 
 const TOOL = "tasks", WIDGET = "pi-tasks:fallback", MEMORY = "pi-tasks:context-v1";
@@ -52,6 +54,21 @@ export default function tasks(pi: ExtensionAPI) {
   let colors: DockColors | undefined;
   let book = emptyBook(), fault: string | undefined;
   let panelTui: TUI | undefined;
+  let questions: QuestionSnapshot | undefined;
+  const questionRecords = () => questions?.available ? questions.questions : [];
+  const catalogue = () => { if (ctx) pi.events.emit(POSTED.catalogue, { version: 1, sessionId: sessionId(), available: enabled && !fault, plans: book.plans.filter(p => p.archivedAt === null).map(p => ({ id: p.id, taskIds: p.state.tasks.map(t => t.id) })) }); };
+  const withAttention = (s: DockSnapshot): DockSnapshot => {
+    const p = selectedPlan(book), open = questionRecords().filter(unresolved);
+    if (!open.length) return s;
+    const blocking = open.filter(q => q.urgency === "blocking").length, deferred = open.length - blocking;
+    const row = { text: `${blocking ? `! ${blocking} blocking` : ""}${blocking && deferred ? " · " : ""}${deferred ? `? ${deferred} can wait` : ""} · /tasks questions`, tone: blocking ? "warning" as const : "muted" as const };
+    s.rows = [row, ...s.rows].slice(0, 12); s.summary = `${blocking} blocking question${blocking === 1 ? "" : "s"} · ${deferred} can wait`;
+    if (!s.overview) s.overview = { revision: book.revision, ...(p ? { planId: p.id } : {}), total: p?.state.tasks.length ?? 0,
+      done: p?.state.tasks.filter(t => t.status === "done").length ?? 0, blocked: p?.state.tasks.filter(t => t.status === "blocked").length ?? 0,
+      cancelled: p?.state.tasks.filter(t => t.status === "cancelled").length ?? 0, rows: [], more: 0 };
+    s.overview.rows = [row, ...s.overview.rows].slice(0, 12);
+    s.overview.questions = { blocking, deferred }; return s;
+  };
   let completionTimer: ReturnType<typeof setTimeout> | undefined;
   let saves = Promise.resolve();
   const preferencesPath = join(getAgentDir(), "pi-tasks.json");
@@ -62,10 +79,10 @@ export default function tasks(pi: ExtensionAPI) {
     const s: DockSnapshot = { version: 1, sessionId: sessionId() ?? "", id: "pi-tasks", title: p?.title ?? "Plans", rows: [], hint: "/tasks" };
     if (!enabled || hidden) return s;
     if (fault) { s.rows = [{ text: "Plan history couldn't be read · /tasks clear to reset", tone: "error" }]; return s; }
-    if (!p) return s;
+    if (!p) return withAttention(s);
     if (p.closedAt !== null) {
       if (Date.now() >= p.closedAt && Date.now() - p.closedAt < COMPLETION_MS) s.rows = [{ text: `${p.state.tasks.some((t) => t.status === "done") ? "✓" : "–"} Plan closed · ${counts(p.state)} · saved in /tasks`, tone: "muted" }];
-      return s;
+      return withAttention(s);
     }
     s.rows = dockRows(p.state, running); s.summary = progressLabel(p.state); s.more = Math.max(0, p.state.tasks.length - 12);
     if (appearance === "focus") focus.apply(s, p.id, p.state, running);
@@ -77,7 +94,7 @@ export default function tasks(pi: ExtensionAPI) {
     }
     s.overview = { ...taskOverview(p.state, running), planId: p.id };
     if (gaps.length && !s.overview.rows.length) s.overview.rows = [{ text: s.summary!, tone: "warning" }];
-    return s;
+    return withAttention(s);
   };
   function fallback() {
     if (ctx?.mode !== "tui") return;
@@ -95,7 +112,7 @@ export default function tasks(pi: ExtensionAPI) {
   function publish() {
     stopCompletionTimer();
     if (!ctx) return;
-    pi.events.emit(DOCK.update, snapshot());
+    catalogue(); pi.events.emit(DOCK.update, snapshot());
     fallback(); panelTui?.requestRender();
     const p = selectedPlan(book);
     const remaining = p?.closedAt != null && Date.now() >= p.closedAt ? p.closedAt + COMPLETION_MS - Date.now() : 0;
@@ -109,7 +126,7 @@ export default function tasks(pi: ExtensionAPI) {
     book = next; fault = undefined; publish();
   }
   function restore(context: ExtensionContext, preserveActivity = false) {
-    ctx = context;
+    ctx = context; questions = undefined;
     if (!preserveActivity) { running = false; touchedPlanId = undefined; reconciliationRequested = false; focus.reset(); }
     let value: unknown, legacy = false;
     for (const entry of context.sessionManager.getBranch()) if (entry.type === "custom" && (entry.customType === ENTRY || entry.customType === BOOK_ENTRY)) {
@@ -117,7 +134,7 @@ export default function tasks(pi: ExtensionAPI) {
     }
     try { book = value === undefined ? emptyBook() : legacy ? migratePlan(value) : restoreBook(value); fault = undefined; }
     catch (error) { book = emptyBook(); fault = String(error); context.ui.notify(`pi-tasks: ${fault}. History was not overwritten. /tasks clear can explicitly reset it.`, "warning"); }
-    publish();
+    publish(); pi.events.emit(POSTED.probe, { version: 1, sessionId: sessionId() });
   }
   function registerTool() {
     pi.registerTool({
@@ -156,6 +173,14 @@ export default function tasks(pi: ExtensionAPI) {
             }
             action = { op: "task", planId: params.planId, mutation };
           }
+          if (params.op === "update" && ["active", "done"].includes(params.changes?.status ?? "")) {
+            const gate = questionRecords().find(q => unresolved(q) && q.planId === requestedPlanId && q.taskIds.includes(params.id!));
+            if (gate) {
+              if (gate.urgency === "deferred") pi.events.emit(POSTED.needed, { version: 1, sessionId: sessionId(), id: gate.id, revision: gate.revision, planId: requestedPlanId, taskId: params.id });
+              throw new Error(`Linked work waits on question ${gate.id}. An answer must be delivered and reported applied before starting/completing this task. No approval is inferred.`);
+            }
+          }
+          if (params.op === "archive" && questionRecords().some(q => q.planId === requestedPlanId && unresolved(q))) throw new Error("This plan has unresolved questions. Apply or explicitly disposition them before agent archival.");
           commit(mutateBook(book, params.revision, action, "agent"));
           if (running && (params.op === "create" || params.op === "add" || params.op === "update" || params.op === "requirements")) touchedPlanId = book.selectedId ?? undefined;
         }
@@ -197,38 +222,23 @@ export default function tasks(pi: ExtensionAPI) {
         } };
       },
       renderResult(result, options, theme, context) {
-        const details = result.details as { plan?: Plan; title?: string; requirements?: (Requirement & { state: string })[]; plans?: ReturnType<typeof planInfo>[] } | undefined;
+        const details = result.details as TaskCardDetails | undefined;
         if (!details?.plan) return { invalidate() {}, render(width: number) {
           const error = cleanText(result.content.filter(c => c.type === "text").map(c => c.text).join("\n"));
           return taskFrame(theme, width, wrapTextWithAnsi(theme.fg("error", error), Math.max(1, width - 2)));
         } };
-        const p = details.plan, op = context.args.op;
-        const changed = op === "update" ? p.tasks.filter(t => t.id === context.args.id)
-          : op === "add" && context.args.items?.length ? p.tasks.slice(-context.args.items.length) : p.tasks;
-        const planActions: Record<string, string> = { archive: "Archived plan", select: "Selected plan", rename: "Renamed plan" };
-        const statusLabel = (status: string) => status === "pending" ? "not started" : status;
-        const rows: { text: string; tone: "muted" | "accent" }[] = details.requirements
-          ? details.requirements.flatMap(r => [{ text: `${r.id} · ${r.state}: ${r.title}`, tone: "accent" as const },
-            { text: `Source: ${r.source}`, tone: "muted" as const }, { text: `Accept when: ${r.acceptance}`, tone: "muted" as const },
-            { text: `Tasks: ${r.taskIds.join(", ") || "not linked"}${r.reason ? ` · ${r.reason}` : ""}`, tone: "muted" as const }])
-          : details.plans ? details.plans.map(p => ({ text: `${p.current ? "▸" : "·"} ${p.title} · ${p.state} · ${p.counts}`, tone: "muted" }))
-          : op && planActions[op] ? [{ text: `${planActions[op]}: ${details.title ?? "Plan"}`, tone: "muted" }]
-          : (op === "add" || op === "create") && changed.length
-            ? [{ text: `+ Added ${changed.length} task${changed.length === 1 ? "" : "s"} · not started`, tone: "accent" },
-              ...changed.map(t => ({ text: `○ ${t.title}`, tone: "muted" as const }))]
-            : changed.map(t => ({ text: op === "update" && context.args.changes?.status
-              ? `Task ${statusLabel(t.status)}: ${t.title}` : `${op === "update" ? "Updated task" : "Task"} · ${statusLabel(t.status)}: ${t.title}`, tone: "muted" }));
-        if (op === "create" && details.title) rows.unshift({ text: `Created plan: ${details.title}`, tone: "accent" });
         return { invalidate() {}, render(width: number) {
-          const empty = op === "requirements" ? "No requirements recorded · coverage not established" : op === "plans" ? "No saved plans" : op === "list" && !details.title ? "No current plan" : "No tasks";
-          const content = (rows.length ? rows : [{ text: empty, tone: "muted" as const }]).flatMap(row =>
-            wrapTextWithAnsi(cleanText(row.text), Math.max(1, width - 2)).map(line => theme.fg(row.tone ?? "text", line)));
-          return taskFrame(theme, width, content);
+          return taskResultCard(details, context.args, !!options.expanded, theme, width);
         } };
       },
     });
   }
   registerTool(); // No timers, filesystem writes, or UI during factory loading.
+  pi.events.on(POSTED.catalogueProbe, (request: any) => { if (request?.version === 1 && request.sessionId === sessionId()) catalogue(); });
+  pi.events.on(POSTED.update, value => {
+    if (!isQuestionSnapshot(value) || value.sessionId !== sessionId()) return;
+    questions = value; publish();
+  });
   pi.events.on(DOCK.host, (value) => {
     if (!isHost(value) || !ctx || value.sessionId !== sessionId()) return;
     mounted = false; colors = value.available ? value.colors : undefined;
@@ -284,7 +294,8 @@ export default function tasks(pi: ExtensionAPI) {
     stopCompletionTimer();
     if (ctx) { const s = snapshot(); s.rows = []; pi.events.emit(DOCK.update, s); }
     if (ctx?.mode === "tui") ctx.ui.setWidget(WIDGET, undefined);
-    ctx = undefined; mounted = false; touchedPlanId = undefined; reconciliationRequested = false; colors = undefined; panelTui = undefined;
+    if (ctx) pi.events.emit(POSTED.catalogue, { version: 1, sessionId: sessionId(), available: false, plans: [] });
+    questions = undefined; ctx = undefined; mounted = false; touchedPlanId = undefined; reconciliationRequested = false; colors = undefined; panelTui = undefined;
   });
 
   async function savePreferences(context: ExtensionContext) {
@@ -367,8 +378,8 @@ export default function tasks(pi: ExtensionAPI) {
     if (changes) commit(mutateBook(book, revision, { op: "task", planId: p.id, mutation: { op: "update", id: task.id, changes } }, "user"));
   }
   pi.registerCommand("tasks", {
-    description: "Named session plans: history, new <name>, use/archive/restore <planId>, add <task>, rename <name>, clear, hide, unhide, on, off. Hide only affects the dock. Home is independent.",
-    getArgumentCompletions: (prefix) => ["show", "history", "new ", "use ", "archive", "restore ", "rename ", "add ", "clear", "hide", "unhide", "on", "off"].filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
+    description: "Work, Requests and Questions in a native panel. Named session plans: history, new <name>, use/archive/restore <planId>, add <task>, rename <name>, clear, hide, unhide, on, off. Hide only affects the dock. Home is independent.",
+    getArgumentCompletions: (prefix) => ["show", "requests", "questions", "view focus", "view compact", "history", "new ", "use ", "archive", "restore ", "rename ", "add ", "clear", "hide", "unhide", "on", "off"].filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
     handler: async (args, context) => {
       ctx = context; const command = args.trim();
       try {
@@ -384,7 +395,8 @@ export default function tasks(pi: ExtensionAPI) {
         }
         if (/^view (focus|compact)$/.test(command)) {
           appearance = command.endsWith("focus") ? "focus" : "compact";
-          publish(); await savePreferences(context); return;
+          publish(); await savePreferences(context);
+          context.ui.notify(`Tasks fallback: ${appearance === "focus" ? "Focus" : "Compact"} · applies when Home is off · plan unchanged.`, "info"); return;
         }
         if (["prev", "next", "follow"].includes(command)) {
           if (!enabled) { context.ui.notify("Tasks are off. /tasks on restores them.", "info"); return; }
@@ -424,15 +436,21 @@ export default function tasks(pi: ExtensionAPI) {
           if (!fault && !book.selectedId) { context.ui.notify("No current plan to clear. /tasks history shows saved plans.", "info"); return; }
           await userChange(context, { op: "clear", planId: book.selectedId ?? "", revision: book.revision }); return;
         }
-        if (command && command !== "show" && command !== "history") { context.ui.notify("Usage: /tasks [prev|next|follow|view focus|view compact|history|new <name>|use <id>|archive [id]|restore <id>|rename <name>|add <task>|clear|hide|unhide|on|off]", "info"); return; }
+        if (command && command !== "show" && command !== "history" && command !== "questions" && command !== "requests") { context.ui.notify("Usage: /tasks [requests|questions|prev|next|follow|view focus|view compact|history|new <name>|use <id>|archive [id]|restore <id>|rename <name>|add <task>|clear|hide|unhide|on|off]", "info"); return; }
         if (fault) { context.ui.notify(`Task history unreadable: ${fault}. /tasks clear can reset it.`, "warning"); return; }
         if (context.mode !== "tui") { context.ui.notify(command === "history" ? JSON.stringify(book.plans.map((p) => planInfo(p, book))) : bookContext(book), "info"); return; }
-        const nav: PanelNavigation = { history: command === "history" };
+        const nav: PanelNavigation = { history: command === "history", section: command === "questions" ? "questions" : command === "requests" ? "requests" : "work" };
         for (;;) {
-          const result = await context.ui.custom<PanelResult>((tui, theme, _kb, done) => {
+          pi.events.emit(POSTED.interaction, { version: 1, sessionId: sessionId(), id: "pi-tasks:browser", active: true });
+          let result: PanelResult;
+          try { result = await context.ui.custom<PanelResult>((tui, theme, _kb, done) => {
             panelTui = tui;
-            return new TaskPanel(tui, theme, () => book, () => colors, done, nav, () => running);
+            return new TaskPanel(tui, theme, () => book, () => colors, done, nav, () => running, {
+              get available() { return !!questions?.available; }, get fault() { return questions?.fault; }, records: questionRecords,
+              open(q) { pi.events.emit(POSTED.open, { version: 1, sessionId: sessionId(), id: q.id, revision: q.revision }); },
+            });
           }, { overlay: true, overlayOptions: { width: "85%", maxHeight: "85%", anchor: "center" } });
+          } finally { pi.events.emit(POSTED.interaction, { version: 1, sessionId: context.sessionManager.getSessionId(), id: "pi-tasks:browser", active: false }); }
           panelTui = undefined;
           if (!result) break;
           await userChange(context, result);

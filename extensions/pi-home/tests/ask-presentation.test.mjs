@@ -9,7 +9,7 @@ test('Ask room selects real shell preview labels and retains native input throug
   const h = workspace();
   const original = h.editor.getText();
   h.click('[Ask]');
-  assert.match(h.rows().join('\n'), /Demo question · display only/);
+  assert.match(h.rows().join('\n'), /Example question · no real answer changes/);
   h.click('Which option suits this sample?');
   assert.match(h.rows().join('\n'), /Workspace · Ask · Question text/);
   h.click('Question emphasis'); h.pick('normal');

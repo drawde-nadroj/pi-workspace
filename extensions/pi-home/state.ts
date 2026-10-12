@@ -146,12 +146,14 @@ export interface HomeState {
   phase: "working" | "thinking" | "responding";
   tools: Map<string, string>;
   promptDepth: number;
+  /** Input-owning overlays need not stop independent agent work. Absent retains legacy behavior. */
+  blockingPromptDepth?: number;
   compacting: boolean;
   lastInputAt: number;
 }
 
 export function activity(state: HomeState): string {
-  if (state.promptDepth && state.clock.active) return "your turn";
+  if ((state.blockingPromptDepth ?? state.promptDepth) && state.clock.active) return "your turn";
   if (state.compacting) return "compacting";
   if (state.tools.size) {
     if (state.tools.size > 1) return `${state.tools.size} tools`;

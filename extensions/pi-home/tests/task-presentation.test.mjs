@@ -81,14 +81,14 @@ test('settings validation preserves old fields and bounds new data', () => {
 test('Tasks settings preview supports keyboard, colors, undo, save and untouched native draft', async () => {
   const h = workspace();
   h.click('[Tasks]');
-  assert.match(h.rows().join('\n'), /Demo Tasks · working · display only/);
+  assert.match(h.rows().join('\n'), /Example Tasks · no real task changes · working/);
   assert.match(h.rows().join('\n'), /3\/7 done/);
   h.click('Motion'); h.pick('changes'); assert.equal(h.latest.tasks.presentation.motion, 'changes');
   h.click('[Undo]'); assert.equal(h.latest.tasks.presentation.motion, 'work');
-  h.click('Border effect'); h.pick('pulse'); assert.equal(h.latest.tasks.presentation.effect, 'pulse');
+  h.click('Advanced settings'); h.click('Border effect'); h.pick('pulse'); assert.equal(h.latest.tasks.presentation.effect, 'pulse');
   h.pick('Border color'); h.pick('custom'); h.text('#aabbcc'); assert.equal(h.latest.tasks.presentation.borderColor, '#aabbcc');
-  h.pick('Visible tasks'); h.pick('5'); assert.equal(h.latest.tasks.rows, 5);
-  h.pick('Panel title'); h.text('Work 界面'); assert.equal(h.latest.tasks.title, 'Work 界面');
+  h.click('Task rows'); h.click('Visible tasks'); h.pick('5'); assert.equal(h.latest.tasks.rows, 5);
+  h.click('Title'); h.click('Panel title'); h.text('Work 界面'); assert.equal(h.latest.tasks.title, 'Work 界面');
   for (const width of [24, 40, 90, 140]) { h.tui.terminal.columns = width; assert.ok(h.panel.render(width).every(row => visibleWidth(row) <= width)); }
   h.panel.handleInput('\x13'); const saved = await h.pending;
   assert.equal(saved.tasks.title, 'Work 界面'); assert.equal(saved.tasks.presentation.effect, 'pulse');
@@ -97,13 +97,13 @@ test('Tasks settings preview supports keyboard, colors, undo, save and untouched
 });
 test('demo state is not persisted; discard, focus loss, abort and disposal are safe', async () => {
   const abort = new AbortController(), h = workspace(undefined, 120, 40, abort.signal);
-  h.panel.handleInput('\t'); h.panel.handleInput('\t'); h.panel.handleInput('\t');
-  assert.match(h.rows().join('\n'), /Demo Tasks/);
+  h.panel.handleInput('\t');
+  assert.match(h.rows().join('\n'), /Example Tasks/);
   h.click('Demo state'); h.pick('blocked'); assert.match(h.rows().join('\n'), /1 blocked/);
   assert.equal(h.home.clock.active, false); assert.equal(h.home.tools.size, 0);
   h.panel.focused = false; h.panel.render(120); h.panel.focused = true; h.panel.invalidate(); h.panel.render(120);
   abort.abort(); assert.equal(await h.pending, undefined); h.panel.dispose();
-  const h2 = workspace(); h2.click('[Tasks]'); h2.click('Border effect'); h2.pick('pulse');
+  const h2 = workspace(); h2.click('[Tasks]'); h2.click('Advanced settings'); h2.click('Border effect'); h2.pick('pulse');
   assert.equal(await h2.discard(), undefined); assert.equal(h2.editor.getText(), 'Unsent native draft 界面');
 });
 test('Tasks room synchronizes list and rendered preview selection without editing a plan or native draft', async () => {
@@ -113,7 +113,7 @@ test('Tasks room synchronizes list and rendered preview selection without editin
   assert.match(h.rows().join('\n'), /Workspace · Tasks · Border and motion/);
   h.click('Progress count');
   assert.match(h.rows().join('\n'), /Workspace · Tasks · Progress count/);
-  assert.match(h.rows().join('\n'), /Demo Tasks · working · display only · Selected: Progress count/);
+  assert.match(h.rows().join('\n'), /Example Tasks · no real task changes · working/);
   assert.match(h.rows().join('\n'), /› Count position/);
   h.click('Title');
   h.click('3/7 done');

@@ -1,4 +1,5 @@
 import { questionCall, questionResult } from "./ask-user-question/question-history.ts";
+import { registerPostedQuestions } from "./ask-user-question/posted.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text, visibleWidth } from "@earendil-works/pi-tui";
 import { askMultiChoice, askSingleChoice, askText, customWithAbort } from "./ask-user-question/standalone-ui.ts";
@@ -46,6 +47,7 @@ async function withHerdrBlocked<T>(
 }
 
 export default function askUserQuestion(pi: ExtensionAPI) {
+	registerPostedQuestions(pi, withUILock);
 	pi.registerTool({
 		name: "ask_user_question",
 		label: "Question",

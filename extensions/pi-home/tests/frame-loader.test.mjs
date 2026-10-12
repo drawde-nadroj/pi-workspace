@@ -156,9 +156,9 @@ for (const warm of [false, true]) test(`Home's presentation API loads with ${war
       abort = new AbortController();
       const picker = chooseFooter(ctx, structuredClone(FOOTER_DEFAULTS), () => {}, undefined, abort.signal);
       assert.ok(component);
-      component.handleInput("\t"); component.handleInput("\t"); component.handleInput("\t");
+      component.handleInput("\t");
       const demo = component.render(120).map(plain).join("\n");
-      assert.match(demo, /Demo state/);
+      assert.match(demo, /Preview state/);
       assert.match(demo, /Refine task overview/);
       abort.abort(); await picker; component.dispose(); component = undefined;
     }

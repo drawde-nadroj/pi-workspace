@@ -47,7 +47,7 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
     }
     verticalPad = composerPadding(width, terminalRows(), home.layout?.density);
     nativeBottom = bottom;
-    const edge = theme.style("│", { fg: composerThinkingBorder(theme, home.thinkingLevel?.()) });
+    const edge = theme.style("│", { fg: composerThinkingBorder(theme, home.thinkingLevel?.(), home) });
     const blank = composerSurface(theme, edge + composerSurface(theme, "", inner, true) + edge, width);
     const caption = (line: string) => plain(line).replace(/^[─━\s]+|[─━\s]+$/gu, "").trim();
     const topHint = caption(lines[0]);

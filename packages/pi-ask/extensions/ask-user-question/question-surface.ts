@@ -24,12 +24,12 @@ export function questionTheme(theme: any, appearance?: AskAppearance): any {
 }
 
 /** The same semantic roles as the live composer; no dependency on pi-home. */
-function surface(theme: any, text: string, width: number): string {
+function surface(theme: any, text: string, width: number, raised = false): string {
   const safe = visibleWidth(text) <= width ? text : truncateToWidth(text, Math.max(0, width), "");
   const padded = safe + " ".repeat(Math.max(0, width - visibleWidth(safe)));
   if (!theme.colors || !theme.getColorMode) return "\x1b[49m" + padded;
   const fg = foregroundAnsi(theme.colors.text, theme.getColorMode());
-  const bg = "\x1b[49m";
+  const bg = raised ? backgroundAnsi(mixColors(theme.colors.customMessageBg, theme.colors.text, .08, "srgb"), theme.getColorMode()) : "\x1b[49m";
   // Reapply only inherited colors after SGR resets. Preserve styled choices and the native IME marker.
   const inherited = padded.replace(/\x1b\[([0-9;:]*)m/g, (escape, params: string) => {
     const parts = params === "" ? ["0"] : params.split(";");
@@ -75,7 +75,7 @@ export function questionViewport(tui: any): any {
 /** Quiet while waiting for a person. No timer, animation loop, or changed answer semantics. */
 export interface MoreAction { label: string; key?: string; hint?: string; run?: () => void }
 
-export function frameQuestion(component: any, theme: any, tui: any, previewAppearance?: AskAppearance): any {
+export function frameQuestion(component: any, theme: any, tui: any, previewAppearance?: AskAppearance, raised = false): any {
   // Preview injection is display-only; live interactions read their own settings once.
   const saved = savedWorkspaceVisuals();
   const appearance = previewAppearance ?? theme.askAppearance ?? saved.appearance;
@@ -151,7 +151,7 @@ export function frameQuestion(component: any, theme: any, tui: any, previewAppea
       return frameRows({ theme, width, rows: lines, inset: 1, color: accent,
         corners: { [appearance.titlePosition]: theme.style ? theme.style(title, { fg: accent, bold: true }) : theme.fg("accent", title),
           [appearance.progressPosition]: theme.style ? theme.style(position, { fg: progress, bold: true }) : theme.fg(appearance.labels === "matched" ? "accent" : "muted", position) },
-        surface: (text, cells) => surface(theme, text, cells) });
+        surface: (text, cells) => surface(theme, text, cells, raised) });
     },
   };
 }

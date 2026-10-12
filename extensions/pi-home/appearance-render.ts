@@ -12,7 +12,7 @@ import { selectionHighlight } from "./footer-selection.ts";
 
 export function currentAppearanceState(home: HomeState): AppearanceState {
   if (home.footerPickerOpen && home.appearancePreview?.state) return home.appearancePreview.state;
-  return home.railStatus?.().state ?? (home.compacting ? "compacting" : home.clock.active ? home.promptDepth && !home.footerPickerOpen ? "waiting" : home.tools.size ? "tools" : home.phase
+  return home.railStatus?.().state ?? (home.compacting ? "compacting" : home.clock.active ? (home.blockingPromptDepth ?? home.promptDepth) && !home.footerPickerOpen ? "waiting" : home.tools.size ? "tools" : home.phase
     : home.clock.interrupted ? "interrupted" : home.clock.timing?.outcome === "error" ? "error" : home.clock.timing?.outcome === "stopped" ? "stopped" : home.clock.timing?.outcome === "done" ? "done" : "idle");
 }
 export function appearanceColor(theme: Theme, value: AppearanceColor | undefined, frame: Color = theme.colors.accent, automatic = frame): Color {
@@ -28,8 +28,12 @@ export function appearanceColor(theme: Theme, value: AppearanceColor | undefined
 }
 export function appearanceBorder(theme: Theme, home: HomeState): Color {
   const design = home.layout?.appearance;
-  const base = appearanceColor(theme, design?.frameColor);
   const override = design?.states[currentAppearanceState(home)]?.frameColor;
+  // Chronomancer borrows the user-message red for the native composer only.
+  // Explicit /workspace frame and state colors, and its live preview, win.
+  const modeRed = home.chronomancerDay && !home.footerPickerOpen &&
+    (!design?.frameColor || design.frameColor === "accent") && !override;
+  const base = appearanceColor(theme, modeRed ? "red" : design?.frameColor);
   return override ? appearanceColor(theme, override, base, base) : base;
 }
 interface Piece { id: ElementId; text: string; priority: number; color: Color; bold: boolean }

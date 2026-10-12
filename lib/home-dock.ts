@@ -15,7 +15,7 @@ export interface DockSnapshot {
 }
 export interface TaskOverview {
   revision: string; planId?: string; total: number; done: number; blocked: number; cancelled: number;
-  activeId?: string; rows: DockRow[]; more: number;
+  activeId?: string; rows: DockRow[]; more: number; questions?: { blocking: number; deferred: number };
 }
 export interface DockAck { version: 1; sessionId: string; id: string; mounted: boolean }
 export function validOverview(v: TaskOverview): boolean {
@@ -23,6 +23,7 @@ export function validOverview(v: TaskOverview): boolean {
     (v.planId === undefined || typeof v.planId === "string" && /^p[1-9]\d*$/.test(v.planId)) &&
     [v.total, v.done, v.blocked, v.cancelled, v.more].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 10000) &&
     v.done + v.blocked + v.cancelled <= v.total && (v.activeId === undefined || typeof v.activeId === "string" && /^t[1-9]\d*$/.test(v.activeId)) &&
+    (v.questions === undefined || !!v.questions && [v.questions.blocking, v.questions.deferred].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 100)) &&
     Array.isArray(v.rows) && v.rows.length <= 12 && v.rows.every(r => r && typeof r.text === "string" && r.text.length <= 600 &&
       (r.tone === undefined || ["text", "muted", "accent", "success", "warning", "error"].includes(r.tone)));
 }

@@ -269,7 +269,7 @@ async function harness(mode = "tui", savedHomePrefs) {
   await factory(api);
   const emit = async (name, data = {}) => { for (const fn of handlers.get(name) ?? []) await fn({ type: name, ...data }, ctx); };
   const command = (text) => commands.get("home").handler(text, ctx);
-  return { ctx, tui, emit, command, entries, handlers, widgets, placements,
+  return { ctx, tui, emit, command, entries, handlers, widgets, placements, events: api.events,
     completions(prefix) { return commands.get("home").getArgumentCompletions(prefix).map(item => item.value); },
     rename(value) { name = value; },
     get picker() { return picker; },
@@ -399,11 +399,12 @@ test("/workspace overlay keeps the real Composer editor visible and previews rai
     const frame = () => editor.render(100).map(plain).join("\n");
     assert.match(frame(), /Actual session/);
     const open = h.workspaceCommand();
+    for (let i = 0; i < 20 && !h.picker?.component; i++) await new Promise(resolve => setTimeout(resolve, 5));
     const panel = h.picker.component;
     assert.equal(h.picker.options.overlay, true);
     assert.equal(h.picker.options.overlayOptions.anchor, "top-left");
     assert.equal(h.picker.options.overlayOptions.width, "100%");
-    assert.match(panel.render(90).map(plain).join("\n"), /Live input box and footer/);
+    assert.match(panel.render(90).map(plain).join("\n"), /Your live input · appearance preview/);
     assert.match(panel.render(90).map(plain).join("\n"), /Unsent draft 界面/);
     assert.match(panel.render(90).map(plain).join("\n"), /Actual session/);
     assert.equal(h.editor, editor, "opening settings must not swap out the native editor");
@@ -556,6 +557,33 @@ test("session identity sanitizes titles and fits small widths", () => {
   for (const width of [0, 1, 2, 8, 20, 80]) {
     for (const line of identity.render(width)) assert.ok(visibleWidth(line) <= width);
   }
+});
+
+test("posted-question and Tasks overlays keep real work timing active but pause motion; synchronous Ask still waits", async () => {
+  const h = await harness();
+  try {
+    await h.emit("session_start"); await h.emit("agent_start");
+    const state = h.editor.homeState;
+    for (const id of ["pi-tasks:browser", "pi-ask:posted"]) {
+      h.events.emit("pi-workspace:interaction:v1", { version: 1, sessionId: "home-test", id, active: true });
+      await h.emit("ui_prompt_start", { kind: "custom" });
+      assert.equal(state.promptDepth, 1); assert.equal(state.blockingPromptDepth, 0);
+      assert.match(state.clock.label(Date.now()), /^working /);
+      assert.equal(shouldAnimate(state, Date.now(), false), false, "input-owning overlay is visually still");
+      await h.emit("tool_execution_start", { toolCallId: "synchronous", toolName: "ask_user_question" });
+      await h.emit("ui_prompt_start", { kind: "custom" });
+      assert.equal(state.blockingPromptDepth, 1); assert.equal(state.clock.label(Date.now()), "waiting for you");
+      await h.emit("ui_prompt_end", { kind: "custom" });
+      await h.emit("tool_execution_end", { toolCallId: "synchronous", toolName: "ask_user_question" });
+      assert.match(state.clock.label(Date.now()), /^working /);
+      await h.emit("ui_prompt_end", { kind: "custom" });
+      h.events.emit("pi-workspace:interaction:v1", { version: 1, sessionId: "home-test", id, active: false });
+    }
+    h.events.emit("pi-workspace:interaction:v1", { version: 1, sessionId: "wrong-session", id: "pi-ask:posted", active: true });
+    await h.emit("ui_prompt_start", { kind: "custom" });
+    assert.equal(state.clock.label(Date.now()), "waiting for you", "foreign sessions cannot suppress a blocking clock pause");
+    await h.emit("ui_prompt_end", { kind: "custom" });
+  } finally { await h.close(); }
 });
 
 test("print/json/rpc sessions never install UI or append appearance metadata", async () => {

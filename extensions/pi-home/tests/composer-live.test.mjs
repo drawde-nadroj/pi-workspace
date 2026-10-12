@@ -12,6 +12,8 @@ const { DEFAULTS, RunClock } = await jiti.import(join(source, "state.ts"));
 const { FOOTER_DEFAULTS, ActivityClock } = await jiti.import(join(source, "footer-state.ts"));
 const { composerStatus, composerStatusRows } = await jiti.import(join(source, "composer-live.ts"));
 const { createWorkspace } = await jiti.import(join(source, "workspace.ts"));
+const { appearanceBorder, appearanceColor } = await jiti.import(join(source, "appearance-render.ts"));
+const { appearanceDefaults } = await jiti.import(join(source, "appearance.ts"));
 const { TuiMainScreen, TuiAltScreen, colorToHex, parseColor } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
 const { getEditorTheme } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")));
 function state() { return { prefs: { ...DEFAULTS, look: "composer" }, clock: new RunClock(), tools: new Map(), phase: "working", promptDepth: 0, compacting: false, lastInputAt: 0, editorFocused: () => true }; }
@@ -239,6 +241,44 @@ test("Chronomancer hides run-state rail without hiding session title or changing
   assert.match(inMode, /2025-05-08/);
   home.chronomancerDay = undefined;
   assert.match(plain(composerMessageRail(theme, 110, home, at, "Alchemy")), /your turn/);
+});
+
+test("Chronomancer makes the native composer frame red, preserves Vim and explicit /workspace frame colors", () => {
+  const home = state(); home.prefs.motion = "off"; home.layout = { ...FOOTER_DEFAULTS };
+  const tui = { terminal: { rows: 40 }, requestRender() {} };
+  const vim = new ModalEditor(tui, getEditorTheme(), kb);
+  vim.setText("unsent red draft");
+  const cleanup = dressComposerEditor(vim, () => ctx, home, () => 10000, () => 40);
+  const rgbAnsi = color => `\x1b[38;2;${[1, 3, 5].map(i => parseInt(colorToHex(color).slice(i, i + 2), 16)).join(";")}m`;
+  try {
+    const normal = vim.render(90);
+    home.chronomancerDay = "2025-05-01";
+    const red = vim.render(90), redAnsi = rgbAnsi(userFrameColor(theme));
+    assert.notEqual(normal[0], red[0], "active mode changes the existing frame");
+    assert.equal(colorToHex(appearanceBorder(theme, home)), colorToHex(userFrameColor(theme)));
+    assert.ok(red[0].includes(redAnsi), "top rail is red");
+    assert.ok(red[1].includes(redAnsi), "composer side is red");
+    assert.ok(red.find(row => plain(row).startsWith("╰"))?.includes(redAnsi), "bottom rail is red");
+    assert.equal(vim.getText(), "unsent red draft");
+    assert.match(plain(red.join("\n")), /INSERT/);
+    home.layout.appearance = appearanceDefaults(home.layout);
+    assert.ok(vim.render(90)[0].includes(redAnsi), "the default /workspace layout is red in mode too");
+    home.layout.appearance.frameColor = "blue";
+    assert.equal(colorToHex(appearanceBorder(theme, home)), colorToHex(appearanceColor(theme, "blue")));
+    assert.ok(vim.render(90)[0].includes(rgbAnsi(appearanceColor(theme, "blue"))));
+    home.layout.appearance.frameColor = "accent";
+    home.layout.appearance.states = { idle: { frameColor: "green" } };
+    assert.equal(colorToHex(appearanceBorder(theme, home)), colorToHex(appearanceColor(theme, "green")));
+    home.layout.appearance = undefined;
+    home.chronomancerDay = undefined;
+    assert.equal(vim.render(90)[0], normal[0], "normal accent returns on exit");
+    assert.equal(vim.getText(), "unsent red draft");
+    for (const appearance of ["dark", "light"]) {
+      const current = { ...theme, colors: theme.colors, appearance };
+      home.chronomancerDay = "2025-05-01";
+      assert.equal(colorToHex(appearanceBorder(current, home)), colorToHex(userFrameColor(current)));
+    }
+  } finally { cleanup(); }
 });
 
 test("border glint changes light, not symbols or layout, and obeys motion gates", () => {

@@ -137,7 +137,8 @@ test("settings preview honors context visibility without fabricated samples", as
 
 test("all remaining footer options are reachable with a visible current value and transactional changes", async () => {
   const h = workspace();
-  h.click("[Other options]");
+  h.click("[Other options]"); h.click("Advanced settings");
+  h.panel.handleInput("\x1b[B"); // Skip the new, view-only settings-group selector.
   for (const [index, id] of OTHER_OPTIONS.entries()) {
     if (index) h.panel.handleInput("\x1b[B");
     h.rows(); h.panel.handleInput("\r");
@@ -186,7 +187,12 @@ async function harness(mode = "tui") {
   const emit = async (n, value = {}) => { for (const f of handlers.get(n) ?? []) await f({ type: n, ...value }, ctx); };
   return { ctx, home, entries, widgets, events, notifications, scratch, emit, commands,
     get footer() { return footer; }, get panel() { return panel; }, get subscriptions() { return subscriptions; }, get renders() { return renders; },
-    choose: () => commands.get("workspace").handler("", ctx),
+    choose: () => { panel = undefined; return commands.get("workspace").handler("", ctx); },
+    async panelReady() {
+      const deadline = Date.now() + 2000;
+      while (!panel && Date.now() < deadline) await wait(1);
+      assert.ok(panel, `Workspace panel did not open: ${JSON.stringify(notifications)}`);
+    },
     async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(scratch, { recursive: true, force: true }); },
   };
 }
@@ -202,15 +208,16 @@ test("controller preview is transactional: Cancel restores, Apply persists, relo
     assert.match(before.map(plain).join(" "), /Model Name.*high/);
     assert.doesNotMatch(before.map(plain).join(" "), /provider-specific-id/);
     assert.match(before.map(plain).join(" "), /other extension status/);
-    let pick = h.choose();
-    h.panel.handleInput("\t"); h.panel.handleInput("\t"); h.panel.handleInput("\x1b[B"); // Other options → Style (after Selection shimmer)
+    let pick = h.choose(); await h.panelReady();
+    assert.ok(h.panel, JSON.stringify(h.notifications));
+    h.panel.handleInput("\x1b[Z"); h.panel.handleInput("\x1b[Z"); h.panel.handleInput("\x1b[B"); // Other options → Style (after Selection shimmer)
     h.panel.handleInput("\r"); h.panel.handleInput("\x1b[B"); h.panel.handleInput("\r");
     assert.equal(h.home.layout.style, "powerline");
     h.panel.handleInput("\x1b"); h.panel.handleInput("\x1b"); h.panel.handleInput("\r"); await pick;
     assert.deepEqual(h.footer.render(120), before);
     assert.throws(() => readFileSync(join(h.scratch, "pi-footer.json")));
-    pick = h.choose();
-    h.panel.handleInput("\t"); h.panel.handleInput("\t"); h.panel.handleInput("\x1b[B");
+    pick = h.choose(); await h.panelReady();
+    h.panel.handleInput("\x1b[Z"); h.panel.handleInput("\x1b[Z"); h.panel.handleInput("\x1b[B");
     h.panel.handleInput("\r"); h.panel.handleInput("\x1b[B"); h.panel.handleInput("\r"); h.panel.handleInput("\x13"); await pick;
     assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-workspace.json"), "utf8")).style, "powerline");
     const applied = h.footer.render(120); await h.emit("session_start");
@@ -230,15 +237,15 @@ test("session navigation and shutdown abort an open picker and roll back unsaved
   const h = await harness();
   try {
     await h.emit("session_start");
-    let pick = h.choose();
-    h.panel.handleInput("\t"); h.panel.handleInput("\t");
+    let pick = h.choose(); await h.panelReady();
+    h.panel.handleInput("\x1b[Z"); h.panel.handleInput("\x1b[Z");
     h.panel.handleInput("\r"); h.panel.handleInput("\x1b[B"); h.panel.handleInput("\r");
     assert.equal(h.home.layout.selectionShimmer, "off");
     await h.emit("session_tree"); await pick;
     assert.equal(h.home.layout.selectionShimmer, "on");
     assert.equal(h.home.footerPickerOpen, false);
     assert.throws(() => readFileSync(join(h.scratch, "pi-footer.json")));
-    pick = h.choose(); h.panel.handleInput("\x1b[B");
+    pick = h.choose(); await h.panelReady(); h.panel.handleInput("\x1b[B");
     await h.emit("session_shutdown"); await pick;
     const count = h.renders; await wait(600); assert.equal(h.renders, count);
   } finally { await h.close(); }
@@ -324,7 +331,7 @@ test("save failures roll back live preview; corrupt settings stay untouched unti
     await h.choose(); // Corrupt legacy settings block editing rather than being overwritten.
     assert.equal(readFileSync(join(h.scratch, "pi-footer.json"), "utf8"), "not json");
     rmSync(join(h.scratch, "pi-footer.json")); await h.emit("session_start");
-    const before = h.footer.render(120), pick = h.choose(); h.panel.handleInput("\r");
+    const before = h.footer.render(120), pick = h.choose(); await h.panelReady(); h.panel.handleInput("\r");
     mkdirSync(join(h.scratch, "pi-workspace.json")); h.panel.handleInput("\x13"); await pick;
     assert.deepEqual(h.footer.render(120), before); assert.ok(h.notifications.some(([m, t]) => t === "error" && /not saved/.test(m)));
   } finally { await h.close(); }

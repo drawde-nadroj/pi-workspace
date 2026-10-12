@@ -111,12 +111,15 @@ test('screenshot regression: Codemode wrapper removed, readable records and actu
     const compact = output(f.node);
     assert.match(compact, /2 calls/); assert.match(compact, /2 JSON records/); assert.match(compact, /2.0s/);
     assert.doesNotMatch(compact, /demoChild|const results|Script completed|Wall time|Output:|Arguments/);
-    assert.equal(f.node.render(90).length, 4); fits(f.node);
+    assert.match(compact, /Read  demo.ts · returned/); assert.match(compact, /Bash  sleep 2 · returned/);
+    assert.equal(f.node.render(90).length, 6); fits(f.node);
     f.node.setExpanded(true);
     const readable = output(f.node);
     assert.match(readable, /Read  demo.ts/); assert.match(readable, /Bash  sleep 2/);
     assert.match(readable, /export function greet/); assert.match(readable, /return `Hello/);
-    assert.match(readable, /Script\s*│\n/); assert.match(readable, /const results = await/);
+    assert.match(readable, /Script · submitted/); assert.match(readable, /const results = await/);
+    assert.ok(readable.indexOf('const results = await') < readable.indexOf('Recorded calls'));
+    assert.ok(readable.indexOf('Recorded calls') < readable.indexOf('Result 1'));
     assert.doesNotMatch(readable, /Script completed|Wall time|Output:|\\n|\\"/); fits(f.node);
     rawToggle(f.node); const raw = output(f.node);
     assert.match(raw, /Raw output/); assert.match(raw, /Script completed/); assert.match(raw, /Raw arguments/);
@@ -125,7 +128,7 @@ test('screenshot regression: Codemode wrapper removed, readable records and actu
     assert.equal(f.node.result, demoResult);
     f.blocks.setOutputMode(true); assert.match(output(f.node), /Raw arguments/);
     f.node.setExpanded(false); assert.doesNotMatch(output(f.node), /Raw arguments/);
-    f.node.setExpanded(true); f.blocks.setOutputMode(false); assert.match(output(f.node), /Script\s*│\n/);
+    f.node.setExpanded(true); f.blocks.setOutputMode(false); assert.match(output(f.node), /Script · submitted/);
   } finally { f.blocks.dispose(); }
 });
 
@@ -134,11 +137,46 @@ test('Codemode strips only the exact first separate wrapper block and retains ch
   const f = fixture('codemode', { code: 'try {} catch {}' }, textResult('Script completed\nWall time 2.0 seconds\nOutput:\nuser text in same block', { calls }));
   try {
     f.blocks.clearHistory(); assert.match(output(f.node), /! Codemode.*child errors/); assert.match(output(f.node), /6 calls · 1 failed/);
+    assert.match(output(f.node), /Read  file5 · failed/);
+    assert.match(output(f.node), /\+3 more recorded calls/);
+    assert.doesNotMatch(output(f.node), /Read  file2/);
+    assert.ok(f.node.render(90).length <= 8); fits(f.node);
     f.node.setExpanded(true); const value = output(f.node);
     assert.match(value, /Script completed/); assert.match(value, /Read  file5 · failed/); assert.match(value, /Missing file/); assert.match(value, /\$0.0200/);
     const row = f.node.render(90).find(row => plain(row).includes('file5'));
     assert.ok(row.includes(theme.style('×', { fg: toolStateStyle(theme, 'failed').color })));
     assert.ok(row.includes(theme.fg('muted', 'file5'))); fits(f.node);
+  } finally { f.blocks.dispose(); }
+});
+
+test('Codemode action preview is bounded, stateful and sourced only from recorded calls', () => {
+  const f = fixture('codemode', { code: 'if (false) await tools.bash({ command: "NEVER_RAN" });' });
+  try {
+    assert.doesNotMatch(output(f.node), /NEVER_RAN|Bash/);
+    f.node.markExecutionStarted();
+    for (let i = 0; i < 5; i++) {
+      f.blocks.record('read', { path: `界面-${i}.ts` }, f.node.toolCallId, `child-${i}`);
+      f.blocks.finish(`child-${i}`, f.node.toolCallId, false);
+    }
+    f.blocks.record('bash', { command: 'npm test\nprintf done' }, f.node.toolCallId, 'active');
+    assert.match(output(f.node), /Bash  npm test.*running/);
+    assert.match(output(f.node), /\+3 more recorded calls/);
+    assert.match(output(f.node), /Read  界面-0.ts · returned/); fits(f.node);
+    f.blocks.finish('active', f.node.toolCallId, true);
+    assert.match(output(f.node), /Bash  npm test.*failed/);
+    // Persisted metadata takes precedence over live events on completion/reload.
+    const calls = [{ name: 'read', args: '{"path":"persisted.ts"}', status: 'cancelled' },
+      { name: 'read', args: '{"path":"unknown.ts"}', status: 'future-status' }];
+    const saved = textResult('Finished', { calls }); f.node.updateResult(saved);
+    assert.match(output(f.node), /Read  persisted.ts · cancelled/);
+    assert.match(output(f.node), /Read  unknown.ts · observed/);
+    assert.doesNotMatch(output(f.node), /npm test|界面|NEVER_RAN/); fits(f.node);
+    f.node.setExpanded(true);
+    const expanded = output(f.node);
+    assert.ok(expanded.indexOf('NEVER_RAN') < expanded.indexOf('Recorded calls'));
+    assert.ok(expanded.indexOf('Recorded calls') < expanded.indexOf('Finished'));
+    assert.equal((expanded.match(/Script · submitted/g) ?? []).length, 1);
+    assert.equal(f.node.result, saved);
   } finally { f.blocks.dispose(); }
 });
 

@@ -35,6 +35,29 @@ test('silent red capture matches Home’s visible sent user frame and color', ()
   }
 });
 
+test('rewinding a red root shows the same orange frame as an orange child without changing saved depth', () => {
+  for (const appearance of ['dark', 'light']) {
+    initTheme(appearance, false);
+    const red = thought(), visit = { ...red, visit: true }, orange = { ...red, depth: 2 };
+    const captured = renderThought(red, theme, 90), revisited = renderThought(visit, theme, 90);
+    assert.equal(red.depth, 1);
+    assert.notEqual(revisited[1], captured[1], 'rewind changes the frame color');
+    assert.equal(revisited[1], renderThought(orange, theme, 90)[1], 'revisit uses the orange stage color');
+    assert.match(plain(revisited[0]), /↶ jordan/);
+    for (const width of [12, 20, 40, 90]) {
+      for (const line of renderThought(visit, theme, width)) assert.ok(visibleWidth(line) <= width);
+    }
+  }
+});
+
+test('imported legacy thoughts with unknown creation time do not invent a Sent label', () => {
+  initTheme('dark', false);
+  const old = { ...thought(), createdAt: null, day: '2020-01-02' };
+  const rendered = renderThought(old, theme, 90).map(plain).join('\n');
+  assert.ok(!rendered.includes('1970-01-01'));
+  assert.ok(!rendered.includes('Sent'));
+});
+
 test('stage colors change the same frame; a past-day thought shows actual creation date', () => {
   initTheme('dark', false);
   const written = Date.now(), oldDay = '2024-01-02';

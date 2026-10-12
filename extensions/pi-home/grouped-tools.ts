@@ -9,6 +9,7 @@ import { sentTime, styledSentLabel } from "./sent-metadata.ts";
 import { taskFrameColor } from "../../lib/task-frame.ts";
 import { terminalBackground } from "./sent-messages.ts";
 import { activeTranscript, toolIdentity } from "./transcript-presentation.ts";
+import { nativeMessageFacts } from "./native-message-adapter.ts";
 
 // An explicit, conservative Pi 1.0 allowlist. Self-renderers and overrides of
 // these names are not ordinary calls; they keep their own terminal surface.
@@ -41,8 +42,8 @@ class ToolGroup extends Container {
   override render(width: number): string[] {
     this.framedWidth = -1;
     this.offsets = [];
-    const message = (this.owner as unknown as { lastMessage?: { content?: { type: string; id?: string }[] } }).lastMessage;
-    const issued = message?.content?.filter(c => c.type === "toolCall").map(c => c.id);
+    const facts = nativeMessageFacts(this.owner);
+    const issued = facts?.kind === "assistant" ? facts.calls.map(call => call.id) : undefined;
     if (width < 28 || !issued || this.ids.some((id, i) => issued[i] !== id) ||
       this.children.some((node, i) => !ordinary(node, this.ids[i]))) return super.render(width);
     const inner = width - 2;
@@ -80,7 +81,7 @@ class ToolGroup extends Container {
     this.rows = rows;
     this.offsets = offsets;
     const theme = this.theme(), color = taskFrameColor(theme);
-    const timestamp = (this.owner as unknown as { lastMessage?: { timestamp?: number } }).lastMessage?.timestamp;
+    const timestamp = facts?.kind === "assistant" ? facts.timestamp : undefined;
     const options = this.prefs(), style = activeTranscript(options);
     const time = style.chat.showSent ? sentTime(timestamp, options, Date.now(), this.fullDate()) : "";
     return frameRows({ theme, width, rows: rows.map(terminalBackground), color,
@@ -119,7 +120,8 @@ export class GroupedTools {
     // If a result becomes graphical or a renderer changes, put the original
     // components back in Pi's chat before rendering them again.
     for (const [group, parent] of this.groups) {
-      if (group.children.every((child, i) => ordinary(child, group.ids[i]!))) continue;
+      const facts = nativeMessageFacts(group.owner);
+      if (facts?.kind === "assistant" && group.ids.every((id, i) => facts.calls[i]?.id === id) && group.children.every((child, i) => ordinary(child, group.ids[i]!))) continue;
       const index = parent.children.indexOf(group);
       if (index >= 0) parent.children.splice(index, 1, ...group.children);
       for (const child of group.children) this.members.delete(child as ToolExecutionComponent);
@@ -134,10 +136,10 @@ export class GroupedTools {
       for (let i = 0; i < children.length; i++) {
         const owner = children[i];
         if (!(owner instanceof AssistantMessageComponent)) continue;
-        const message = (owner as unknown as { lastMessage?: { timestamp?: number; content?: { type: string; id?: string }[] } }).lastMessage;
-        if (!Number.isFinite(message?.timestamp) || message!.timestamp! < 0) continue;
-        const ids = message?.content?.filter(c => c.type === "toolCall").map(c => c.id);
-        if (!ids?.length || ids.some(id => typeof id !== "string") || new Set(ids).size !== ids.length) continue;
+        const facts = nativeMessageFacts(owner);
+        if (facts?.kind !== "assistant" || facts.timestamp === undefined) continue;
+        const ids = facts.calls.map(call => call.id);
+        if (!ids.length || new Set(ids).size !== ids.length) continue;
         let cursor = i + 1, index = 0;
         // Existing group can be extended when later calls arrive during streaming.
         const existing = children[cursor] instanceof ToolGroup && (children[cursor] as ToolGroup).owner === owner

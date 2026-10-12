@@ -8,6 +8,12 @@ Tasks now writes plan-library payload version **3** under the existing `pi-tasks
 
 The stable entry key is deliberate: older readers reject the unknown payload version rather than skip new entries and overwrite them using stale v2 state. Do not downgrade and reset an unreadable v3 plan library as a workaround. Unknown versions or malformed requirement data fail closed. Test with an isolated session before live use; the running Pi process retains its old tool schema until reload or restart.
 
+## Posted-question rollout
+
+The approved Tasks–Ask thread adds `question_queue` and `/questions`, native Work/Requests/Questions navigation, and Ask overlays above Tasks. Existing Tasks payload version 3 is unchanged. Ask's new version-1 `pi-ask:posted-v1` entries store branch-local questions, unsubmitted drafts, explicit responses, delivery and application reports. Older synchronous question history is not migrated into invented posted records. Invalid/future queue versions fail closed; no reset or automatic response replay occurs on reload.
+
+No package entry, dependency, live `settings.json`, or appearance preference was changed. Existing `/workspace` validators and transaction remain authoritative. Use `/reload` or a fresh Pi process to adopt source/tool changes; a fresh process avoids retained cached modules. **Enter now opens task details; E edits. Tab switches Work/Requests/Questions; H opens plan history.** Existing synchronous Ask behavior remains intact. Rolling back source does not erase posted entries; an older version may not understand them. Preserve session files and unrelated user edits. No downgrade/reset or installation migration is authorized by this rollout.
+
 ## Proportionate harness guidance
 
 The Tasks stopping/reconciliation guidance and Ask answer handoff require no additional schema, session, preference, or installation migration. The single-question skip result now explicitly preserves unknown consent; its structured status remains `skipped`. Reload the extensions or start a fresh Pi process to adopt updated guidance; a fresh process also picks up global context-file instructions. No live settings were changed. The evaluation kit is development-only and does not start model runs; see `eval/harness/README.md` in the source checkout. Roll back only these guidance/test/documentation edits if needed, preserving unrelated uncommitted work and existing requirement-ledger history.

@@ -1,11 +1,11 @@
 # Customize your input box and footer
 
-Implemented against Pi 1.0.0. Run `/reload`, then `/workspace`. Preferences now save to `pi-workspace.json`. Existing `pi-footer.json` settings are loaded when the new file is absent and are not modified by migration.
+Implemented against Pi 1.0.0. After the room/compatibility refactor, prefer a fresh Pi process, then `/workspace`. `/reload` remains supported, but a running process can retain imported modules. Preferences now save to `pi-workspace.json`. Existing `pi-footer.json` settings are loaded when the new file is absent and are not modified by migration.
 
 ## Start here
 
 1. **Choose an element** from the list, or click its label in the preview in fullscreen mode. The list and preview select the same element.
-2. Change **Show this element**, **Position**, **Text color**, or its label. Your changes are temporary.
+2. Change **Visible**, **Position**, **Text color**, or its label. Your changes are temporary.
 3. Choose **Save** to keep the changes, or **Discard** to return to the configuration from before you opened the editor. Discard asks for confirmation when there are unsaved changes.
 
 The **Input & footer room** shows the actual native input editor and footer at full terminal width, not a fabricated sample. It covers the transcript while open, keeps the controls next to the preview, and does not replace the native editor instance or modify its draft, undo, Vim mode, paste storage, or completion state. Close settings to resume typing your draft.
@@ -18,26 +18,27 @@ The **Input & footer room** shows the actual native input editor and footer at f
 | --- | --- |
 | Up / Down | Select an element, property or choice |
 | Enter / Space | Open properties or change a control |
-| Tab | Switch between Input elements, properties, Other options, Tasks, Ask and Transcript |
+| Tab / Shift+Tab | Next / previous top section: Input, Tasks, Ask, Transcript, More settings, General; wraps in both directions |
+| Enter or Right in Input elements; Left in Input properties | Open or return from the selected element’s properties |
 | Left / Right in Tasks, Ask or Transcript | Move between its element list and settings; Enter on an element opens its controls |
 | `/` | Find an element by name, including hidden elements |
-| **More options** | Reveal emphasis, group order, narrow-width priority and text formatting |
+| **Advanced settings** (Input, Tasks, More settings) | Reveal specialist controls without removing or resetting them |
 | **Undo** / Ctrl+Z | Undo the last settings change; never changes draft undo |
-| **Save** / Ctrl+S | Save the previewed configuration |
+| **Save** / Ctrl+S | Save accepted edits, never an unaccepted hover candidate |
 | **Discard** | Restore the configuration from before opening |
 | Esc | Cancel a field/menu, go back to Elements, then offer to discard |
 
 Text fields use the native single-line input. Enter keeps the field edit in the preview; Esc cancels that field edit. **Save is separate.** Ctrl+S also accepts a valid open text field before saving. Invalid custom colors stay editable rather than being silently accepted.
 
-The normal view exposes the common properties first. **Other options** retains footer style, icons, context format, Git detail, timing and timestamp format. **Icons** applies to the Home footer, the Composer input rails and sourced Sent labels in the chat/grouped-tool frames. Nerd mode uses the installed Nerd Font glyphs; Plain keeps `Sent` text and the directory path without a font-dependent glyph. Question labels belong to Ask and message Sent visibility/tool label treatment belong to Transcript; the old `questionLabels`, `messageTime` and `toolLabels` preferences remain read-only fallbacks until their respective sections are saved. Visibility, position and group order for the native input belong to each element rather than duplicate global switches. Transcript settings affect eligible chat/tool frames, not the native input preview.
+The normal view exposes common properties first, under aligned **Part / Setting / Value** headings. Empty prefixes show **None**. More settings has view-only **All settings / Footer / Context / Git / Activity & time** groups; switching groups never resets an edit. The [complete settings review](../../docs/SETTINGS-REVIEW.md) covers every existing suite entry point. **More settings** retains footer style, colors and icons; open **Advanced settings** there for context format, Git detail, timing and timestamp format. Tasks shows controls for the selected part of the overview; its Advanced settings reveal motion detail, per-state overrides and additional colors. These expanders do not change saved values. **Icons** applies to the Home footer, the Composer input rails and sourced Sent labels in the chat/grouped-tool frames. Nerd mode uses the installed Nerd Font glyphs; Plain keeps `Sent` text and the directory path without a font-dependent glyph. Question labels belong to Ask and message Sent visibility/tool label treatment belong to Transcript; the old `questionLabels`, `messageTime` and `toolLabels` preferences remain read-only fallbacks until their respective sections are saved. Visibility, position and group order for the native input belong to each element rather than duplicate global switches. Transcript settings affect eligible chat/tool frames, not the native input preview.
 
-Mouse selection is available in Pi fullscreen mode. Regular/scrollback mode remains keyboard-accessible; Home does not turn on mouse reporting there.
+Mouse selection is available in Pi fullscreen mode. When the host/terminal supplies pointer-move events, hovering an element, property or preview region temporarily identifies its target with **Inspecting**. It does not activate a control, move keyboard focus, change the selected element, create an Undo entry or save a value. In supported choice menus, hover also auditions the mode, color, position or spacing without accepting it. Arrows provide the equivalent keyboard preview; `✓` keeps marking the configured value. Enter accepts the keyboard option; click accepts the pointed option. Moving away restores the keyboard preview; Escape restores the prior appearance. Menu and Save coordinates remain stable when a preview changes height. Audition never adds an Undo entry, changes the real run/draft/model or opens another dialog. Leaving an inspection target restores selection; keyboard input, focus loss, resize, invalidation and closing clear inspection. Hover is static and starts no animation timer. Regular/scrollback mode remains keyboard-accessible; Home does not turn on mouse reporting there.
 
 ## Selection and focus
 
-Selection has a steady, theme-accent tint. **`›` marks keyboard focus**; **`•` marks the selected element** when focus moves into its properties. The matching preview label remains highlighted and underlined without replacing its actual text color or configured weight. Choice menus use **`✓` for the current value**, distinct from the option you are browsing. Unsaved changes remain a separate text indicator.
+Selection has a steady, theme-accent tint. **`›` marks keyboard focus**; **`•` marks the selected element** when focus moves into its properties. The matching preview target remains highlighted in **all four rooms**, without replacing its actual text color or configured weight. Labels use an underline; perimeter selection highlights the real border gaps and side rails without tinting unrelated labels. The inspector identifies the selected target and its location. A status-specific frame-color control says **Affects: Input box border** and identifies the perimeter while Assistant status remains selected in the list. Body settings identify the affected overview rows; assistant-identity and successful-status controls highlight only the labels they can change, not the fixed user identity or failed status. Choice menus use **`✓` for the current value**, distinct from the option you are browsing. Unsaved changes remain a separate text indicator.
 
-**Other options → Selection shimmer** defaults to **on**. Changing selection produces one 480 ms sweep across the highlight background, then settles. Selecting another element coordinates the list and preview; moving among properties animates only the focused control. Turning it off keeps the same steady selection and focus cues. Save persists this preference; Undo and Discard work normally.
+**More settings → Selection shimmer** defaults to **on**. Changing selection produces one 480 ms sweep across the highlight background, then settles. Selecting another element coordinates the list and preview; moving among properties animates only the focused control. Turning it off keeps the same steady selection and focus cues. Save persists this preference; Undo and Discard work normally.
 
 This effect belongs only to `/workspace`, independently of agent-work motion. It does not change native Pi menus or pi-ask. It stops during text entry, Discard confirmation, focus loss, resize/theme invalidation, and closing or session teardown. It never moves letters, changes field widths, or alters the draft. Background colors adapt to light/dark and 256-color/truecolor output; terminal-specific palette overrides can still affect their appearance.
 
@@ -49,22 +50,22 @@ Elements include assistant status, chat title, latest recorded send time, direct
 - Or use left/center/right in either of the two existing footer rows.
 - Multiple elements in one position form an ordered group. **Move earlier/later** changes their order; the group separator is configurable.
 - Off removes an element from the preview but keeps it in the list.
-- Missing data is not invented: Vim mode requires a Vim editor, Git requires a repository, send time requires a recorded message, and the next-step hint requires a sourced active task.
+- Missing data is not invented: Vim mode requires a Vim editor, Git requires a repository, send time requires a recorded message, and the next-step hint requires a sourced active task. The inspector explains hidden, unavailable or clipped targets. Tasks examples explain absent active rows and overflow hints; Transcript explains hidden Sent labels. Save failures and other action messages take precedence over availability help.
 - Native scroll indicators always take priority. Narrow panes shorten lower-priority fields first. Long model names yield before the level.
 
-At wide widths, the list and properties are side by side. At narrower widths they share a page, switched with Tab. Very short terminals shorten the preview vertically with an explicit label; below 12 rows they ask you to enlarge the terminal. Terminal **width** remains 1:1. No transcript fragments are visible behind the workspace.
+At wide widths, the list and properties are side by side. At narrower widths they share a page, switched with Enter / Right and Left; Tab switches top sections. Undo sits with Save and Discard rather than among the section tabs. A selected control's explanation wraps near the controls instead of running off the edge. When top buttons do not fit, the current section number and name remain in the keyboard hint. Very short terminals shorten the preview vertically with an explicit label; below 12 rows they ask you to enlarge the terminal. Terminal **width** remains 1:1. No transcript fragments are visible behind the workspace.
 
 ## Text, colors and assistant states
 
-**Label before value** adds wording without replacing the current model, title, path or time. **More options → Text format** exposes a literal template: `{value}` inserts the real value; everything else is text. Templates never evaluate code or commands. Control characters are removed.
+**Prefix** adds wording without replacing the current model, title, path or time. **Advanced settings → Text format** exposes a literal template: `{value}` inserts the real value; everything else is text. Templates never evaluate code or commands. Control characters are removed.
 
 Colors can follow the theme, match the frame, use a quieter frame shade, or use a named color. Named colors adapt to light/dark themes. **More color options** accepts `#RRGGBB`; custom colors are not automatically contrast-corrected, so check them against both themes.
 
 To customize the completion label:
 
 1. Select **Assistant status**.
-2. Set **Preview appearance** to **When the assistant finishes**.
-3. Edit **Text for this state**, **Text color**, and optionally **Frame color for this state**.
+2. Open **Preview state** and hover **Finished**, or browse with the arrow keys. Enter pins the demonstration.
+3. Edit **Status text**, **Text color**, and optionally **State border color**.
 4. Save, or Discard the experiment.
 
 The default completion text is exactly **`your turn`**, without a period. The model area shows the level by itself, for example **`Model · high`**, without a `thinking` prefix. The separate live activity label can still say `Thinking`.
@@ -73,9 +74,9 @@ States include thinking, writing, working, tools running, waiting for an answer,
 
 ## Persistent Tasks presentation
 
-Open the **Tasks room** in this same workspace. Its element list names the border/motion, title, progress count, more-work hint, task rows and active row. At wide widths the list and existing controls appear side by side; at narrow widths use Left/Right to switch between them. Select an element from the list or click a **fully rendered** label or row in the display-only preview to jump to its relevant control. When a narrow rail omits a label, the element remains available in the keyboard list; there is no invisible click target. Arrow keys navigate, Enter edits, and Tab cycles Input elements → properties → Other options → Tasks → Ask → Transcript. Existing controls, including per-state settings, remain available by scrolling.
+Open the **Tasks room** in this same workspace. Its element list names the border/motion, title, progress count, more-work hint, task rows and active row. At wide widths the list and existing controls appear side by side; at narrow widths use Left/Right to switch between them. Select an element from the list or click a **fully rendered** label or row in the display-only preview to jump to its relevant control. When a narrow rail omits a label, the element remains available in the keyboard list; there is no invisible click target. Arrow keys navigate, Enter edits, and Tab / Shift+Tab move forward / backward through the top sections. Enter on an Input element opens its properties without changing sections. Existing controls, including per-state settings, remain available by scrolling.
 
-The preview has explicitly labelled idle, working, waiting, done, blocked and error examples. **Replay progress sweep** simulates a revision change without changing a real plan.
+The preview is labelled as an example that makes no real task changes, with idle, working, waiting, done, blocked and error states. **Replay progress sweep** simulates a revision change without changing a real plan.
 
 Controls cover border and highlight colors, shimmer/pulse, speed, intensity, direction, progress sweeps, label/body/active colors, gentle text-color effects, bold, six title/count/more-work rail positions, visible-task count and per-state overrides. The package owns these presentation rules; Home supplies sourced task state and its shared clock. Default text stays still; the soft near-white border highlight runs only during actual active work. Global motion-off, typing, lost focus, blocking dialogs and hidden/narrow panels stop live motion. The explicit demo uses its own disposable controller and respects motion-off.
 
@@ -85,23 +86,25 @@ The Home overview shows active work, blockers and pending work with sourced done
 
 ## Question appearance (Ask)
 
-Open **Ask** in `/workspace`. The **Workspace** room edits your sent-message display name and the one Compact/Spaced density setting. Spaced keeps existing layouts except that user-message frames no longer have an extra interior bottom row. Compact removes optional whitespace in eligible Home input/message/tool frames and the Ask shell, without changing content or Tasks row counts. Select the question frame, title, sourced progress, question text, or action hints from the keyboard list or the **synthetic, display-only** preview. The sample does not open an answer dialog or send an answer. The title can be renamed (30 safe characters) or moved between upper-left and upper-center; progress can occupy one of the three lower positions and use the matched Pi accent or a quieter hierarchy treatment. Question text emphasis and hint tone are visual only. Ask’s theme-accent identity, actions, actual question wording, cursor, choice state and focus remain Ask-owned.
+Open **Ask** in `/workspace`. The **General** room edits your sent-message display name and the one Compact/Spaced density setting. Its explicitly synthetic message examples show the actual draft name and demonstrate spacing on hover or arrow navigation. Spaced keeps existing layouts except that user-message frames no longer have an extra interior bottom row. Compact removes optional whitespace in eligible Home input/message/tool frames and the Ask shell, without changing content or Tasks row counts. Select the question frame, title, sourced progress, question text, or action hints from the keyboard list or the **synthetic, display-only** preview. The sample does not open an answer dialog or send an answer. The title can be renamed (30 safe characters) or moved between upper-left and upper-center; progress can occupy one of the three lower positions and use the matched Pi accent or a quieter hierarchy treatment. Question text emphasis and hint tone are visual only. Ask’s theme-accent identity, actions, actual question wording, cursor, choice state and focus remain Ask-owned.
 
 Ask validates its own version-1 `pi-workspace.json` → `ask` visual section and reads it **once when a new question opens**, even without Home. The legacy `questionLabels` setting is only a fallback before the Ask section is saved. An unknown future Ask section is read-only and blocks Save rather than silently replacing it. All rooms share the same `pi-workspace.json` transaction; changes in other Pi processes become visible on reload/new question. At narrow widths the list remains keyboard accessible when a preview label cannot fit.
 
 ## Chat and tool appearance (Transcript)
 
-Open **Transcript** in `/workspace`. Select the chat border, identity, sourced **Sent** time, tool border, identity, or status in the element list or click a visible label in the **synthetic, display-only** preview. The examples do not send a message, call a tool, or record a time. User chat stays red and assistant chat stays accent purple. You can quiet the assistant identity label, show/hide a reliably recorded creation time and place `Sent` at lower-left or lower-right. The user identity and time remain red; missing or unsourced times never appear. A creation timestamp is not a reply-completion time.
+Open **Transcript** in `/workspace`. Fixed frame colors are shown as information, not editable controls. Select the chat border, identity, sourced **Sent** time, tool border, identity, or status in the element list or click a visible label in the **synthetic, display-only** preview. The examples do not send a message, call a tool, or record a time. User chat stays red and assistant chat stays accent purple. You can quiet the assistant identity label, show/hide a reliably recorded creation time and place `Sent` at lower-left or lower-right. The user identity and time remain red; missing or unsourced times never appear. A creation timestamp is not a reply-completion time.
 
 Eligible ordinary cards, grouped-tool frames, and allowlisted web-tool frames can match or quiet their identity label. Successful status labels on ordinary and web cards can use semantic or rail-matched treatment; grouped child-call statuses stay semantic. **Failed, cancelled and child-error status still uses its semantic marker/color.** Unknown, graphical, self-rendering or unsupported tool shapes keep their native UI; settings do not change their results, expansion or mouse mapping. The preview samples show only representative frames, not an execution.
 
 Home validates the version-1 `pi-workspace.json` → `transcript` section and reads it for live frames. The old `messageTime` and `toolLabels` preferences are fallbacks until the section is saved; they are not duplicate controls. An unknown future section is read-only and blocks Save instead of replacing it. Composer, Tasks, Ask and Transcript share **one atomic Save/Discard transaction for `pi-workspace.json`**, not independent per-room saves. Narrow windows retain a keyboard path even when a sample label or the Transcript tab cannot fit on the screen.
 
+The current Transcript controls are deliberately bounded. A centralized catalogue for codemode, edit/write diffs, search results and extension-submitted messages is **proposed, not implemented**; see the [Transcript adapter direction](../../docs/SURFACE-WORKSPACE.md#proposed-transcript-catalogue). Unsupported/self-rendering tools still retain their native UI.
+
 For API examples and a feature-request template, see [`pi-frame/FEATURE-GUIDE.md`](../../packages/pi-frame/FEATURE-GUIDE.md).
 
 ## Saving and compatibility
 
-Preferences are saved atomically to `~/.pi/agent/pi-workspace.json`, or the configured Pi agent directory. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved appearance or messages.
+Preferences are saved atomically to `~/.pi/agent/pi-workspace.json`, or the configured Pi agent directory. The editor refuses to overwrite settings changed since this session loaded or since the workspace opened; reload to review external changes. This is an optimistic change check, not a cross-process lock for exactly simultaneous writes. Unsupported Composer appearance versions block editing rather than being replaced. No preference file is written until Save. A failed save restores the pre-preview configuration and reports the failure. Discard and Undo do not delete saved appearance or messages.
 
 Other running sessions adopt saved changes after their next `/reload`. Existing scalar preferences remain supported. Opening the workspace derives a versioned `appearance` layout from their visibility choices; only saving persists it. Unknown or invalid individual appearance values fall back safely. Malformed JSON is reported and left untouched until Save.
 

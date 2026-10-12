@@ -1,0 +1,80 @@
+import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
+import { matchesKey, Text, wrapTextWithAnsi, truncateToWidth } from '@earendil-works/pi-tui';
+import { frameRows } from './frame.ts';
+import { questionAccent } from './question-surface.ts';
+import { TabbedQuestions, type BatchUIResult, type QuestionDraft } from './batch-ui.ts';
+import { questionTheme, questionViewport, frameQuestion } from './question-surface.ts';
+import { savedAskAppearance } from './appearance.ts';
+import { sanitizeDisplayText } from './tui-primitives.ts';
+import { STAGE_LABELS } from './posted-protocol.ts';
+import type { PostedQuestion } from './posted-state.ts';
+
+/** Reuse Ask's editors/choice/review machinery. Only the temporary overlay/back contract differs. */
+export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion, current: () => boolean,
+  bindClose: (close?: () => void) => void): Promise<{ result: BatchUIResult; draft?: QuestionDraft }> {
+  let draft: QuestionDraft | undefined;
+  const result = await ctx.ui.custom<BatchUIResult>((tui, theme, kb, done) => {
+    let settled = false;
+    const finish = (result: BatchUIResult) => { if (settled) return; settled = true; draft = form.captureDraft(); done(result); };
+    const palette = questionTheme(theme, savedAskAppearance());
+    const form = new TabbedQuestions([{ ...q.definition, details: [q.definition.details, `Why: ${q.why}`, q.boundary, ...(q.neededNow ? [`Needed now: ${q.neededNow}`] : []),
+      q.urgency === 'blocking' ? 'Only linked work waits. Independent authorized work may continue.' : 'Can wait until the linked work needs this answer.'].filter(Boolean).join('\n\n') }], questionViewport(tui), palette, kb, finish, ctx.cwd, q.draft);
+    bindClose(() => finish(null));
+    const component = {
+      get focused() { return form.focused; }, set focused(v: boolean) { form.focused = v; },
+      invalidate() { form.invalidate(); }, render(width: number) { return form.render(width); },
+      handleInput(data: string) {
+        if (!current() || matchesKey(data, 'escape')) { finish(null); return; }
+        form.handleInput(data);
+      },
+      getHeaderLabel() { return q.urgency === 'blocking' ? 'Blocks linked work' : 'Can wait'; },
+      getMoreActions() { return [{ label: 'Back to Questions (keep draft)', run: () => finish(null) }, ...form.getMoreActions()]; },
+    };
+    return frameQuestion(component, palette, tui, undefined, true);
+  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'center' } }).finally(() => bindClose(undefined));
+  return { result, draft };
+}
+export async function postedOutcomeUI(ctx: ExtensionContext, q: PostedQuestion, bindClose: (close?: () => void) => void) {
+  await ctx.ui.custom<void>((tui, theme, _kb, done) => {
+    bindClose(done);
+    const palette = questionTheme(theme, savedAskAppearance());
+    let scroll = 0;
+    const values = q.response?.answers.flatMap(a => Array.isArray(a.answer) ? a.answer : a.answer == null ? [] : [a.answer]) ?? [];
+    const body = [q.definition.question, '', STAGE_LABELS[q.state], q.boundary,
+      ...values.map(a => typeof a === 'string' ? a : a.label),
+      ...q.response?.answers.filter(a => a.note).flatMap(a => ['', 'Your note', a.note!]) ?? [],
+      ...(q.response?.clarification ? ['', 'Your clarification', q.response.clarification] : []),
+      ...(q.consequence ? ['', 'Reported consequence', q.consequence] : []),
+      ...(q.replacementId ? [`Replacement: ${q.replacementId}`] : []),
+      '', q.state === 'submitted' ? 'Submitted is not delivered. Use /questions retry <id> only if delivery is interrupted.' :
+        q.state === 'delivered' ? 'Received by the model context; not yet reported applied.' :
+        q.state === 'applied' ? 'Agent report, not independent verification. Tasks have not been changed automatically.' : 'Withdrawal or replacement is not approval.', ''];
+    const component = {
+      handleInput(data: string) { if (matchesKey(data, 'escape') || matchesKey(data, 'return') || matchesKey(data, 'ctrl+c')) return done();
+        if (matchesKey(data, 'up') || matchesKey(data, 'down')) scroll = Math.max(0, scroll + (matchesKey(data, 'up') ? -1 : 1)); tui.requestRender(); },
+      render(width: number) {
+        const lines = body.flatMap(s => s.split('\n').flatMap(line => wrapTextWithAnsi(palette.fg('text', sanitizeDisplayText(line)), Math.max(1, width))));
+        const room = Math.max(1, (questionViewport(tui).terminal.rows ?? 20) - 2); scroll = Math.min(scroll, Math.max(0, lines.length - room));
+        return [...lines.slice(scroll, scroll + room), palette.fg('muted', '↑↓ scroll · Esc back')].map(line => truncateToWidth(line, Math.max(0, width), ''));
+      }, getHeaderLabel() { return STAGE_LABELS[q.state]; }, invalidate() {},
+    };
+    return frameQuestion(component, palette, tui, undefined, true);
+  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'center' } }).finally(() => bindClose(undefined));
+}
+export function questionEventCard(details: any, theme: any, expanded = false) {
+  return { invalidate() {}, render(width: number) {
+    const q = details?.question as PostedQuestion | undefined;
+    const rows = [details?.label ?? 'Question event', q?.definition.question ?? '', q ? STAGE_LABELS[q.state] : '',
+      ...(q?.neededNow ? [q.neededNow] : []),
+      ...(q?.state === 'awaiting' ? [q.urgency === 'blocking' ? 'Blocks linked work' : 'Can wait', q.boundary] : []),
+      ...(q?.response?.answers ?? []).flatMap(a => [...(Array.isArray(a.answer) ? a.answer : a.answer == null ? [] : [a.answer]).map(v => typeof v === 'string' ? v : v.label), ...(a.note ? ['Your note', a.note] : [])]),
+      ...(q?.response?.clarification ? ['Your clarification', q.response.clarification] : []),
+      ...(q?.consequence ? [q.consequence] : []), ...(expanded && q ? [`Why: ${q.why}`, q.boundary, `Reference ${q.id} · revision ${q.revision}`, ...(q.taskIds.length ? [`Linked work: ${q.planId} / ${q.taskIds.join(', ')}`] : []),
+        ...(q.definition.options.length ? ['Original choices', ...q.definition.options.flatMap(o => [o.label, o.description ?? '', ...(o.suggestion ? [`Assistant suggestion: ${o.suggestion.basis}`, o.suggestion.caveat ?? ''] : [])])] : [])] : [])];
+    if (width <= 0) return [];
+    const framed = width >= 10;
+    const content = new Text(rows.filter(Boolean).flatMap((r, i) => String(r).split('\n').map(line => theme.fg(i === 0 ? details?.error ? 'error' : 'accent' : 'text', sanitizeDisplayText(line)))).join('\n'), 0, 0)
+      .render(Math.max(1, width - (framed ? 4 : 0))).map(line => truncateToWidth(line, Math.max(1, width - (framed ? 4 : 0)), ''));
+    return framed ? frameRows({ theme, width, rows: content, inset: 1, color: questionAccent(theme) }) : content;
+  } };
+}

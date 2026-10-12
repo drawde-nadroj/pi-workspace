@@ -15,10 +15,10 @@ import { dressComposerEditor, isEditorComponent } from "./composer-editor.ts";
 import { createFooter, createHeader, HomeEditor } from "./ui.ts";
 import { createWorkspace } from "./workspace.ts";
 import { DOCK, isSnapshot, type DockSnapshot } from "../../lib/home-dock.ts";
+import { POSTED } from "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts";
 import { ThemeLease } from "./composer-theme.ts";
 import { registerRecaps } from "./recaps.ts";
 import { registerFooter } from "./footer.ts";
-import { registerComposerPreview } from "./composer-preview.ts";
 import {
   DEFAULTS, TIMING_ENTRY, RunClock, preferencesFrom, shouldAnimate,
   type HomeState, type Outcome, type Preferences,
@@ -31,9 +31,14 @@ const IDENTITY_WIDGET = "pi-home:identity";
 export default function home(pi: ExtensionAPI) {
   const state: HomeState = {
     prefs: { ...DEFAULTS }, clock: new RunClock(), phase: "working", tools: new Map(),
-    promptDepth: 0, compacting: false, lastInputAt: 0, thinkingLevel: () => pi.getThinkingLevel(),
+    promptDepth: 0, blockingPromptDepth: 0, compacting: false, lastInputAt: 0, thinkingLevel: () => pi.getThinkingLevel(),
   };
   let context: ExtensionContext | undefined;
+  const passiveDialogs = new Set<string>(), promptPauses: boolean[] = [];
+  pi.events.on(POSTED.interaction, (event: any) => {
+    if (event?.version !== 1 || event.sessionId !== context?.sessionManager.getSessionId() || !["pi-tasks:browser", "pi-ask:posted"].includes(event.id) || typeof event.active !== "boolean") return;
+    if (event.active) passiveDialogs.add(event.id); else passiveDialogs.delete(event.id);
+  });
   let tui: TUI | undefined;
   let editor: HomeEditor | undefined;
   let dressedEditor: (EditorComponent & { focused?: boolean }) | undefined;
@@ -272,6 +277,7 @@ export default function home(pi: ExtensionAPI) {
   }
 
   pi.on("session_start", async (event, ctx) => {
+    passiveDialogs.clear(); promptPauses.length = 0; state.promptDepth = 0; state.blockingPromptDepth = 0;
     if (ctx.mode !== "tui") return;
     context = ctx;
     state.chronomancerDay = undefined;
@@ -288,6 +294,7 @@ export default function home(pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", () => {
+    passiveDialogs.clear(); promptPauses.length = 0; state.promptDepth = 0; state.blockingPromptDepth = 0;
     stopTimer();
     paintCleanup?.(); paintCleanup = undefined;
     groupedTools.dispose();
@@ -356,16 +363,19 @@ export default function home(pi: ExtensionAPI) {
     state.phase = "working";
     wake();
   });
-  pi.on("ui_prompt_start", (_event, ctx) => {
+  pi.on("ui_prompt_start", (event, ctx) => {
     if (ctx.mode !== "tui") return;
-    state.clock.pause(Date.now());
+    const synchronousAsk = [...state.tools.values()].some(name => name === "ask_user_question" || name === "ask_questions");
+    const pauses = event.kind !== "custom" || !passiveDialogs.size || synchronousAsk;
+    promptPauses.push(pauses);
+    if (pauses) { state.clock.pause(Date.now()); state.blockingPromptDepth = (state.blockingPromptDepth ?? 0) + 1; }
     state.promptDepth++;
     if (installed) mountWorkspace(ctx);
     wake();
   });
   pi.on("ui_prompt_end", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
-    state.clock.resume(Date.now());
+    if (promptPauses.pop() !== false) { state.clock.resume(Date.now()); state.blockingPromptDepth = Math.max(0, (state.blockingPromptDepth ?? 0) - 1); }
     state.promptDepth = Math.max(0, state.promptDepth - 1);
     if (installed) mountWorkspace(ctx);
     wake();
@@ -398,21 +408,21 @@ export default function home(pi: ExtensionAPI) {
   });
 
   async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> {
-    const options = ["Motion…", "Icons…", "Matching Composer theme…", "Work details…",
+    const options = ["Work motion…", "Home header icons…", "Matching palette…", "Work summary…",
       state.prefs.enabled ? "Turn appearance off" : "Turn appearance on"];
-    const result = await ctx.ui.select(`pi-home · composer · motion ${state.prefs.motion}`, options);
+    const result = await ctx.ui.select("Composer controls · choices save immediately", options);
     if (!result) return;
     const index = options.indexOf(result);
     if (index === 0) {
-      const motion = await ctx.ui.select("Movement while working (timing readouts remain live)", ["work", "off"]);
+      const motion = await ctx.ui.select("Work motion · readouts stay live", ["work", "off"]);
       return motion ? `motion ${motion}` : undefined;
     }
     if (index === 1) {
-      const icons = await ctx.ui.select("Icon set", ["nerd", "plain"]);
-      return icons ? `icons ${icons}` : undefined;
+      const icons = await ctx.ui.select("Home header icons · frame metadata uses /workspace", ["Nerd Font", "Plain text"]);
+      return icons ? `icons ${icons === "Nerd Font" ? "nerd" : "plain"}` : undefined;
     }
     if (index === 2) {
-      const theme = await ctx.ui.select("Matching interface palette (off restores the preceding colors)", ["on", "off"]);
+      const theme = await ctx.ui.select("Matching palette · off restores your preceding colors", ["on", "off"]);
       return theme ? `theme ${theme}` : undefined;
     }
     if (index === 3) {
@@ -423,7 +433,7 @@ export default function home(pi: ExtensionAPI) {
   }
 
   pi.registerCommand("home", {
-    description: "Composer appearance: output raw/readable, details, theme, motion, icons, on/off. Tasks are independent; /footer edits the frame layout.",
+    description: "Composer appearance: output raw/readable, details, theme, motion, icons, on/off. Tasks are independent; /workspace edits frame and metadata appearance.",
     getArgumentCompletions: (prefix) => COMMANDS.filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") { ctx.ui.notify("pi-home appearance is available only in terminal UI mode.", "info"); return; }
@@ -453,5 +463,4 @@ export default function home(pi: ExtensionAPI) {
   // Registered last: the workspace is ready before the independent footer mounts.
   registerFooter(pi, state);
   registerRecaps(pi, () => state.prefs.enabled);
-  registerComposerPreview(pi, () => ({ motion: state.prefs.motion !== "off", icons: state.prefs.icons === "nerd" }));
 }

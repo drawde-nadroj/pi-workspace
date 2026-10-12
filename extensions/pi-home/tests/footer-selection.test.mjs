@@ -112,7 +112,7 @@ test("element and preview shimmer together; steady selected and keyboard-focused
   assert.notEqual(moving[title], first[title], "linked native preview receives the same pulse");
   assert.equal(withoutHighlight(moving[title]), withoutHighlight(first[title]));
   h.panel.handleInput("\r"); const properties = rows(h).map(plain).join("\n");
-  assert.match(properties, /• Chat title/); assert.match(properties, /› Show this element/);
+  assert.match(properties, /• Chat title/); assert.match(properties, /› Visible/);
   assert.equal(h.home.appearancePreview.shimmer, undefined, "property focus no longer animates the selected element");
   h.click("Text color"); const menu = h.rows().join("\n");
   assert.match(menu, /› .*Match the frame.*✓/); h.panel.handleInput("\x1b[B");

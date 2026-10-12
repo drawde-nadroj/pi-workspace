@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>The thread · Tasks × Ask</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">╭<br>╰</span><div><strong>The thread</strong><span>Tasks × Ask · interaction study 01</span></div></div>
+    <div class="controls"><button id="width-toggle" aria-pressed="false">Narrow view</button><button id="theme-toggle" aria-pressed="false">Light theme</button><button id="reset">Reset sample</button></div>
+  </header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">LESS BOOKKEEPING. MORE UNDERSTANDING.</p><h1>Your work. Your decisions.<br><span>One continuous thread.</span></h1></div><p class="intro-note">A question stays connected to the work.<br>An answer has a visible consequence.<br>Nothing disappears into a tool call.</p></section>
+    <div class="preview-notice"><span class="preview-label">INTERACTIVE PREVIEW</span><span>Synthetic data · in-memory only · no agent, tools, or publishing</span></div>
+    <section class="demo-layout">
+      <div class="terminal" id="terminal">
+        <div class="terminal-bar"><div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div><span>pi · workspace</span><span class="terminal-mode">PROPOSED EXPERIENCE</span></div>
+        <div class="terminal-content">
+          <div class="ambient-chat"><span class="speaker user-color">YOU</span><p>Make the workspace clearer. Ask before any publishing.</p><span class="speaker accent-color">ASSISTANT</span><p>I’m checking the local layout. The release decision can wait here while those checks continue.</p></div>
+          <section id="workspace" class="workspace" aria-label="Tasks preview">
+            <div class="workspace-head"><div><p class="eyebrow">TASKS</p><h2>Prepare the workspace refresh</h2></div><button id="close-workspace" class="icon-button" aria-label="Close Tasks preview">×</button></div>
+            <div class="plan-summary" id="plan-summary"></div>
+            <nav class="tabs" aria-label="Workspace views" role="tablist"><button role="tab" id="tab-work" aria-controls="view" aria-selected="true" data-view="work">Work</button><button role="tab" id="tab-requests" aria-controls="view" aria-selected="false" tabindex="-1" data-view="requests">Requests</button><button role="tab" id="tab-questions" aria-controls="view" aria-selected="false" tabindex="-1" data-view="questions">Questions <span id="question-count">2</span></button></nav>
+            <div id="view" class="view" role="tabpanel" aria-labelledby="tab-work"></div>
+            <div class="workspace-foot"><span><kbd>↑</kbd><kbd>↓</kbd> select <kbd>Enter</kbd> open</span><span id="view-hint">Details stay one step away</span></div>
+          </section>
+          <div id="closed-hint" hidden class="closed-hint">Your place is saved.<button id="reopen-workspace">Open /tasks</button></div>
+          <div class="composer"><div class="composer-top"><span>╭─ YOU</span><span>sample workspace ─╮</span></div><div class="composer-body"><span class="cursor" aria-hidden="true">▏</span><span class="composer-placeholder">Native input stays yours.</span><button id="open-questions">2 questions</button></div><div class="composer-bottom"><span>╰─ local verification continues</span><span>no live agent ─╯</span></div></div>
+        </div>
+      </div>
+      <aside class="conversation" aria-label="Sample chat events">
+        <header><p class="eyebrow">THE SAME THREAD, IN CHAT</p><h2>A readable history</h2><p>Meaningful changes, not another ledger.</p></header>
+        <div id="events" class="events" aria-live="polite" aria-relevant="additions"></div>
+        <div class="conversation-foot"><span>↳</span><p>Posting is not answering.<br>Submitting is not applying.<br>Completion reported is not verification.</p></div>
+      </aside>
+    </section>
+    <section class="walkthrough"><article><span class="step-number">01</span><h3>Find your place</h3><p>Work says what happens next. Requests preserve why it matters. IDs stay in details.</p></article><article><span class="step-number">02</span><h3>Answer in context</h3><p>Open Questions, choose one, and answer over the panel. Back keeps your draft and your place.</p></article><article><span class="step-number">03</span><h3>Follow the consequence</h3><p>After submitting, advance the sample delivery and application separately. Watch the history stay honest.</p></article></section>
+    <footer class="page-footer"><span>A browser sketch of a terminal workflow—not a native Pi implementation.</span><span>Keyboard accessible · no network · no saved answers</span></footer>
+  </main>
+  <dialog id="ask-dialog" class="ask-dialog" aria-labelledby="ask-title"></dialog>
+  <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title"></dialog>
+  <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

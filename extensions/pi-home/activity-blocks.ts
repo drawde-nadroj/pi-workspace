@@ -206,6 +206,10 @@ export class ActivityBlocks {
         section("Raw arguments", textRows(json(a), "muted"));
         if (meta.result?.details !== undefined) section("Result details", textRows(json(meta.result.details), "muted"));
       } else {
+        // Submitted source is inspectable before output, but is not an execution log.
+        if (expanded && meta.toolName === "codemode" && typeof a.code === "string") {
+          section("Script · submitted", codeRows(a.code, "javascript", theme, inner));
+        }
         if (expanded && location !== title && !["bash", "powershell"].includes(meta.toolName)) section("", textRows(location, "muted"));
         if (childSummary) {
           if (!expanded) compact([childSummary], attention ? "warning" : "muted");
@@ -220,7 +224,7 @@ export class ActivityBlocks {
               calls.push(...new Text(line, 0, 0).render(inner));
               if (call.error) calls.push(...textRows("  " + call.error, "error"));
             }
-            section(childSummary, calls);
+            section("Recorded calls · " + childSummary, calls);
           }
         }
         if (!expanded) {
@@ -244,6 +248,22 @@ export class ActivityBlocks {
           else compact(compactLines(output, 2, ["bash", "powershell", "codemode"].includes(meta.toolName)));
           if (!body.length && !meta.result) compact(["Waiting for output…"], "muted");
           else if (!body.length && meta.result) compact(["No text output"], "muted");
+          if (meta.toolName === "codemode" && childCalls?.length) {
+            // Reserve up to three action rows, prioritizing problems and live work.
+            // Keep execution order within the chosen subset; never infer from source.
+            const priority = childCalls.filter(call => ["failed", "cancelled", "running"].includes(call.state));
+            const chosen = new Set([...new Set([...priority, ...childCalls])].slice(0, 3));
+            for (const call of childCalls.filter(call => chosen.has(call))) {
+              const style = toolStateStyle(theme, call.state);
+              const label = sourceText(call.label).replace(/\r?\n/g, " ↵ ");
+              const suffix = ` · ${call.state}`;
+              const targetWidth = Math.max(1, inner - visibleWidth(suffix) - 2);
+              body.push(theme.style(style.marker, { fg: style.color }) + " "
+                + theme.fg("muted", truncateToWidth(label, targetWidth, "…")) + theme.fg("dim", suffix));
+            }
+            const remaining = childCalls.length - chosen.size;
+            if (remaining) body.push(theme.fg("muted", truncateToWidth(`+${remaining} more recorded calls · expand to inspect`, inner, "…")));
+          }
         } else {
           if (meta.toolName === "edit" && !error && typeof details.diff === "string") section("Diff", new Text(renderDiff(sourceText(details.diff), { filePath: path }), 0, 0).render(inner));
           for (let i = 0; i < parts.length; i++) {
@@ -262,7 +282,7 @@ export class ActivityBlocks {
             delete remaining.edits; delete remaining.oldText; delete remaining.newText;
           }
           if (meta.toolName === "codemode" && typeof a.code === "string") {
-            section("Script", codeRows(a.code, "javascript", theme, inner)); delete remaining.code;
+            delete remaining.code;
           }
           if (["bash", "powershell"].includes(meta.toolName) && typeof a.command === "string") {
             section("Command", codeRows(a.command, meta.toolName === "bash" ? "bash" : "powershell", theme, inner)); delete remaining.command;

@@ -33,6 +33,61 @@ test("visual layout migration is optional, validates nested data and never mutat
   assert.equal(old.appearance, undefined);
 });
 
+test("Tab and Shift-Tab follow the six top sections without entering Input properties", async () => {
+  const h = workspace(undefined, 60, 24);
+  const section = () => h.rows()[2];
+  assert.match(section(), /1\/6 Input/);
+  for (const label of ["2/6 tasks", "3/6 ask", "4/6 transcript", "5/6 Other", "6/6 workspace", "1/6 Input"]) {
+    h.panel.handleInput("\t"); assert.ok(section().includes(label), `${label}: ${section()}`);
+  }
+  h.panel.handleInput("\x1b[Z"); assert.match(section(), /6\/6 workspace/);
+  h.panel.handleInput("\t"); h.panel.handleInput("\r");
+  assert.match(h.rows()[0], /Input & footer · Assistant s/);
+  h.panel.handleInput("\x1b[Z"); assert.match(section(), /6\/6 workspace/);
+  h.panel.handleInput("\t"); h.panel.handleInput("\x1b[C");
+  assert.match(h.rows()[0], /Input & footer · Assistant s/);
+  h.panel.handleInput("\x1b[D"); assert.match(section(), /1\/6 Input/);
+  await h.discard();
+});
+
+test("clear sections, contextual controls and fixed information preserve settings", async () => {
+  const h = workspace(undefined, 120, 40);
+  assert.match(h.rows()[1], /\[Input\].*\[More settings\].*\[General\]/);
+  assert.doesNotMatch(h.rows()[1], /\[Undo\]/);
+  assert.match(h.rows().join("\n"), /\[Undo\] \[Discard\] \[Save\]/);
+  h.click("[General]");
+  assert.match(h.rows()[0], /Workspace · General/);
+  const sample = h.rows().findIndex(row => row.includes("Example messages"));
+  assert.ok(sample >= 0 && sample < 18, "General keeps its relevant synthetic message preview close");
+  h.click("[Ask]"); h.click("Question frame");
+  assert.match(h.rows().join("\n"), /Frame color\s+Pi theme accent · fixed/);
+  h.panel.handleInput("\r");
+  assert.match(h.rows().join("\n"), /nothing to change here|not a setting/);
+  h.click("[Transcript]"); h.click("Chat frame");
+  assert.match(h.rows().join("\n"), /Frame colors\s+User red · assistant purple · fixed/);
+  h.panel.handleInput("\r");
+  assert.equal(h.latest.ask, undefined); assert.equal(h.latest.transcript, undefined);
+  await h.discard();
+});
+
+test("advanced choices stay available without crowding the first view", async () => {
+  const h = workspace();
+  h.click("[Tasks]");
+  assert.doesNotMatch(h.rows().join("\n"), /Cycle duration/);
+  h.click("Advanced settings"); assert.match(h.rows().join("\n"), /Border effect/);
+  h.click("Border effect"); h.pick("pulse");
+  h.click("Advanced settings");
+  assert.doesNotMatch(h.rows().join("\n"), /Border effect/);
+  assert.equal(h.latest.tasks.presentation.effect, "pulse");
+  h.click("[More settings]");
+  assert.doesNotMatch(h.rows().join("\n"), /Git notation/);
+  for (let i = 0; i < 4; i++) h.panel.handleInput("\x1b[B");
+  assert.match(h.rows().join("\n"), /› Advanced settings\s+Show/);
+  h.panel.handleInput("\r");
+  assert.match(h.rows().join("\n"), /Git notation/);
+  await h.discard();
+});
+
 test("workspace identity and density edit, undo and save transactionally", async () => {
   const h = workspace();
   h.click("[Workspace]"); h.click("Your display name"); h.text("Alex 界面");
@@ -74,7 +129,7 @@ test("native full-width preview, disabled elements and synced direct/list select
   h.clickAt(hit.x, titleY);
   assert.equal(h.home.appearancePreview.selected, "session");
   assert.match(h.rows().join("\n"), /• Chat title/);
-  assert.match(h.rows().join("\n"), /› Show this element/);
+  assert.match(h.rows().join("\n"), /› Visible/);
   h.click("Show this element");
   assert.equal(h.latest.appearance.elements.session.visible, false);
   assert.doesNotMatch(h.rows().join("\n"), /Actual chat 界面/);

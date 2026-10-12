@@ -7,7 +7,7 @@ import { clean, type FooterPrefs } from "./footer-state.ts";
 import { calendarDay, sentTime, styledSentLabel } from "./sent-metadata.ts";
 import { taskFrameColor } from "../../lib/task-frame.ts";
 import { activeTranscript, assistantIdentity } from "./transcript-presentation.ts";
-type MessageComponent = UserMessageComponent | AssistantMessageComponent;
+import { nativeMessageFacts, type NativeMessageNode as MessageComponent } from "./native-message-adapter.ts";
 
 /** Remove background paint without consuming foreground payloads, OSC links or zones. */
 export function terminalBackground(text: string): string {
@@ -45,19 +45,20 @@ export class SentMessageFrames {
     };
     visit(root, 0);
     let changed = false;
-    for (const [node, dispose] of this.mounted) if (!found.has(node)) { dispose(); this.mounted.delete(node); this.timestamps.delete(node); changed = true; }
+    for (const [node, dispose] of this.mounted) if (!found.has(node) || !nativeMessageFacts(node)) { dispose(); this.mounted.delete(node); this.timestamps.delete(node); changed = true; }
     // Associate user components with session messages in transcript order. Repeated
     // identical texts consume distinct entries; synthetic skill blocks have no match.
     this.presentation = presentation?.();
     const users = this.presentation?.users ?? [];
     const taken = new Set<number>();
     for (const node of found) if (node instanceof UserMessageComponent) {
-      const index = users.findIndex((entry, i) => !taken.has(i) && entry.text === node.text);
+      const facts = nativeMessageFacts(node);
+      const index = facts?.kind === "user" ? users.findIndex((entry, i) => !taken.has(i) && entry.text === facts.text) : -1;
       if (index >= 0) { taken.add(index); this.timestamps.set(node, users[index].timestamp); }
       else this.timestamps.delete(node);
     }
     for (const node of found) {
-      if (this.mounted.has(node)) continue;
+      if (this.mounted.has(node) || !nativeMessageFacts(node)) continue;
       const original = node.render, hadOwn = Object.hasOwn(node, "render");
       const originalMouse = node.handleMouse, hadMouse = Object.hasOwn(node, "handleMouse");
       let active = true, framedWidth = -1, trimmedThinkingSpace = false, removedTop = 0, removedBottom = 0;
@@ -69,16 +70,15 @@ export class SentMessageFrames {
       const render = (width: number) => {
         framedWidth = -1;
         trimmedThinkingSpace = false; removedTop = 0; removedBottom = 0;
-        if (!active || width < 12) return original.call(node, width);
+        const facts = nativeMessageFacts(node);
+        if (!active || width < 12 || !facts) return original.call(node, width);
         const nativeLines = original.call(node, width - 2);
         if (!nativeLines.length) return nativeLines;
-        const assistantMessage = node instanceof AssistantMessageComponent ? node.lastMessage : undefined;
-        const firstVisible = assistantMessage?.content.find(block =>
-          block.type === "thinking" ? !!block.thinking.trim() : block.type === "text" && !!block.text.trim());
+        const firstVisible = facts.kind === "assistant" ? facts.firstVisible : undefined;
         // Pi adds a native leading Spacer(1). Within Home's frame that becomes
         // a redundant empty first row for a thinking-first message. Preserve
         // shell integration's OSC 133 zone marker and the native mouse row.
-        trimmedThinkingSpace = firstVisible?.type === "thinking" && nativeLines.length > 1 && !stripVTControlCharacters(nativeLines[0]).trim();
+        trimmedThinkingSpace = firstVisible === "thinking" && nativeLines.length > 1 && !stripVTControlCharacters(nativeLines[0]).trim();
         const density = this.presentation?.prefs?.density ?? "spaced";
         const lines = [...nativeLines];
         if ((trimmedThinkingSpace || density === "compact") && lines.length > 1 && !stripVTControlCharacters(lines[0]).trim()) {
@@ -97,11 +97,11 @@ export class SentMessageFrames {
         const color = assistant ? taskFrameColor(t) : userFrameColor(t);
         const options = this.presentation, style = activeTranscript(options?.prefs);
         const label = truncateToWidth(assistant ? clean(modelName()) || "Assistant" : clean(options?.prefs?.displayName ?? "jordan") || "jordan", width - 6, "…");
-        const timestamp = assistant ? (node as AssistantMessageComponent).lastMessage?.timestamp : this.timestamps.get(node);
+        const timestamp = facts.kind === "assistant" ? facts.timestamp : this.timestamps.get(node);
         const now = Date.now();
         const time = style.chat.showSent ? sentTime(timestamp, options?.prefs, now,
           !!options?.chronomancerDay && options.chronomancerDay !== calendarDay(now)) : "";
-        const motion = assistant && (node as unknown as { isStreaming?: boolean }).isStreaming === true
+        const motion = facts.kind === "assistant" && facts.streaming
           ? thinkingMotion?.() : undefined;
         return frameRows({ theme: t, width, rows: lines.map(terminalBackground), color,
           corners: { topLeft: assistant ? assistantIdentity(t, ` ${label} `, color, style) : t.style(` ${label} `, { fg: color, bold: true }),
