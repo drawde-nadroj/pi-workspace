@@ -23,7 +23,7 @@ export function questionTheme(theme: any, appearance?: AskAppearance): any {
   });
 }
 
-/** The same semantic roles as the live composer; no dependency on pi-home. */
+/** The same semantic roles as the live composer; no dependency on the Workspace implementation. */
 function surface(theme: any, text: string, width: number, raised = false): string {
   const safe = visibleWidth(text) <= width ? text : truncateToWidth(text, Math.max(0, width), "");
   const padded = safe + " ".repeat(Math.max(0, width - visibleWidth(safe)));

@@ -1,6 +1,6 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { cleanText } from "../../lib/home-dock.ts";
+import { cleanText } from "../../lib/workspace-dock.ts";
 import { taskFrame } from "../../lib/task-frame.ts";
 import type { Plan, Task } from "./state.ts";
 import type { Requirement } from "./requirements.ts";
@@ -29,11 +29,19 @@ function workRows(rows: Row[], tasks: Task[], expanded: boolean) {
     }
   });
 }
-function summary(tasks: Task[]): string {
-  if (tasks.length === 1) return STATES[tasks[0].status]?.label ?? tasks[0].status;
+function summary(tasks: Task[], theme: Theme, updated: boolean): string {
+  const prefix = updated ? "Updated · " : "";
+  if (tasks.length === 1) {
+    const state = STATES[tasks[0].status];
+    const label = state?.label ?? tasks[0].status;
+    return theme.fg(state?.tone ?? "muted", prefix + (updated ? label.toLowerCase() : label));
+  }
   const n = (status: string) => tasks.filter(t => t.status === status).length;
-  if (tasks.length && n("done") === tasks.length) return `${tasks.length} complete`;
-  return [`${n("done")}/${tasks.length} complete`, ...["active", "blocked", "cancelled"].filter(s => n(s)).map(s => `${n(s)} ${s}`)].join(" · ");
+  if (tasks.length && n("done") === tasks.length) return theme.fg("success", `${prefix}${tasks.length} complete`);
+  return theme.fg("muted", prefix) + [
+    theme.fg("success", `${n("done")}`) + theme.fg("muted", `/${tasks.length} complete`),
+    ...["active", "blocked", "cancelled"].filter(s => n(s)).map(s => theme.fg(STATES[s].tone, `${n(s)} ${s}`)),
+  ].join(theme.fg("muted", " · "));
 }
 
 /** Display-only Tasks adapter. No state writes, input ownership, or new appearance authority. */
@@ -70,10 +78,9 @@ export function taskResultCard(details: TaskCardDetails, args: Args, expanded: b
         : args.op === "add" && args.items?.length ? p.tasks.slice(-args.items.length) : p.tasks;
       if (args.op === "create" && details.title) rows.push({ text: details.title, bold: true }, { text: "" });
       if ((args.op === "add" || args.op === "create") && changed.length) {
-        rows.push({ text: `+ Added ${changed.length} task${changed.length === 1 ? "" : "s"} · not started`, tone: "muted" }, { text: "" });
+        rows.push({ text: `+ Added ${changed.length} task${changed.length === 1 ? "" : "s"} · not started`, tone: "accent" }, { text: "" });
       } else if (changed.length) {
-        detail = summary(changed);
-        if (args.op === "update" && !args.changes?.status) detail = `Updated · ${detail.toLowerCase()}`;
+        detail = summary(changed, theme, args.op === "update" && !args.changes?.status);
       }
       workRows(rows, changed, expanded);
     }

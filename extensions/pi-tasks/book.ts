@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cleanText } from "../../lib/home-dock.ts";
+import { cleanText } from "../../lib/workspace-dock.ts";
 import { emptyPlan, restorePlan, mutate, counts, contextSummary, type Plan, type Mutation, type NewTask } from "./state.ts";
 
 import { amendRequirements, restoreRequirements, requirementCoverage, coverageContext, ATOMIC_GUIDANCE, type Requirement, type RequirementInput } from "./requirements.ts";

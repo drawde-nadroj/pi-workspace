@@ -1,4 +1,4 @@
-import { cleanText } from "../../lib/home-dock.ts";
+import { cleanText } from "../../lib/workspace-dock.ts";
 import type { Plan } from "./state.ts";
 
 export type RequirementDisposition = "accepted" | "superseded";

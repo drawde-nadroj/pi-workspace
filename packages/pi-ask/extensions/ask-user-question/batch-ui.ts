@@ -8,6 +8,7 @@ export type BatchUIResult = TabAnswer[] | { action: "regenerate"; answers: TabAn
 export interface QuestionDraft {
 	answer: TabAnswer["answer"]; textBuffer: string; otherText: string; selected: [string, AskAnswer][];
 	note: string; skipped: boolean; committed: boolean;
+	clarificationText?: string; clarificationMode?: boolean;
 }
 
 export class TabbedQuestions {
@@ -69,6 +70,8 @@ export class TabbedQuestions {
 		this.feedback = "";
 		this.clarificationMode = false;
 		this.clarificationEditor = createQuestionEditor(tui, theme, undefined, cwd);
+		if (draft?.clarificationText) this.clarificationEditor.setText(draft.clarificationText);
+		this.clarificationMode = draft?.clarificationMode === true;
 
 		this.otherEditor = createQuestionEditor(tui, theme, undefined, cwd);
 		this.otherEditor.onSubmit = (value: string) => {
@@ -145,7 +148,21 @@ export class TabbedQuestions {
 		const tab = this.getActiveTab();
 		return structuredClone({ answer: tab.answer, textBuffer: tab.textBuffer, otherText: tab.otherText,
 			selected: [...tab.selected.entries()], note: this.noteFocused ? this.noteEditor.getExpandedText() : tab.note,
-			skipped: tab.skipped, committed: tab.committed });
+			skipped: tab.skipped, committed: tab.committed,
+			...(this.clarificationEditor.getExpandedText() ? { clarificationText: this.clarificationEditor.getExpandedText(), clarificationMode: this.clarificationMode } : {}) });
+	}
+
+	/** Posted overlays close only from the outer form; nested modes retain their own Escape contract. */
+	backFromNestedMode(): boolean {
+		if (!this.clarificationMode && !this.reviewing && !this.editMode && !this.noteFocused && !this.noteActionFocused) return false;
+		this.handleInput("\x1b"); return true;
+	}
+
+	/** Read-only boundary/context updates never edit answers or the underlying question definition. */
+	setContextDetails(details: string): void {
+		if (this.questions.length === 1 && this.questions[0].details !== details) {
+			this.questions[0] = { ...this.questions[0], details }; this.invalidate();
+		}
 	}
 
 	private snapshot(): TabAnswer[] {
@@ -760,7 +777,7 @@ export class TabbedQuestions {
 			return;
 		}
 		if (action === "cancel") {
-			this.handleInput(Key.escape);
+			this.handleInput("\x1b");
 		}
 	}
 
@@ -821,7 +838,7 @@ export class TabbedQuestions {
 			if (choiceList.selectedItem.isOther) this.openOtherEditor();
 			else this.toggleMultiChoice(choiceList.selectedItem);
 		} else if (action === "cancel") {
-			this.handleInput(Key.escape);
+			this.handleInput("\x1b");
 		}
 	}
 

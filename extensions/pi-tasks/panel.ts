@@ -1,11 +1,11 @@
 import type { Theme } from '@earendil-works/pi-coding-agent';
 import { matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from '@earendil-works/pi-tui';
-import { cleanText, type DockColors, type Tone } from '../../lib/home-dock.ts';
+import { cleanText, type DockColors, type Tone } from '../../lib/workspace-dock.ts';
 import { counts } from './state.ts';
 import { WORK_STATUS, REQUEST_STATUS } from './typography.ts';
 import { isPlanClosed, planInfo, selectedPlan, type PlanBook, type SavedPlan } from './book.ts';
 import { requirementCoverage, coverageGaps } from './requirements.ts';
-import { STAGE_LABELS, unresolved, type QuestionProjection } from '../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts';
+import { questionStatus, unresolved, type QuestionProjection } from '../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts';
 
 export type PanelResult = { op: 'new'; revision: string } | { op: 'add' | 'clear' | 'rename' | 'archive' | 'restore' | 'select' | 'edit'; planId: string; revision: string; id?: string } | 'off' | undefined;
 export interface PanelNavigation { viewId?: string; history?: boolean; selected?: number; planIndex?: number; section?: 'work' | 'requests' | 'questions'; requestIndex?: number; questionIndex?: number; questionId?: string; showDone?: boolean }
@@ -31,6 +31,11 @@ export class TaskPanel implements Component {
   private inbox(p?: SavedPlan) {
     return (this.questions?.records() ?? []).slice()
       .sort((a, b) => Number(unresolved(b)) - Number(unresolved(a)) || Number(b.urgency === 'blocking') - Number(a.urgency === 'blocking'));
+  }
+  private questionLink(q: QuestionProjection): string {
+    if (!q.planId) return 'Standalone question';
+    const p = this.book().plans.find(p => p.id === q.planId);
+    return `${p?.title ?? q.planId} / ${q.taskIds.map(id => p?.state.tasks.find(t => t.id === id)?.title ?? id).join(', ') || 'plan boundary'}`;
   }
   private index() {
     if (this.section() === 'questions') { const index = this.inbox(this.viewed()).findIndex(q => q.id === this.nav.questionId); return index >= 0 ? index : this.nav.questionIndex ?? 0; }
@@ -150,7 +155,7 @@ export class TaskPanel implements Component {
     const deferred = qs.filter(q => q.urgency === 'deferred' && unresolved(q)).length;
     const rows = [line(p?.title ?? 'Your workspace', 'text', false, true),
       line(p ? `${p.archivedAt !== null ? 'Archived · R to restore' : current ? 'Current' : 'History · S to make current'} · Work ${counts(p.state).replace('done', 'complete')}${isPlanClosed(p) ? ' · saved in history' : ''}` : 'No current plan · N starts one', 'muted')];
-    if (blocking || deferred) rows.push(line(`${blocking} blocking question${blocking === 1 ? '' : 's'} · ${deferred} can wait`, blocking ? 'warning' : 'muted'));
+    if (blocking || deferred) rows.push(line(`Session questions · ${blocking} blocking · ${deferred} can wait`, blocking ? 'warning' : 'muted'));
     rows.push(line(['work', 'requests', 'questions'].map(s => s === this.section() ? `[${s[0].toUpperCase() + s.slice(1)}]` : s[0].toUpperCase() + s.slice(1)).join('    '), 'accent'), line());
     if (this.details) {
       const t = this.work(p)[this.index()], r = this.requests(p)[this.index()];
@@ -170,6 +175,8 @@ export class TaskPanel implements Component {
         if (t.doneWhen) field('Criterion', [t.doneWhen]);
         if (t.phase) field('Phase', [t.phase]);
         if (t.dependsOn.length) field('Depends on', t.dependsOn.map(id => `${p?.state.tasks.find(t => t.id === id)?.title ?? id} · ${id}`));
+        const gates = (this.questions?.records() ?? []).filter(q => unresolved(q) && q.planId === p?.id && q.taskIds.includes(t.id));
+        if (gates.length) field('Linked questions', gates.map(q => `${q.question} · ${q.id} · ${questionStatus(q)}`));
         if (t.reason) field('Blocked', [t.reason]);
         if (t.note) field(t.noteBy === 'user' ? 'Outcome · user note' : 'Outcome · agent report', [t.note]);
         if (t.evidence) field('Evidence', [t.evidence]);
@@ -185,7 +192,7 @@ export class TaskPanel implements Component {
     if (this.section() === 'requests') entries = this.requests(p).map(r => ({ title: r.title, glyph: REQUEST_STATUS[r.state]?.glyph ?? '?', glyphTone: REQUEST_STATUS[r.state]?.tone ?? 'warning', sub: `${coverageLabel(r.state)} · ${r.taskIds.length} linked`, subTone: REQUEST_STATUS[r.state]?.tone === 'warning' ? 'warning' : 'muted' }));
     else if (this.section() === 'questions') entries = qs.map(q => {
       const blocked = q.urgency === 'blocking' && unresolved(q), disposed = q.state === 'withdrawn' || q.state === 'replaced';
-      return { title: q.question, glyph: blocked ? '!' : q.state === 'applied' ? '✓' : disposed ? '–' : '?', glyphTone: blocked ? 'warning' : q.state === 'applied' ? 'success' : 'muted', subTone: blocked ? 'warning' : 'muted', sub: `${q.state === 'awaiting' ? blocked ? 'Blocks linked work' : 'Can wait' : STAGE_LABELS[q.state]} · ${q.state === 'awaiting' ? q.neededNow ?? q.boundary : q.consequence ?? 'Submitted is not applied.'}` };
+      return { title: q.question, glyph: blocked ? '!' : q.state === 'applied' ? '✓' : disposed ? '–' : '?', glyphTone: blocked ? 'warning' : q.state === 'applied' ? 'success' : 'muted', subTone: blocked ? 'warning' : 'muted', sub: `${q.state === 'awaiting' ? blocked ? q.taskIds.length ? 'Blocks linked work' : 'Blocks stated boundary' : 'Can wait' : questionStatus(q)} · ${q.state === 'awaiting' ? q.neededNow ?? q.boundary : q.consequence ?? (disposed ? 'Withdrawal or replacement is not approval.' : q.state === 'applied' ? 'Agent report, not independent verification.' : 'Submitted is not applied.')} · ${this.questionLink(q)}` };
     });
     else entries = this.work(p).map(t => ({ title: t.title, glyph: WORK_STATUS[t.status].glyph, glyphTone: WORK_STATUS[t.status].tone,
       sub: t.status === 'active' ? current && this.running() ? 'Working' : 'Paused' : t.status === 'pending' ? 'Not started' : t.status === 'done' ? '' : t.status === 'blocked' ? `Blocked · ${t.reason}` : 'Cancelled', subTone: t.status === 'blocked' ? 'warning' : 'muted' }));

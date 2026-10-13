@@ -69,7 +69,9 @@ export function validateDraft(draft: QuestionDraft) {
   if (!draft || typeof draft.textBuffer !== 'string' || typeof draft.otherText !== 'string' || typeof draft.note !== 'string' || !Array.isArray(draft.selected) ||
     draft.selected.some(v => !Array.isArray(v) || v.length !== 2 || typeof v[0] !== 'string' || !answer(v[1])) ||
     draft.answer !== null && typeof draft.answer !== 'string' && !(Array.isArray(draft.answer) ? draft.answer.every(answer) : answer(draft.answer)) ||
-    typeof draft.committed !== 'boolean' || typeof draft.skipped !== 'boolean' || Buffer.byteLength(JSON.stringify(draft)) > 128 * 1024) throw new Error('Invalid or oversized question draft');
+    typeof draft.committed !== 'boolean' || typeof draft.skipped !== 'boolean' ||
+    draft.clarificationText !== undefined && typeof draft.clarificationText !== 'string' ||
+    draft.clarificationMode !== undefined && typeof draft.clarificationMode !== 'boolean' || Buffer.byteLength(JSON.stringify(draft)) > 128 * 1024) throw new Error('Invalid or oversized question draft');
 }
 function validateResponse(response: PostedResponse, q: PostedQuestion) {
   if (!response || !['answered', 'skipped', 'clarification_requested'].includes(response.status) || !Array.isArray(response.answers) || response.answers.length !== 1 || Buffer.byteLength(JSON.stringify(response)) > 128 * 1024) throw new Error('Invalid or oversized question response');

@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-const root = join(homedir(), ".pi/agent/install/releases", readFileSync(join(homedir(), ".pi/agent/install/current-version"), "utf8").trim(), "node_modules");
+const root = process.env.PI_FRAME_HOST_MODULES || process.env.PI_WORKSPACE_HOST_MODULES || process.env.PI_HOME_HOST_MODULES || process.env.PI_ASK_HOST_MODULES || (() => {
+  const install = join(homedir(), ".pi/agent/install");
+  try { return join(install, "releases", readFileSync(join(install, "current-version"), "utf8").trim(), "node_modules"); }
+  catch { throw new Error("Pi test host unavailable. Set PI_FRAME_HOST_MODULES (or PI_WORKSPACE_HOST_MODULES / PI_ASK_HOST_MODULES) to a compatible host node_modules directory."); }
+})();
 const { createJiti } = await import(pathToFileURL(join(root, "jiti/lib/jiti.mjs")));
 const jiti = createJiti(import.meta.url, { alias: { "@earendil-works/pi-tui": join(root, "@earendil-works/pi-tui/dist/index.js") } });
 const { frameRail, frameRows, paintFramePerimeter, statusPreset } = await jiti.import(fileURLToPath(new URL("../index.js", import.meta.url)));
@@ -79,6 +83,25 @@ test("narrow fallback never produces overflowing rows", () => {
     assert.equal(rows.length, 1);
     assert.ok(visibleWidth(rows[0]) <= width);
   }
+});
+
+test("perimeter paint preserves styled border-shaped labels, ANSI context and unknown rails", () => {
+  const label = "\x1b[1;38;2;234;127;129mA─╭界面🌈B\x1b[0m";
+  for (const position of ["topLeft", "topCenter", "topRight", "bottomLeft", "bottomCenter", "bottomRight"]) {
+    const fixed = frameRows({ width: 52, rows: ["body"], corners: { [position]: label }, color: "#333333" });
+    const moving = paintFramePerimeter(fixed, { theme, width: 52, color: "#333333", accent: "#ffffff", active: true, now: 500 });
+    assert.ok(moving.join("").includes(label));
+    assert.deepEqual(moving.map(plain), fixed.map(plain)); assert.deepEqual(moving.map(visibleWidth), fixed.map(visibleWidth));
+  }
+  const unknown = ["╭ " + label + " ───────────╮", "│body│", "╰────────────────╯"];
+  const width = visibleWidth(unknown[0]);
+  const moving = paintFramePerimeter(unknown, { theme, width, accent: "#ffffff", active: true, now: 500 });
+  assert.ok(moving[0].includes(label), "unknown rails do not guess ownership inside labels");
+  const ambiguous = frameRail({ width: 20 });
+  assert.equal(frameRail({ width: 20, left: "─" }), ambiguous);
+  const painted = paintFramePerimeter([ambiguous, frameRail({ width: 20, side: "bottom" })],
+    { theme, width: 20, accent: "#ffffff", active: true, now: 500 });
+  assert.deepEqual(painted.map(plain), [ambiguous, frameRail({ width: 20, side: "bottom" })].map(plain));
 });
 
 test("motion is opt-in, stable in geometry and never paints content", () => {

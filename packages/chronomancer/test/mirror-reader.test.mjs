@@ -12,7 +12,7 @@ const { MirrorReader } = await jiti.import(join(directory, 'extensions/mirror-re
 const { MirrorWidget } = await jiti.import(join(directory, 'extensions/mirror-widget.ts'));
 const { default: factory } = await jiti.import(join(directory, 'extensions/index.ts'));
 const { createJournal, openLocalJournal, store } = await jiti.import(join(directory, 'extensions/journal.ts'));
-const { initTheme, theme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-home/tests/host.mjs')));
+const { initTheme, theme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-workspace/tests/host.mjs')));
 const entry = (id, day, body, parent = null, depth = 1) => ({ id, day, body, parent, depth, root: parent ?? id, level: depth,
   time: '12:30:00', createdAt: `${day}T12:30:00.000Z`, revision: false });
 const text = lines => lines.map(plain).join('\n');

@@ -23,6 +23,8 @@ call out the unknown!
 
 Adaptive questions for building shared context with the [Pi Coding Agent](https://github.com/earendil-works/pi)—giving you precise control over what an agent learns, making efficient use of its context window, and reducing tokens wasted on guesses and rework.
 
+For setup, see [Installation](#installation). For an answer task, see [best usage](#best-usage-ask-when-inquiry-is-worth-the-interruption) and [keyboard controls](#keyboard-controls). Agent authors can consult [tool parameters](#tool-parameters) and [posted queue operations](#posted-queue-operations). [Posted questions](#posted-questions-one-continuous-thread) explains scope and provenance; it is not a shell-command reference.
+
 ## Highlights
 
 - **Regenerate unanswered questions from completed answers.** Once a batch has both an answered and an unanswered question, **Ctrl+R Regenerate unanswered** appears on the question and Review screens (also under **F2 More**). Press it to let the agent replace only the questions that no longer fit. Your resolved answers and notes become context for the new questions instead of being asked again.
@@ -43,17 +45,17 @@ The package exposes three tools:
 
 Use existing synchronous tools for an immediate decision where the agent should pause. Use `question_queue post` when other authorized work can continue. Each post includes **why**, a concrete **boundary**, and **blocking** or **deferred** urgency; optional `planId`/`taskIds` link existing non-archived Tasks work. A blocking label is local to that boundary, not a declaration that all agent work has stopped. Unlinked questions work without Tasks.
 
-Select a question in `/tasks` → **Questions** and press Enter. Ask opens as a raised overlay above the existing panel; Escape returns to the same question and preserves the draft, including custom/free-text answers and notes. Enter Continue opens Review; a separate **Submit** finalizes the response. Existing synchronous forms retain their original input/skip/cancel semantics. Ask appearance and density are read from the existing `/workspace` settings at opening; there are no new live appearance preferences.
+Select a question in `/tasks` → **Questions** and press Enter. Ask opens as a raised overlay above the existing panel; Escape first returns from Review/custom/clarification editing or discards only the active note edit. Outer Escape then returns to the same question and preserves the draft, including custom/free-text answers, saved notes and clarification buffers. Enter Continue opens Review; a separate **Submit** finalizes the response. Existing synchronous forms retain their original input/skip/cancel semantics. Ask appearance and density are read from the existing `/workspace` settings at opening; there are no new live appearance preferences.
 
-The branch-local lifecycle is **Awaiting answer → Answer submitted → Delivered to agent → Agent reports applied**. Delivery means the response has entered the model context, not that the model has acted on it. Notes and caveats remain part of the response. Skips and clarification requests can be delivered but cannot be reported applied as answers; the agent must clarify, replace or withdraw the question. Application requires a concrete consequence and does not mutate Tasks. Linked agent task starts/completions wait on unresolved records; a deferred linked question becomes blocking when the agent reaches that task boundary. Ask records the needed-now reason without rewriting the original question or losing the submitted response identity. Independent work remains available. This is a Tasks-state gate, **not a universal enforcement layer for arbitrary shell commands, tools, or external side effects**. Use the synchronous consent/permission path for immediate high-risk actions.
+The branch-local lifecycle is **Awaiting answer → Response submitted → Delivered to agent → Agent reports applied**. Answer, skip and clarification response kinds are labeled separately; submission does not imply agreement. Delivery means the response has entered the model context, not that the model has acted on it. Notes and caveats remain part of the response. Skips and clarification requests can be delivered but cannot be reported applied as answers; the agent must clarify, replace or withdraw the question. Application requires a concrete consequence and does not mutate Tasks. Linked agent task starts/completions wait on unresolved records; a deferred linked question becomes blocking when the agent reaches that task boundary. Ask records the needed-now reason without rewriting the original question, losing an open urgency-only draft, or changing a submitted response identity. The open form updates its context and commits against the latest compatible revision; definition/link/session changes still fail closed. Independent work remains available. This is a Tasks-state gate, **not a universal enforcement layer for arbitrary shell commands, tools, or external side effects**. Use the synchronous consent/permission path for immediate high-risk actions.
 
 `question_queue list` returns full records with per-question revisions. `apply`, `withdraw` and `replace` require the current question revision and a reason/consequence. Replacement keeps the original question and links to the new record; it never silently rewrites submitted wording. Withdrawal is not approval, and neither withdrawal nor application automatically changes a task. Reconcile changed scope through the requirement owner before proceeding. Stale session/revision responses are rejected rather than applied to a revised question.
 
-Submitted responses use Pi steering and are available after the current turn's tool calls, not inside a running tool. Submitting while idle can start an agent turn. If delivery is interrupted, the response stays Submitted; `/questions retry q1` requires explicit confirmation and reuses the original submission identity. There is **no automatic retry** on reload. A prior uncertain send may still be queued; the same answer must not be applied twice. Refreshing the inbox is safe and does not send anything.
+Submitted responses use Pi steering and are available after the current turn's tool calls, not inside a running tool. Submitting while idle can start an agent turn. If delivery is interrupted, the response stays Submitted; `/questions retry q1` requires explicit confirmation and reuses the original submission identity. There is **no automatic retry** on reload. Outcome views explain correction: tell the agent what changed and request a provenance-preserving replacement. The original response is retained; delivered context and external effects cannot be undone by this UI. A prior uncertain send may still be queued; the same answer must not be applied twice. Refreshing the inbox is safe and does not send anything.
 
-State uses version-1 `pi-ask:posted-v1` custom entries on the active branch, bounded to 100 retained records and 1 MiB. Drafts save on returning from the overlay; crashes can lose currently open, unsaved input. Restore/reload/tree/compaction read branch entries without rewriting them. Invalid or future versions fail closed and are not automatically reset. Posted tool results, submission messages and delivery entries each own one immutable chat event; opening an old event does not rewrite its past status. Standalone Ask provides an attention widget when Tasks is unavailable or off. Non-TUI modes may post/list/disposition records; answering requires the TUI.
+State uses version-1 `pi-ask:posted-v1` custom entries on the active branch, bounded to 100 retained records and 1 MiB. Drafts save on returning from the overlay; crashes can lose currently open, unsaved input. Restore/reload/tree/compaction read branch entries without rewriting them. Invalid or future versions fail closed and are not automatically reset. Posted tool results, submission messages and delivery entries each own one immutable chat event; opening an old event does not rewrite its past status. Standalone Ask provides an attention widget when Tasks does not host attention, including unavailable, off or hidden Tasks. Link availability is a separate fact. The Questions catalogue is session-scoped; linked plan/task names are read-only context, not a new state owner. Non-TUI modes may post/list/disposition records; answering requires the TUI.
 
-The Home clock keeps tracking independent work during the Tasks browser and posted Ask overlays, while visual motion stays still. Existing synchronous questions still pause the clock. No new timers, network calls, live-settings changes or input-editor replacement are introduced by posting a question.
+The Workspace clock keeps tracking independent work during the Tasks browser and posted Ask overlays, while visual motion stays still. Existing synchronous questions still pause the clock. No new timers, network calls, live-settings changes or input-editor replacement are introduced by posting a question.
 
 ## Rounded question panel
 
@@ -61,7 +63,7 @@ Questions temporarily replace the main input area with a **Questions** panel: ro
 
 Keyboard hints use **↵** for Enter and **⇧↵** for Shift+Enter, with readable action words. The primary action and **Ctrl+S Skip question** stay visible while answering or editing a note. No Nerd Font is required. Tool cards use **Question** / **Questions** rather than internal tool names.
 
-Pi holds the real prompt draft while the question owns the input area, then restores it. Composer’s Vim integration preserves the existing editor instance and skips the unchanged-draft reset during native dialog restoration. Selection, `@` file-completion, clarification, skip, and review/submit controls remain available. Run `/reload` after updating the local package.
+Pi holds the real prompt draft while the question owns the input area, then restores it. Composer’s Vim integration preserves the existing editor instance and skips the unchanged-draft reset during native dialog restoration. Selection, `@` file-completion, clarification, skip, and review/submit controls remain available. Start a fresh Pi process after package/export or imported-module changes; `/reload` may retain dependencies.
 
 ## Best usage: ask when inquiry is worth the interruption
 
@@ -124,13 +126,13 @@ The dialog is also a small context editor. It gives you control over both the sh
 - **Clarification prevents false agreement.** Ask the agent what a question means before committing an answer to something you may have misunderstood.
 - **Revision keeps context current.** Resolved answers remain explicit context while stale unanswered questions are reformulated rather than silently becoming assumptions.
 
-The result is higher-signal conversation history. Instead of mixing requirements, uncertainty, corrections, and guesses into one long message, the tool returns structured answers and notes that show what you chose, what you qualified, and what still needs work.
+The intended result is clearer conversation history; this is not a measured guarantee of comprehension or task quality. Instead of mixing requirements, uncertainty, corrections, and guesses into one long message, the tool returns structured answers and notes that show what you chose, what you qualified, and what still needs work.
 
 That can also make better use of a limited token budget. Asking a focused batch has an upfront cost, but it can avoid repeated clarification turns, discarded implementations, and obsolete assumptions taking up the context window. This is especially useful with local models that have smaller context windows, metered APIs, or any workflow where cost and context pressure matter.
 
 ## Comparison
 
-These tools share the same basic goal, but optimize for different workflows. This comparison reflects **Claude Code 2.1.221**, **Codex CLI 0.146.1**, and the current version of this package; upstream behavior can change quickly.
+**Historical, unverified comparison notes:** the table below has no accompanying source citations or comparative captures. It was not revalidated in this documentation pass and is not a current compatibility or product-selection guarantee. Check upstream behavior before relying on a third-party row. These notes name **Claude Code 2.1.221**, **Codex CLI 0.146.1**, and the current version of this package; upstream behavior can change quickly.
 
 | Capability | `pi-ask` | Claude Code `AskUserQuestion` | Codex `request_user_input` |
 |---|---|---|---|
@@ -161,22 +163,24 @@ The main difference is not merely how many questions fit in one dialog. This pac
 - Structured results for answered, cancelled, unavailable, revision, and clarification states
 
 ## Installation
-### From Git
+This README describes Ask in the **suite source checkout** and its standalone runtime. Links to `../../docs` or other suite components require that checkout; they are not extra files installed by the standalone Ask package.
 
-```bash
-pi install git:https://github.com/the-sleeping-teemo/pi-context-seeker
+### As part of this suite
+
+Follow [the suite installation guide](../../docs/INSTALL.md) from the repository root. It loads Ask once with Workspace and Tasks. **Do not also register standalone Ask while the suite is loaded.**
+
+### Standalone from this checkout
+
+With compatible Pi and Node/npm installed, first run `npm ci` from the **suite repository root** to install the workspace dependency tree. Then register only Ask:
+
+```sh
+# From the suite repository root; do not use this in addition to the suite entry:
+pi install "$PWD/packages/pi-ask"
 ```
 
-### From a local checkout
+This loads `extensions/questions.ts`, not Workspace or Tasks. Frame must remain resolvable through the installed dependency tree; local Pi registration does not run npm installation. Start a fresh Pi process after package/imported-module changes.
 
-```bash
-git clone https://github.com/the-sleeping-teemo/pi-context-seeker.git
-cd pi-context-seeker
-npm install
-pi install .
-```
-
-Restart Pi if it is already running. The package manifest explicitly loads only `extensions/questions.ts`; the test module is not an extension entry point.
+Earlier standalone instructions pointed to `the-sleeping-teemo/pi-context-seeker`. That remote repository was not checked for equivalence to this fork; do not use it as a verified route to the features documented here.
 
 ## Tool parameters
 
@@ -246,6 +250,43 @@ Omit `options` to open the multiline editor:
 
 Each option requires a nonblank `label`; `value`, `description`, and `suggestion` are optional. A suggestion requires `kind` (`evidence`, `fit`, `low-friction`, or `explore`) and a nonblank `basis`; `caveat` is optional. These fields express the assistant's judgment, not independent verification by the plugin. Prefer no suggestion when your priorities or the evidence are unknown. Legacy `recommended: true` and labels ending in `(Recommended)` remain accepted, but no longer produce an endorsement badge. `multiSelect` is valid only when options are present.
 
+### Posted queue operations
+
+`question_queue` is **one agent tool** with an `op` field, not a shell or slash command. The user-facing inbox command is `/questions`; `/questions q1` opens a record and `/questions retry q1` requests a confirmed retry of an interrupted undelivered submission.
+
+| `op` | Parameters and boundary |
+| --- | --- |
+| `post` | `question` contains question text, `urgency`, `why`, `boundary`, and optional details/options/multiSelect/planId/taskIds |
+| `list` | Optional `offset` (default 0) and `limit` (default 20, maximum 20); results contain full records for that page and `nextOffset` when more remain |
+| `apply` | Current `id`, per-question `revision`, and a concrete `reason`; only a delivered answered response can be reported applied |
+| `withdraw` | Current `id`, `revision`, and `reason`; not approval |
+| `replace` | Current `id`, `revision`, `reason`, and replacement `question`; retains original provenance |
+
+```json
+{
+  "op": "post",
+  "question": {
+    "question": "Should publication remain out of scope?",
+    "urgency": "deferred",
+    "why": "Publication scope belongs to you.",
+    "boundary": "Publication waits; authorized local checks can continue."
+  }
+}
+```
+
+`question` text is limited to 2000 characters; details to 4000; why/boundary to 1200 each. Posted choices have 1–20 options and at most 20 task links. The queue retains at most 100 records and 1 MiB on the active branch. Use revisions from a fresh `list` result, not an assumed number. For example, an agent reporting application of a delivered answer supplies:
+
+```json
+{
+  "op": "apply",
+  "id": "q1",
+  "revision": 4,
+  "reason": "Publication remains excluded; only the authorized local checks continue."
+}
+```
+
+The number `4` is **illustrative**, not a revision to copy into a real call. If delivery, consent or scope is unresolved, application is not valid. This operation records an agent report; it does not independently verify behavior or mutate Tasks. Linked-work gating is not a generic tool-permission sandbox.
+
 ## Keyboard controls
 
 Controls vary with the active field; the UI shows the available actions.
@@ -279,7 +320,7 @@ Keyboard hints wrap to fit the terminal. Large pasted notes retain their full co
 
 ## Non-TUI behavior
 
-The tools require Pi's interactive TUI. In RPC, print, or other non-interactive modes they do not prompt on stdin: they return a structured `unavailable` result. An already-aborted call returns `cancelled`.
+The synchronous `ask_user_question` and `ask_questions` tools require Pi's interactive TUI. In RPC, print or other non-interactive modes they return structured `unavailable` rather than prompting on stdin; an already-aborted call returns `cancelled`. `question_queue` can post, list and disposition records outside TUI. Answering a posted question requires TUI; queue availability does not mean an answer or approval exists.
 
 ## Security
 
@@ -310,14 +351,18 @@ Batch dialogs use “Waiting for your answers”. This is optional interoperabil
 
 ## Development
 
-```bash
-npm install
-npm test
-npm run typecheck
-npm run pack:check
+For this suite checkout, work from the **repository root** with an installed compatible Pi host:
+
+```sh
+npm ci
+npm run test:ask
+npm run typecheck --workspace=pi-ask
+npm run pack:check --workspace=pi-ask
 ```
 
-`npm test` runs the focused interaction and rendering regression tests. When using this local package inside Pi, `node --test test/host.test.mjs` runs the same TypeScript tests against the installed Pi host without installing development dependencies (`PI_ASK_HOST_MODULES` can select an explicit host node_modules directory). `pack:check` prints the files that would be published without creating or publishing a release.
+If developing Ask as a separate package checkout rather than this workspace, install its own development dependencies before using its `npm test`, `npm run typecheck` and `npm run pack:check` scripts.
+
+Ask's package `npm test` uses `tsx`; the suite's `test:ask` selects the installed-host runner. From the Ask package directory, `node --test test/host.test.mjs` runs the same TypeScript tests against that host without installing Ask's test-tool dependencies there. It still needs a compatible installed host and resolvable Frame runtime dependency (`PI_ASK_HOST_MODULES` can select an explicit host node_modules directory). `pack:check` prints the files that would be published without creating or publishing a release.
 
 There is intentionally no build script. Pi loads extension `.ts` files directly through jiti, and this package publishes `extensions/questions.ts` rather than generated JavaScript. Use `npm run typecheck` for compile-time validation and `npm run pack:check` to verify the publish contents.
 

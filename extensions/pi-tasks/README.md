@@ -1,12 +1,21 @@
 # pi-tasks
 
-An **independent, optional named-plan library** for Pi 1.0.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Home/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
+An **independent, optional named-plan library** for Pi 1.0.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Workspace/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
 
 ## Start
 
-Run `/reload`. Existing single-plan task history is **preserved and migrated in memory** into **Earlier session plan**. Migration does not write merely from opening a session; the next successful mutation saves the new library format. New sessions start with no plans or sample tasks.
+Load the [suite](../../docs/INSTALL.md) and start a fresh Pi process after package/imported-module changes; `/reload` can refresh ordinary extension code. Open `/tasks` to inspect work. Existing single-plan task history is **preserved and migrated in memory** into **Earlier session plan**. Migration does not write merely from opening a session; the next successful mutation saves the new library format. New sessions start with no plans or sample tasks.
 
 The agent is instructed and equipped to create a concise named plan for a **new substantial request**, and update the existing plan for a follow-up. Atomic outcome composition is model guidance backed by validated requirement records, not a semantic proof of completeness. Eligible edited plans receive at most one additional coverage/reconciliation request. Trivial requests need no plan. Older plans—including unfinished ones—are retained, not overwritten.
+
+### Inspect history without changing current work
+
+1. In Pi, open `/tasks history`.
+2. Use Up/Down to choose a saved plan, then Enter to inspect it. **History** or **Archived** identifies a non-current record.
+3. Open a record's details with Enter/D. Read its source, outcome and evidence; these are recorded reports, not independent verification.
+4. Escape returns through details/history to the panel or closes it. Do not press **S make current** or **R restore** if you only intend to inspect.
+
+Inspection does not switch plans, start work or complete tasks. Use the [command table](#commands) for an intentional switch; appearance settings for Workspace's overview belong to `/workspace`, not this panel.
 
 ## Commands
 
@@ -35,13 +44,13 @@ The agent is instructed and equipped to create a concise named plan for a **new 
 
 Plan IDs (`p1`, `p2`, …) appear in history. Task IDs (`t1`, `t2`, …) are local to each plan. You do not need IDs for ordinary panel navigation.
 
-**To hide visuals without changing work, use `/tasks hide`.** This removes the Tasks dock from Home and the native fallback. It does not hide transcript tool cards, disable tracking, change plans, or prevent `/tasks` from opening the panel. The preference survives reload and off/on; `/tasks unhide` restores normal dock behavior.
+**To hide visuals without changing work, use `/tasks hide`.** This removes the Tasks dock from Workspace and the native fallback. It does not hide transcript tool cards, disable tracking, change plans, or prevent `/tasks` from opening the panel. The preference survives reload and off/on; `/tasks unhide` restores normal dock behavior. Hiding Tasks does not silently hide Ask: unresolved questions use Ask's standalone attention cue. Link availability and attention hosting are separate protocol facts.
 
 **Archive is the normal way to dismiss work**, not Clear. Archive is reversible and retains the readable checklist, notes and evidence. Clear empties a plan after confirmation; older raw session entries remain, but its previous task contents are not a separate item in the plan library. No automatic deletion or pruning is performed.
 
 ## Completed plans get out of the way
 
-The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Home's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **Plan closed · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
+The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Workspace's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **Plan closed · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
 
 - Counts distinguish completed tasks from cancellations; an all-cancelled plan is not reported as successfully completed.
 - Resume/reload does not replay an old completion acknowledgment. A recent one uses its original expiry rather than restarting four seconds.
@@ -52,7 +61,7 @@ The visible Tasks dock now uses the same active Pi accent (purple in the Compose
 
 ## Panel controls
 
-The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Home is absent. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
+The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
 
 ### Plan view
 
@@ -77,17 +86,17 @@ The modal has an **opaque raised surface, accent perimeter and contrasting selec
 
 ### Questions and coherent presentation
 
-Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. The Questions view includes the session's posted questions, including other plans and unlinked questions. Selection follows the question ID across answer-state reordering. Enter opens a focused Ask overlay; Escape keeps the draft and returns to the same row. `/questions` remains available without Tasks or Home, and existing synchronous Ask tools are unchanged.
+Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. The Questions view includes the session's posted questions, including other plans and unlinked questions. Selection follows the question ID across answer-state reordering. The inbox is explicitly **Session questions**, not just the viewed plan. Rows name linked work; work details expose their question gates. Enter opens a focused Ask overlay. Escape first handles nested review/note/custom/clarification modes; outer Escape keeps the draft and returns to the same row. Urgency-only changes retain input and refresh the displayed boundary. Answer, skip and clarification kinds remain distinct from delivery stage. `/questions` remains available without Tasks or Workspace, and existing synchronous Ask tools are unchanged.
 
-Blocking and deferred questions are distinct. The dock/Home overview shows a separate question count and attention hint; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
+Blocking and deferred questions are distinct. The dock/Workspace overview shows a separate question count and attention hint; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
 
 Request tool cards lead with neutral bold titles and plain-language coverage. Expand for **Criterion**, **Original request**, **Linked work**, **Reference**, and any supersession **Disposition**. Full values remain available; prose wraps at up to 80 cells plus indentation even in a wide terminal. Field spacing and stronger gaps between records separate inspection from audit. Shared coverage is stated once in the card body (for example **Reported complete**), never only on a rail that can be clipped. Mixed states keep individual labels. Reported completion is structural coverage, not independent verification.
 
-Compact work cards replace repeated `Task · done:` prefixes with small semantic marks: green `✓` complete, accent `●` active status, neutral `○` not started, amber `!` blocked, and `–` cancelled. Titles remain normal text, not green paragraphs. Completion/status summaries appear once; blocker reasons and cancellation labels remain explicit. Expand for textual status, attributed outcome notes, evidence and references. Wrapping aligns continuation lines beneath the title. Tiny unframed cards retain textual summaries; essential states do not depend on color. The transcript and native `/tasks` browser share this status vocabulary through `typography.ts`. In the browser, selection uses its own `›` marker and raised selection fill; status colors affect marks rather than entire titles. Work completion is summarized rather than repeated beneath every completed item. Requests and question attention retain explicit qualifications, with gaps between records. Native overview/dock layout and preferences remain unchanged.
+Compact work cards replace repeated `Task · done:` prefixes with small semantic marks: green `✓` complete, accent `●` active status, neutral `○` not started, amber `!` blocked, and `–` cancelled. Titles remain normal text, not green paragraphs. Completion/status summaries appear once; blocker reasons and cancellation labels remain explicit. Top-right result summaries use theme tokens: success for complete, accent for active, warning for blocked, and muted for not-started/cancelled states and request quantities. Updates without a status change retain the underlying status color. Mixed summaries use a muted base with a success-colored completed count and individually colored active, blocked and cancelled counts; the frame and Tasks title remain accent-colored. Expand for textual status, attributed outcome notes, evidence and references. Wrapping aligns continuation lines beneath the title. Tiny unframed cards retain textual summaries; essential states do not depend on color. The transcript and native `/tasks` browser share this status vocabulary through `typography.ts`. In the browser, selection uses its own `›` marker and raised selection fill; status colors affect marks rather than entire titles. Work completion is summarized rather than repeated beneath every completed item. Requests and question attention retain explicit qualifications, with gaps between records. Native overview/dock layout and preferences remain unchanged.
 
 **Enter opens panel details; E edits. Tab switches views; H opens history.** All other work/history actions remain available.
 
-`/workspace` → Tasks still owns the persistent **Home overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/workspace` → Ask's existing shell settings. Eligible Home transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
+`/workspace` → Tasks still owns the persistent **Workspace overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/workspace` → Ask's existing shell settings. Eligible Workspace transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
 
 ### Plan library
 
@@ -103,11 +112,11 @@ Transcript tool cards show the operation and committed task titles with explicit
 
 ## Independent controls
 
-**`/tasks off` does not change Home, its forest, gaze, editor, identity or timing.** The enabled setting and appearance preference persist in `~/.pi/agent/pi-tasks.json` (or the configured agent directory), separately from Home. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
+**`/tasks off` does not change Workspace's editor, identity, appearance or timing.** The enabled setting and appearance preference persist in `~/.pi/agent/pi-tasks.json` (or the configured agent directory), separately from Workspace. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
 
-Home off/removal does not disable Tasks. Tasks uses its own compact native widget and theme-aware raised panel. Turning Tasks off is not the same as cancelling the agent's ordinary work: it blocks task mutations immediately, but cannot erase information already sent in an in-flight request or historical transcript messages.
+Workspace off/removal does not disable Tasks. Tasks uses its own compact native widget and theme-aware raised panel. Turning Tasks off is not the same as cancelling the agent's ordinary work: it blocks task mutations immediately, but cannot erase information already sent in an in-flight request or historical transcript messages.
 
-To uninstall, move `pi-tasks` outside `~/.pi/agent/extensions/`, then `/reload`. Leave `~/.pi/agent/lib/home-dock.ts` if either extension still needs it. Saved task entries are inert metadata when the extension is absent.
+For this checkout-loaded suite, use **`/tasks off`** to disable Tasks alone while retaining Workspace and Ask. Moving the old personal extension directory does not disable the suite entry. To remove the whole local suite, use Pi's package removal with the registered checkout path, then start fresh; see the root installation/migration guide. Only a legacy auto-discovered standalone installation is removed by moving its `~/.pi/agent/extensions/pi-tasks` directory. Saved task entries remain metadata; no session deletion is required.
 
 ## State, scope and honesty
 
@@ -146,6 +155,8 @@ Use existing `doneWhen` and requirement `acceptance` fields to define observable
 
 The existing one-shot checkpoint still compares original requests and follow-ups against both records and actual work, even for apparently closed plans. It now distinguishes missing requested work, record-only updates supported by existing evidence, unresolved evidence/blockers, and optional improvements outside authorization. Record-only reconciliation should not trigger repeated checks or a second completion announcement without material new information. Guards, state transitions, and schemas are unchanged: this is model guidance, not an independent completion verifier.
 
+The hidden checkpoint uses descriptive Markdown sections, bounded plan data, numbered review steps, and explicit stop conditions. Its pure message builder lives in `reconciliation.ts`; eligibility and the one-pass guard remain in `index.ts`. Response guidance asks for a result-first summary, useful headers and lists for substantial replies, and no empty sections or repeated completion announcement for record-only updates. Short answers stay short, and the user's requested format takes precedence. These are model instructions, not a new visible panel or a guarantee of response formatting.
+
 The offline comparison workflow is in `eval/harness/README.md` at the suite root. No model-performance improvement is claimed by the deterministic tests.
 
 ### Atomic outcomes and request coverage
@@ -177,32 +188,33 @@ List/history pages default to 20 and are capped at 20. Mutation responses includ
 
 Only the user controls enable/disable, restores archived plans and clears lists. Archive is not deletion. Creating/selecting a plan never authorizes additional work beyond the user's request.
 
-## Persistent overview in Home
+## Persistent overview in Workspace
 
-The Home host now consumes a separate, data-only overview: sourced done/total/blocker/cancelled counts, active identity, and open tasks ordered active → blocked → pending. This does not reorder the stored plan or change any task status. Completed work stays in the counts and full `/tasks` browser rather than occupying the persistent overview.
+The Workspace host now consumes a separate, data-only overview: sourced done/total/blocker/cancelled counts, active identity, and open tasks ordered active → blocked → pending. This does not reorder the stored plan or change any task status. Completed work stays in the counts and full `/tasks` browser rather than occupying the persistent overview.
 
-Customize this surface through **`/workspace` → Tasks**. Home uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
+Customize this surface through **`/workspace` → Tasks**. Workspace uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
 
-The legacy `/tasks prev`, `next`, `follow`, and `view focus|compact` controls remain available for the independent native fallback. They do not page the new Home overview away from active work. `/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
+The legacy `/tasks prev`, `next`, `follow`, and `view focus|compact` controls remain available for the independent native fallback. They do not page the new Workspace overview away from active work. `/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
 
-## Optional Home integration
+## Optional Workspace integration
 
-`~/.pi/agent/lib/home-dock.ts` defines the small, versioned event protocol. `~/.pi/agent/lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Home and Tasks do not import each other's implementations.
+The checkout's `lib/workspace-dock.ts` defines the small, versioned event protocol. `lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Workspace and Tasks do not import each other's implementations.
 
-- Home advertises availability and optional semantic colors.
+- Workspace advertises availability and optional semantic colors.
 - Tasks publishes only the current plan's bounded display snapshot—or an empty snapshot once hidden/archived/off.
-- Home acknowledges mounting; otherwise Tasks keeps a native fallback, without duplicate widgets.
+- Workspace acknowledges mounting; otherwise Tasks keeps a native fallback, without duplicate widgets.
 - Timers and subscriptions are session-scoped. Expiry is cancelled on shutdown/off, and is absent in non-TUI modes.
-- Only Home owns the editor/header/footer. Tasks never replaces them.
+- Only Workspace owns the editor/header/footer. Tasks never replaces them.
 
-This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-home/DOCK.md` for the production protocol. Earlier design research remains in Git history, not in the current interface.
+This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-workspace/DOCK.md` for the production protocol. Earlier design research remains in Git history, not in the current interface.
 
 ## Validation
 
 ```sh
-cd /Users/jordan/code/pi-workspace && npm run test:tasks && npm run test:home
+# From the suite repository root, with dependencies and a compatible Pi host installed:
+npm run test:tasks && npm run test:workspace
 ```
 
-Tests use installed pi packages rather than duplicate dependencies. Coverage includes v1 migration, plan isolation, archive protections, library-wide revisions, history pagination, bounded settle reconciliation and no-loop/abort/off/selection guards, completion expiry, failed storage, branch/compaction restoration, user precedence, off/on and headless behavior, browse-only navigation, stale dialogs, explicit modal backgrounds, Unicode/narrow layouts and Home integration. Strict TypeScript checks cover both extensions and the bridge.
+Tests use installed pi packages rather than duplicate dependencies. Coverage includes v1 migration, plan isolation, archive protections, library-wide revisions, history pagination, bounded settle reconciliation and no-loop/abort/off/selection guards, completion expiry, failed storage, branch/compaction restoration, user precedence, off/on and headless behavior, browse-only navigation, stale dialogs, explicit modal backgrounds, Unicode/narrow layouts and Workspace integration. Strict TypeScript checks cover both extensions and the bridge.
 
-Offline fullscreen/regular PTY tests execute actual plan-creation/task tool calls, verify dock auto-hide and retained history, exercise New/Add dialogs, browse/select/archive/restore, independent toggles, reload, no-Home rendering, panel contrast, details, resize and saved settings. Real terminal captures were reviewed at 110×40 and 64×24. Fixtures are under `/tmp/pi-home-research/`, not installed in normal sessions. No paid model evaluation was run.
+Offline fullscreen/regular PTY tests execute actual plan-creation/task tool calls, verify dock auto-hide and retained history, exercise New/Add dialogs, browse/select/archive/restore, independent toggles, reload, no-Workspace rendering, panel contrast, details, resize and saved settings. Real terminal captures were reviewed at 110×40 and 64×24. Fixtures are under `/tmp/pi-home-research/`, not installed in normal sessions. No paid model evaluation was run.

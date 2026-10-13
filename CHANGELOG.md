@@ -1,8 +1,20 @@
 # Changelog
 
-This file records source-workspace changes. It does not announce an installable suite release.
+This file records source-workspace increments. It is not a published-release announcement; local installation status belongs to the migration/acceptance records.
 
 ## Unreleased
+
+### Current pending source work
+
+- Retired the active Home name: Workspace now owns the session UI runtime, transcript adapters, dock and shared appearance editor; Composer owns `/composer` controls and compatible operational preferences. The suite loads `extensions/pi-workspace/index.ts`; `/home` is no longer registered. Legacy preference/session/protocol identifiers remain readable without an automatic live migration.
+- Fixed `/new` teardown: disposed mounts and temporary previews become inert before session context invalidation, native/Vim adapters restore synchronously, and the paint guard restores the actual renderer through Pi's forwarding TUI reference instead of accumulating wrappers. Regression, strict type, package and isolated real-Pi transition evidence is recorded in `docs/ACCEPTANCE.md`.
+
+- Repaired the thirteen non-Chronomancer UX audit findings with recap opt-in, truthful passive/blocking clocks, posted-question recovery/context/attention, complete narrow navigation, bounded perimeter styling, portable host tests and packed help. Current evidence and unverified human/provider gates are recorded in `docs/ACCEPTANCE.md`; these changes are not a published release.
+- Revised documentation by reader need: clearer entry/installation paths, a reversible preview exercise, settings authority and agent-tool reference, and explicitly historical migration/prototype/acceptance records. Existing behavior edits and legal notices are preserved.
+
+### Earlier increments (historical)
+
+Statements below about live installation or command names describe their individual increment, not current setup instructions. Later migration records supersede them.
 
 - Imported the existing Frame, Ask, Home and Tasks sources into one private Git workspace without switching the live Pi installation.
 - Added root development scripts, a reproducible npm lockfile, source-boundary documentation and a migration plan.

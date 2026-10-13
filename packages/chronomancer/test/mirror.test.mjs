@@ -12,7 +12,7 @@ const jiti = createJiti(import.meta.url);
 const { default: chronomancer } = await jiti.import(join(directory, 'extensions/index.ts'));
 const { observeJournal } = await jiti.import(join(directory, 'extensions/journal-observer.ts'));
 const { connectJournal, createJournal, list, localDay, store } = await jiti.import(join(directory, 'extensions/journal.ts'));
-const { theme, initTheme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-home/tests/host.mjs')));
+const { theme, initTheme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-workspace/tests/host.mjs')));
 
 async function until(check, description) {
   const deadline = Date.now() + 2500;

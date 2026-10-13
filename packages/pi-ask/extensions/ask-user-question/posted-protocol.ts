@@ -6,7 +6,7 @@ export const POSTED = {
 } as const;
 export type QuestionStage = 'awaiting' | 'submitted' | 'delivered' | 'applied' | 'withdrawn' | 'replaced';
 export const STAGE_LABELS: Record<QuestionStage, string> = {
-  awaiting: 'Awaiting answer', submitted: 'Answer submitted', delivered: 'Delivered to agent',
+  awaiting: 'Awaiting answer', submitted: 'Response submitted', delivered: 'Delivered to agent',
   applied: 'Agent reports applied', withdrawn: 'Withdrawn · not approval', replaced: 'Replaced',
 };
 export interface QuestionProjection {
@@ -15,7 +15,22 @@ export interface QuestionProjection {
 }
 export interface QuestionSnapshot { version: 1; sessionId: string; available: boolean; questions: QuestionProjection[]; fault?: string }
 export interface QuestionOpen { version: 1; sessionId: string; id: string; revision: number }
-export interface TaskCatalogue { version: 1; sessionId: string; available: boolean; plans: { id: string; taskIds: string[] }[] }
+export interface TaskCatalogue { version: 1; sessionId: string; available: boolean; attentionHosted?: boolean; plans: { id: string; taskIds: string[]; title?: string; tasks?: { id: string; title: string }[] }[] }
+export function isTaskCatalogue(value: unknown): value is TaskCatalogue {
+  const v = value as TaskCatalogue;
+  const title = (s: unknown, limit: number) => typeof s === 'string' && s.length <= limit;
+  return !!v && v.version === 1 && typeof v.sessionId === 'string' && typeof v.available === 'boolean' &&
+    (v.attentionHosted === undefined || typeof v.attentionHosted === 'boolean') && Array.isArray(v.plans) && v.plans.length <= 100 &&
+    v.plans.every(p => p && /^p[1-9]\d*$/.test(p.id) && Array.isArray(p.taskIds) && p.taskIds.length <= 100 &&
+      p.taskIds.every(id => typeof id === 'string' && /^t[1-9]\d*$/.test(id)) &&
+      (p.title === undefined || title(p.title, 2000)) && (p.tasks === undefined || Array.isArray(p.tasks) && p.tasks.length <= 100 &&
+        p.tasks.every(t => t && p.taskIds.includes(t.id) && title(t.title, 4000))));
+}
+export function questionStatus(q: { state: QuestionStage; responseStatus?: string; response?: { status: string } }): string {
+  const kind = q.responseStatus ?? q.response?.status;
+  const label = kind === 'skipped' ? 'Skipped · not approval' : kind === 'clarification_requested' ? 'Clarification requested · not approval' : kind === 'answered' ? 'Answer' : '';
+  return label && ['submitted', 'delivered', 'applied'].includes(q.state) ? `${label} · ${STAGE_LABELS[q.state]}` : STAGE_LABELS[q.state];
+}
 export function isQuestionSnapshot(value: unknown): value is QuestionSnapshot {
   const s = value as QuestionSnapshot;
   return !!s && s.version === 1 && typeof s.sessionId === 'string' && typeof s.available === 'boolean' &&

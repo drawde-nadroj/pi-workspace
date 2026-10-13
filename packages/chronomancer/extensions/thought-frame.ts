@@ -4,7 +4,7 @@ import { foregroundAnsi, parseColor, truncateToWidth, visibleWidth } from "@eare
 import { frameRows } from "./frame.ts";
 import { localDay, type Entry } from "./journal.ts";
 
-// Match Home's default sent-user frame: native message body and zone markers,
+// Match Workspace's default sent-user frame: native message body and zone markers,
 // terminal-background interior, speaker at top-left and sourced Sent at bottom-right.
 // A root revisited by rewind is shown in orange without changing its saved red stage.
 const colors = {
@@ -60,7 +60,7 @@ export function renderThought(entry: Entry & { day: string; visit?: boolean }, t
   if (width < 12) return native.render(width);
   const lines = native.render(width - 2);
   if (!lines.length || lines.some(line => visibleWidth(line) > width - 2 || /\x1b(?:_G|\]1337;File=|P)/.test(line))) return native.render(width);
-  // Match Home's user frame: native messages append one redundant blank row.
+  // Match Workspace's user frame: native messages append one redundant blank row.
   if (lines.length > 1 && !stripVTControlCharacters(lines.at(-1)!).trim()) {
     const last = lines.pop()!;
     lines[lines.length - 1] += (last.match(/\x1b]133;[A-Z]\x07/g) ?? []).join("");

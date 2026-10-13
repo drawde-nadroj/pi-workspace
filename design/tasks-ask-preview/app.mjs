@@ -47,7 +47,8 @@ function renderEvents() {
   for (let i = events.children.length; i < state.events.length; i++) {
     const e = state.events[i], article = document.createElement('article');
     article.className = 'event'; article.dataset.tone = e.tone;
-    article.innerHTML = `<div class="event-meta"><span>${e.tone === 'user' ? 'YOU' : 'SAMPLE EVENT'}</span><span>${String(i + 1).padStart(2, '0')}</span></div><h3>${esc(e.title)}</h3><p>${esc(e.body)}</p>${e.note ? `<details><summary>Note · preserved with the answer</summary><p>${esc(e.note)}</p></details>` : ''}${e.questionId ? `<button class="event-link" data-question="${e.questionId}">Open related question ↗</button>` : ''}`;
+    article.id = `event-${i}`;
+    article.innerHTML = `<div class="event-meta"><span>${e.tone === 'user' ? 'YOU' : 'SAMPLE EVENT'}</span><span>${String(i + 1).padStart(2, '0')}</span></div><h3>${esc(e.title)}</h3><p>${esc(e.body)}</p>${e.note ? `<details><summary>Note · preserved with the answer</summary><p>${esc(e.note)}</p></details>` : ''}${e.questionId ? `<button class="event-link" id="event-question-${i}" data-question="${e.questionId}">Open related question ↗</button>` : ''}`;
     events.append(article);
   }
   if (atBottom) events.scrollTop = events.scrollHeight;
@@ -113,9 +114,9 @@ $('#view').onkeydown = event => {
 };
 $('.tabs').onclick = event => { const button = event.target.closest('[data-view]'); if (button) setView(button.dataset.view); };
 $('.tabs').onkeydown = event => {
-  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  if (!['ArrowLeft', 'ArrowRight', 'Workspace', 'End'].includes(event.key)) return;
   event.preventDefault(); const views = ['work', 'requests', 'questions'], i = views.indexOf(view);
-  setView(event.key === 'Home' ? views[0] : event.key === 'End' ? views[2] : views[(i + (event.key === 'ArrowRight' ? 1 : 2)) % 3], true);
+  setView(event.key === 'Workspace' ? views[0] : event.key === 'End' ? views[2] : views[(i + (event.key === 'ArrowRight' ? 1 : 2)) % 3], true);
 };
 $('#events').onclick = event => { const button = event.target.closest('[data-question]'); if (button) { $('#workspace').hidden = false; $('#closed-hint').hidden = true; setView('questions'); openAsk(button.dataset.question, button); } };
 $('#open-questions').onclick = () => { $('#workspace').hidden = false; $('#closed-hint').hidden = true; setView('questions', true); };

@@ -101,6 +101,14 @@ test('browser walkthrough: drafts, focus, lifecycle, history, keyboard, themes a
     await page.keyboard.press('Escape');
     await page.locator('#close-workspace').click(); assert.equal(await page.locator('#workspace').isVisible(), false);
     await page.locator('#reopen-workspace').click(); assert.equal(await page.locator('#tab-questions').getAttribute('aria-selected'), 'true');
+    // Historical event openers are stable, including safe fallback if removed.
+    const event = page.locator('#events .event-link').first();
+    const openerId = await event.getAttribute('id'); assert.ok(openerId);
+    await event.focus(); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+    await page.waitForFunction(id => document.activeElement?.id === id, openerId);
+    await event.click(); await page.evaluate(id => document.getElementById(id)?.remove(), openerId);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.activeElement?.id === 'tab-questions');
     // Width/theme variants and dialog resize. These are browser checks, not terminal tests.
     for (const theme of ['dark', 'light']) {
       if (theme === 'light') await page.locator('#theme-toggle').click();

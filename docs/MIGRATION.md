@@ -2,6 +2,16 @@
 
 **Current state:** `~/.pi/agent/settings.json` loads `/Users/jordan/code/pi-workspace`. The old personal `~/.pi/agent/extensions/pi-home/` was deleted at the user's request and its exclusion removed; the old personal Tasks directory and its exclusion remain. No new backup was made for this cleanup. The migration steps below describe the **2026-10-09 historical switch**, not current settings or an executable rollback. Start a fresh Pi process after settings changes; do not load both generations concurrently.
 
+## Home name retirement and Workspace ownership
+
+The active suite now loads `extensions/pi-workspace/index.ts`, not `extensions/pi-home/index.ts`. `workspace-runtime.ts` owns session mounts, transcript adapters and the optional Tasks dock. `composer-controls.ts` owns `/composer`; `composer-preferences.ts` owns its operational preference reader/writer. `/workspace` and its single appearance transaction remain Workspace-owned. Tasks, Ask, Frame and optional Chronomancer keep their existing domain ownership and fallbacks. `/home` is retired, not a second registered alias.
+
+Existing `pi-home.json` is a **read-only fallback** when `pi-composer.json` is absent. Opening or restarting writes neither file; the next explicit `/composer` control save writes only `pi-composer.json`. Existing visual `pi-workspace.json`, legacy `pi-footer.json`, task entries, recap consent and sessions are unchanged. The durable `pi-home:timing-v1`, `pi-home:activity-recap-v1` and dock-v1 wire IDs remain compatibility identifiers, not active Home ownership. The shared bridge source is now `lib/workspace-dock.ts`.
+
+Per-mount surface scopes make queued old components inert before context invalidation; teardown also detaches mounts, restores native/Vim adapters and disposes temporary previews synchronously. The paint guard resolves Pi's actual renderer receiver so identity-based restoration works through the forwarding TUI reference and cannot accumulate old wrappers. No native draft, model/tool execution or Tasks reconciliation semantics are changed.
+
+The existing live settings already load the suite root, so no `settings.json` change is needed. **Close Pi and start a fresh process** after this source/entry refactor; an old process may retain the removed module paths and cached implementation. Do not re-enable the deleted personal Home extension or load both generations. Source edits preserve the checkout's pre-existing uncommitted work; no live preferences or sessions were migrated or deleted.
+
 ## Tasks requirement-ledger payload migration
 
 Tasks now writes plan-library payload version **3** under the existing `pi-tasks:plans-v2` custom-entry key. Version-2 libraries and single-plan v1 entries migrate in memory; opening, reading and reloading do not rewrite session history. Existing plans keep tasks, outcomes, IDs, user locks, selection and archives, with empty requirement records (coverage not established). The next successful mutation persists v3. This changes session data, not `pi-tasks.json` or live Pi settings.

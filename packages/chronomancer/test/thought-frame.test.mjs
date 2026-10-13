@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const directory = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const { jiti, source, root, theme, initTheme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-home/tests/host.mjs')));
+const { jiti, source, root, theme, initTheme, plain, visibleWidth } = await import(pathToFileURL(join(directory, '../../extensions/pi-workspace/tests/host.mjs')));
 const { renderThought, thoughtColor } = await jiti.import(join(directory, 'extensions/thought-frame.ts'));
 const { localDay } = await jiti.import(join(directory, 'extensions/journal.ts'));
 const { SentMessageFrames } = await jiti.import(join(source, 'sent-messages.ts'));
@@ -16,7 +16,7 @@ function thought(timestamp = Date.now(), depth = 1, day = localDay(new Date(time
   return { id: '1', depth, body: 'Hello **Pi**\n\nAnother line', createdAt: new Date(timestamp).toISOString(), day, visit };
 }
 
-test('silent red capture matches Home’s visible sent user frame and color', () => {
+test('silent red capture matches Workspace’s visible sent user frame and color', () => {
   for (const appearance of ['dark', 'light']) {
     initTheme(appearance, false);
     const timestamp = Date.now(), data = thought(timestamp);

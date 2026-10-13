@@ -1,5 +1,20 @@
 # Contributing
 
+Use this guide from the **suite repository root**. For user installation, follow [Install the local suite](docs/INSTALL.md); for design boundaries, read [architecture](docs/ARCHITECTURE.md).
+
+## Test environment
+
+Install a compatible Pi 1.0 host, Node.js and npm before `npm ci`. Root tests normally discover `~/.pi/agent/install`. If the host lives elsewhere, set `PI_WORKSPACE_HOST_MODULES` and `PI_ASK_HOST_MODULES` (`PI_HOME_HOST_MODULES` remains a compatibility fallback) to that host's `node_modules` directory. Frame additionally honors `PI_FRAME_HOST_MODULES`, then Workspace/Ask overrides. These paths select test dependencies; they do not install Pi or copy credentials. Workspace/Vim integration tests use the checkout's pinned `pi-vim` development dependency, not your live Vim installation.
+
+```sh
+npm ci
+npm test
+npm run typecheck --workspace=pi-ask
+npm run pack:check
+```
+
+The root suite covers Frame, Ask, Workspace, Tasks, deterministic harness checks and isolated packed-suite loading. It excludes optional Chronomancer. `pack:check` is a dry run, not publication. The [acceptance record](docs/ACCEPTANCE.md) supplies exact historical commands/results and remaining physical/provider checks; do not turn them into a whole-repository typing or human-usability guarantee.
+
 ## Develop safely
 
 1. Clone outside `~/.pi`; do not copy the entire Pi agent directory into this repository.
@@ -11,4 +26,4 @@
 
 ## Versioning and releases
 
-Commit coherent changes with the tests they require; do not publish from an untested working tree. Use tagged releases and a changelog once there is a suite package. Keep `pi-embeddable-frame` and `pi-ask` versioned as independently installable packages; declare their compatible versions in any future suite manifest. Pin or review Pi host compatibility separately. A source-only repository commit is **not** a Pi package release.
+Commit coherent changes with the tests they require; do not publish from an untested working tree. The private suite manifest already exists. Use tagged releases and a changelog if it is later released. Keep `pi-embeddable-frame` and `pi-ask` versioned as independently installable packages; keep their versions and bundled declarations consistent with the current suite manifest. Pin or review Pi host compatibility separately. A source-only repository commit is **not** a Pi package release.

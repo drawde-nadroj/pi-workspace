@@ -23,7 +23,7 @@ test("Ask appearance is versioned, bounded and migrates the legacy label setting
   assert.deepEqual(bad, askAppearanceDefaults());
 });
 
-test("standalone Ask reads persisted visual preferences without Home and safely falls back", () => {
+test("standalone Ask reads persisted visual preferences without Workspace and safely falls back", () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-ask-style-")), previous = process.env.PI_CODING_AGENT_DIR;
   try {
     process.env.PI_CODING_AGENT_DIR = dir;

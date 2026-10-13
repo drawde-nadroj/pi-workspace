@@ -4,7 +4,7 @@ import { getKeybindings, visibleWidth, parseColor, CURSOR_MARKER } from '@earend
 import { emptyPostedBook, postQuestion, changeQuestion, restorePostedBook, POSTED_ENTRY, ANSWER_MESSAGE, QUESTION_EVENT, postedContext, type PostedInput } from '../extensions/ask-user-question/posted-state.ts';
 import { registerPostedQuestions } from '../extensions/ask-user-question/posted.ts';
 import { TabbedQuestions } from '../extensions/ask-user-question/batch-ui.ts';
-import { POSTED } from '../extensions/ask-user-question/posted-protocol.ts';
+import { POSTED, isTaskCatalogue } from '../extensions/ask-user-question/posted-protocol.ts';
 import { questionEventCard } from '../extensions/ask-user-question/posted-ui.ts';
 import { sanitizeDisplayText } from '../extensions/ask-user-question/tui-primitives.ts';
 
@@ -13,6 +13,14 @@ const response = { status: 'answered' as const, answers: [{ questionIndex: 0, an
 const change = (b: any, op: any) => changeQuestion(b, 'q1', b.questions[0].revision, op);
 const plainTheme: any = { appearance: 'dark', fg: (_: string, t: string) => t, bg: (_: string, t: string) => t, bold: (t: string) => t };
 
+test('catalogue guards optional context and attention fields while retaining legacy snapshots', () => {
+  const legacy = { version: 1, sessionId: 'fixture', available: true, plans: [{ id: 'p1', taskIds: ['t1'] }] };
+  assert.equal(isTaskCatalogue(legacy), true);
+  assert.equal(isTaskCatalogue({ ...legacy, attentionHosted: false, plans: [{ ...legacy.plans[0], title: 'Release', tasks: [{ id: 't1', title: 'Prepare' }] }] }), true);
+  for (const value of [null, { ...legacy, version: 2 }, { ...legacy, attentionHosted: 'yes' },
+    { ...legacy, plans: [{ ...legacy.plans[0], tasks: [{ id: 't2', title: 'Wrong link' }] }] },
+    { ...legacy, plans: [{ ...legacy.plans[0], title: {} }] }]) assert.equal(isTaskCatalogue(value), false);
+});
 test('posted questions persist distinct states; notes and boundary survive application without Task mutation', () => {
   let b = postQuestion(emptyPostedBook(), input), initial = structuredClone(b);
   assert.equal(b.questions[0].state, 'awaiting');
@@ -21,7 +29,7 @@ test('posted questions persist distinct states; notes and boundary survive appli
   assert.doesNotMatch(postedContext(b), /No public upload/);
   b = change(b, { op: 'deliver' }); assert.equal(b.questions[0].state, 'delivered'); assert.match(postedContext(b), /No public upload/);
   b = change(b, { op: 'apply', reason: 'Publishing is excluded; prepare a local handoff.' });
-  assert.equal(b.questions[0].state, 'applied'); assert.equal(b.questions[0].response.answers[0].note, 'No public upload.');
+  assert.equal(b.questions[0].state, 'applied'); assert.equal(b.questions[0].response!.answers[0].note, 'No public upload.');
   assert.deepEqual(restorePostedBook(b), b); assert.equal(initial.questions[0].state, 'awaiting');
   assert.throws(() => change(b, { op: 'apply', reason: 'Duplicate' }), /delivered answer/);
 });
@@ -95,11 +103,58 @@ function harness(mode = 'tui') {
   return { pi, ctx, entries, messages, forms, notices, widgets, emit, call, commands, branch(b: any[]) { branch = b; }, fail() { fail = true; } };
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+test('urgency-only changes preserve open text/notes, refresh linked context and retain stale-session protection', async () => {
+  const h = harness(); await h.emit('session_start');
+  h.pi.events.emit(POSTED.catalogue, { version: 1, sessionId: 'posted-test', available: true, attentionHosted: false,
+    plans: [{ id: 'p1', title: 'Release boundary', taskIds: ['t1'], tasks: [{ id: 't1', title: 'Prepare local handoff' }] }] });
+  await h.call({ op: 'post', question: { ...input, urgency: 'deferred', planId: 'p1', taskIds: ['t1'] } });
+  assert.ok(h.widgets.has('pi-ask:posted'), 'hidden Tasks still permits Ask attention');
+  const opening = h.commands.get('questions').handler('q1', h.ctx); await tick();
+  const f = h.forms.at(-1).component;
+  f.handleInput('Typed before escalation');
+  h.pi.events.emit(POSTED.needed, { version: 1, sessionId: 'posted-test', id: 'q1', revision: 1, planId: 'p1', taskId: 't1' });
+  f.handleInput(' and after'); f.render(100);
+  assert.match(sanitizeDisplayText(f.render(100).join('\n')), /Prepare local handoff/);
+  f.handleInput('\x1b'); await opening;
+  const q = h.entries.filter(e => e.customType === POSTED_ENTRY).at(-1).data.questions[0];
+  assert.equal(q.urgency, 'blocking'); assert.equal(q.draft.textBuffer, 'Typed before escalation and after'); assert.equal(h.messages.length, 0);
+});
+
+test('posted Escape respects review/note modes and clarification survives leaving/reopening', async () => {
+  const h = harness(); await h.emit('session_start'); await h.call({ op: 'post', question: input });
+  let opening = h.commands.get('questions').handler('q1', h.ctx); await tick(); let f = h.forms.at(-1).component;
+  f.handleInput('Answer'); f.handleInput('\t'); f.handleInput('\r'); f.handleInput('Discard this note');
+  f.handleInput('\x1b'); assert.doesNotMatch(sanitizeDisplayText(f.render(90).join('\n')), /Discard this note/);
+  f.handleInput('\r'); assert.match(sanitizeDisplayText(f.render(90).join('\n')), /Review/);
+  f.handleInput('\x1b'); assert.doesNotMatch(sanitizeDisplayText(f.render(90).join('\n')), /Review 1 answer/);
+  f.handleInput('\x1b[47;5u'); f.handleInput('Clarify the scope'); f.handleInput('\x1b');
+  f.handleInput('\x1b'); await opening;
+  const q = h.entries.filter(e => e.customType === POSTED_ENTRY).at(-1).data.questions[0];
+  assert.equal(q.draft.clarificationText, 'Clarify the scope'); assert.equal(q.draft.note, '');
+  opening = h.commands.get('questions').handler('q1', h.ctx); await tick(); f = h.forms.at(-1).component;
+  f.handleInput('\x1b[47;5u'); assert.match(sanitizeDisplayText(f.render(90).join('\n')), /Clarify the scope/);
+  f.handleInput('\x1b'); f.handleInput('\x1b'); await opening;
+  assert.equal(h.messages.length, 0);
+});
+
+test('answered/skipped/clarification labels preserve response kind without granting approval', () => {
+  for (const [status, label, answer, clarification] of [
+    ['answered', 'Answer', 'Local', undefined], ['skipped', 'Skipped', null, undefined],
+    ['clarification_requested', 'Clarification requested', null, 'What scope?'],
+  ] as const) {
+    let b = postQuestion(emptyPostedBook(), input);
+    b = change(b, { op: 'submit', response: { status, answers: [{ questionIndex: 0, answer, skipped: status === 'skipped' }], clarification } });
+    const rows = questionEventCard({ question: b.questions[0] }, plainTheme).render(100).join('\n');
+    assert.match(rows, new RegExp(label)); assert.match(rows, /Response submitted/);
+  }
+});
+
 test('native standalone posting returns immediately; overlay back keeps draft; explicit submission steers; context receipts deliver', async () => {
   const h = harness(); await h.emit('session_start'); await h.call({ op: 'post', question: input });
   assert.equal(h.forms.length, 0); assert.equal(h.messages.length, 0); assert.ok(h.widgets.has('pi-ask:posted'));
   let opening = h.commands.get('questions').handler('q1', h.ctx); await tick();
   let f = h.forms.at(-1); assert.equal(f.options.overlay, true);
+  assert.match(sanitizeDisplayText(f.component.render(100).join('\n')), /Standalone question|stated boundary/);
   f.component.handleInput('Keep it local'); f.component.handleInput('\x1b'); await opening;
   assert.equal(h.entries.at(-1).data.questions[0].draft.textBuffer, 'Keep it local');
   opening = h.commands.get('questions').handler('q1', h.ctx); await tick(); f = h.forms.at(-1);
@@ -113,6 +168,9 @@ test('native standalone posting returns immediately; overlay back keeps draft; e
   const context = await h.emit('context', { messages: h.messages });
   assert.equal(h.entries.filter(e => e.customType === POSTED_ENTRY).at(-1).data.questions[0].state, 'delivered');
   assert.match(context.messages.at(-1).content, /Keep it local/);
+  const outcome = h.commands.get('questions').handler('q1', h.ctx); await tick();
+  assert.match(sanitizeDisplayText(h.forms.at(-1).component.render(120).join('\n')), /provenance-preserving replacement/);
+  h.forms.at(-1).component.handleInput('\x1b'); await outcome;
   const listed = JSON.parse((await h.call({ op: 'list' })).content[0].text);
   await h.call({ op: 'apply', id: 'q1', revision: listed.questions[0].revision, reason: 'Keep the release local.' });
   assert.equal(JSON.parse((await h.call({ op: 'list' })).content[0].text).questions[0].state, 'applied');

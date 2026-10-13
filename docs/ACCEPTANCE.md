@@ -1,8 +1,70 @@
 # Isolated workspace acceptance (Pi 1.0.0)
 
+## Workspace ownership and session-transition verification
+
+The active Home implementation was refactored into Workspace ownership; historical evidence below retains its original Home/command names where relevant. Current commands are `/workspace` and `/composer`, not `/home`.
+
+- **Full automated suite:** `npm test` passed **414 tests** (Frame 13, Ask 117, Workspace 229, Tasks 47, harness 7, package smoke 1). Regression tests retain old header/dock/editor/footer callbacks across shutdown/remount, cover temporary previews while Composer is off, preserve native/Vim input, and verify identity-based paint cleanup through Pi's actual forwarding reference. Log: `/tmp/pi-workspace-ownership-suite-final.log`.
+- **Strict entry typing:** ES2023/NodeNext strict no-emit checks for `extensions/pi-workspace/index.ts` and `extensions/pi-tasks/index.ts` passed. Log: `/tmp/pi-workspace-ownership-types.log`.
+- **Packaging:** `npm run pack:check` passed; the root manifest and tarball include Workspace's new runtime, Composer controls/preferences and surface-lifecycle owner. Log: `/tmp/pi-workspace-ownership-pack.log`.
+- **Isolated real Pi 1.0 PTYs:** fullscreen/dark and regular/light each cold-loaded the suite with the local pi-vim checkout, completed three `/new` transitions and `/reload`, and exited with code 0. A test-only observer forced a native paint during the post-Workspace-shutdown gap. Each load registered exactly one `composer` and `workspace`, with no `home`. Legacy Composer preference bytes stayed unchanged; neither `pi-composer.json` nor `pi-workspace.json` was created. No credentials or sessions were copied and no model turn was sent. Evidence: `/tmp/pi-workspace-ownership-pty/{check.py,probe.ts,result-transitions.log,fullscreen-dark-transitions/,regular-light-transitions/}`.
+- **Driver limit:** the earlier mixed-modal PTY driver was inconclusive because Escape changed Vim mode and later slash text became a search; its exit timeout is not a passing navigation test. The corrected driver isolates session transitions. Modal, mouse/IME and native draft behavior have automated coverage, but physical/human and authenticated checks are not newly established by this refactor.
+
+Live `settings.json`, preferences and session files were not migrated or deleted. Start a **fresh Pi process** to use the new entry and imported modules; the already-running conversation retains its old runtime.
+
+
 This report records **isolated checkout acceptance** and a later, separately authorized live-configuration switch. The checkout was tested with Pi 1.0.0, Node 26.8.1, npm 12.1.0 and an isolated `PI_CODING_AGENT_DIR` in a temporary directory. No model credentials or session history were copied into it. A follow-up copied only the current Home appearance preference **into a separate temporary sandbox** to compare the actual Composer look. After reviewing the remaining unknowns, the user explicitly approved switching the live Pi configuration; see [MIGRATION.md](MIGRATION.md).
 
-## Latest authorized refactor and all-settings slice
+## Balanced message spacing follow-up
+
+Supported Home user/assistant message frames now use the existing General **Spacing** preference consistently: Compact has no added edge rows; Spaced has one blank row above and below content. Text-first, thinking-first and failure replies follow the same rule. General and Transcript message examples share the pure Home-owned padding helper. Native paragraph/code gaps, terminal-zone markers, native mouse coordinates and incompatible/graphical/narrow fallbacks remain intact; no saved preference was changed.
+
+Fresh verification: `npm test` passes **404 tests** (Frame 13, Ask 117, Home 220, Tasks 46, harness 7, packed-suite smoke 1); strict Home entry typing, packaging and `git diff --check` pass. Logs: `/tmp/pi-workspace-spacing-suite.log`, `/tmp/pi-workspace-spacing-regressions.log`, `/tmp/pi-workspace-spacing-types.log`, `/tmp/pi-workspace-spacing-pack.log`. Four new regressions cover content/ANSI/OSC preservation, compact/spaced geometry across light/dark and 12–120 columns, mouse mapping/padding hit rejection, and both synthetic previews. Native main/alternate renderer regressions also pass. These are automated source/native-render checks, not fresh physical mouse/font/IME or human visual acceptance.
+
+This supersedes earlier message-density descriptions and the 400-test total, not the historical evidence below. Tool-owned bodies and Ask's minimum-height fill retain separate contracts; no universal renderer or extra setting was added.
+
+## Latest authorized UX audit repairs (excluding Chronomancer)
+
+All thirteen findings from the read-only audit at commit `0994ea67e294edeca9425e4e4f8305d7ab496603` received bounded repairs. This section supersedes previous suite counts and documents verification, not whole-product certification. Chronomancer was not changed or tested for this slice.
+
+| Finding | Implemented repair |
+| --- | --- |
+| F01 · Recap agency | Missing/invalid configuration defaults off; Home exposes the separately saved recap controls with processing/resource disclosure and enable confirmation. Off aborts in-flight inference and prevents queued inference from starting. |
+| F02 · Urgency draft loss | Urgency-only refresh retains open input, updates context and uses the latest compatible revision. Definition/link/session changes still reject stale submission. |
+| F03 · Nested Escape | Review/custom/clarification Back and active-note Discard occur before outer close; clarification buffers are captured/restored. |
+| F04 · Clock/status truth | Home and footer share blocking-versus-passive classification. Passive browsing suppresses motion but retains working status and elapsed time; nested blocking prompts pause/resume both clocks. |
+| F05 · Attention fallback | Catalogue/link availability is separate from `attentionHosted`; hidden/off Tasks permits Ask's standalone cue without forcing Tasks visible. |
+| F06 · Work/question context | Session-wide Questions is labeled explicitly; rows and forms show linked work, and work details show question gates. Standalone questions name their stated boundary without implying a task link. |
+| F07 · Response/recovery clarity | Answer, skip and clarification kinds remain distinct from submission/delivery/application. Outcome views explain provenance-preserving correction; withdrawal/replacement is not approval. |
+| F08 · Narrow navigation | Rooms… exposes all six destinations; Ctrl+R and Tab/Shift+Tab provide keyboard paths. Navigation does not edit preferences or native input. |
+| F09 · Current help | Frame, Home, Tasks and root guides now agree on checkout ownership, workspace authority, six-room navigation, separate immediate saves and fresh-process adoption. Historical failures are explicitly historical, not current claims. |
+| F10 · Packed help | Referenced local help and Ask license/contribution files are included. Packed-suite testing checks local Markdown-link closure non-vacuously. Only the harness README ships, not executable evaluation fixtures/review data. |
+| F11 · Portable host setup | Both Frame test entries honor explicit Frame/Home/Ask host overrides before installed-host discovery, with an actionable missing-host message. |
+| F12 · Perimeter ownership | Bounded drawing masks protect styled border-shaped label glyphs; ambiguous/unknown rails paint only unambiguous edge cells. Composer no longer broadly recolors label content. |
+| F13 · Browser-study focus | Historical-event question openers have stable IDs; Escape returns to the surviving opener, or safely to Questions when it was removed. |
+
+**Fresh verification:**
+
+- `npm test`: **400 passing tests** — Frame 13, Ask 117, Home 216, Tasks 46, harness 7, packed-suite smoke 1. Includes recap opt-in/cancellation stubs, posted draft/Escape/attention/context/kind/recovery regressions, both clocks, narrow chooser and installed packed-help closure. Log: `/tmp/pi-workspace-repairs-final-suite.log`. The subsequent Ask test-only non-null/const typing annotations do not change executed behavior.
+- Strict Home/Tasks ES2023 entry checks and the Ask workspace typecheck pass. Log: `/tmp/pi-workspace-repairs-final-types.log`. This is not a whole-repository typecheck.
+- `npm run pack:check` passes. Disposable-HOME Frame tests with explicit `PI_FRAME_HOST_MODULES` pass **13/13** without personal installation discovery. Logs: `/tmp/pi-workspace-repairs-pack.log`, `/tmp/pi-workspace-repairs-host.log`.
+- Fresh offline real-Pi PTY source loads pass fullscreen/dark and regular/light cold load, connected targets, reversible mode audition, 120×40 → 40×24 resize, all-room chooser/General selection, reload/reopening and no Home/Tasks/workspace/footer/recap preference writes. Fullscreen includes injected SGR hover. Evidence: `/tmp/pi-workspace-repairs-check-final/`. The initial PTY assertion expected outdated General wording; the corrected check verifies the actual display-only caption.
+- Browser-study automation passes **1/1**, including exact historical-opener restoration and removed-opener fallback, lifecycle/drafts, keyboard/theme/width checks. Log: `/tmp/pi-workspace-repairs-browser.log`; captures: `/tmp/pi-workspace-repairs-browser/`. Browser automation is not native terminal or participant evidence.
+- `git diff --check` passes. No live preference migration, authenticated provider call, publication, staging or commit was performed. The prior commit remains the audit baseline, not a commit of these repairs.
+
+**Still unverified:** physical IME/mouse/drag/font/contrast/motion and multiplexer behavior; assistive-technology usability; timed novice/expert workflows; authenticated recap generation and question delivery/application. These remain release/human/provider acceptance gates, not claims established by unit tests or injected PTY events. The broader Transcript registry/front door remains proposed.
+
+## Documentation revision verification
+
+The subsequent Diátaxis documentation pass covers the non-Chronomancer guides, not runtime behavior changes. It adds a reader index, checkout installation/maintenance guide and a no-save keyboard preview exercise; current references and historical evidence remain distinct. The root manifest adds those help files and the linked decision record to packaging without changing extension registration or dependencies.
+
+- **Executed:** fresh `npm test` passes 400 tests, including installed packed-help closure; `npm run pack:check` passes. Logs: `/tmp/pi-workspace-docs-suite.log`, `/tmp/pi-workspace-docs-pack.log`.
+- **Procedure check:** isolated credential-free local-root `pi install`/`pi list`, then the complete preview/name-edit/Undo/exit/reopen exercise, followed by isolated `pi remove`, pass in fullscreen/dark and regular/light. No appearance or recap preferences were written. Evidence: `/tmp/pi-workspace-docs-exercise-final/`. An initial checker expected a colon in the wide Setting/Value layout; the corrected check compares the actual original/restored label.
+- **Links:** the local source-document path/fragment check reports 25 documents, 124 local links and 35 fragments with no errors before this evidence section was added. The packed smoke checks distributable paths separately. This does not verify remote URLs, availability or page rendering.
+- **Source/editorial:** commands, persistence/default/version scope and queue operations were traced to owner code and installed Pi 1.0 package/CLI documentation. Historical installation, ADR, prototype and earlier acceptance entries retain their original evidence with current-status qualifications.
+- **Not executed/observed:** remote cloning or optional third-party installation, a fresh cross-machine/independent standalone installation, live preference transfer/rollback, authenticated provider use, physical terminal/assistive checks, and reader learning/comprehension. The historical third-party comparison remains explicitly unverified rather than current product evidence. No publishing, commit or live configuration change was performed.
+
+## Prior authorized refactor and all-settings slice
 
 This section supersedes the Home typing limitations and test counts in the historical entries below. It is not full product release certification.
 
@@ -29,6 +91,8 @@ This section supersedes the Home typing limitations and test counts in the histo
 
 ## Native Tasks–Ask thread verification
 
+**Historical increment:** the latest repair/refactor sections above supersede these suite counts and Home typing limits. This section retains the original evidence, not current release gates.
+
 The approved browser design was implemented natively in the checkout, without changing live settings or copying personal preferences/sessions. Work/Requests/Questions, progressive request disclosure, quiet completed work, and Ask overlays above the retained TaskPanel now use the installed Pi APIs. Posted questions are Ask-owned branch metadata; existing synchronous forms remain intact. The code is not automatically adopted by an already-running Pi process.
 
 - **Automated:** `npm test` passes **350 tests** (12 Frame, 113 Ask, 176 Home, 41 Tasks, 7 harness, 1 packed suite). New coverage includes submission/delivery/application, needed-now deferred escalation without losing the original queued submission identity, notes/consent boundaries, stale branches/revisions, failed storage, replacement, standalone Ask, Tasks-only loading, hosted/fallback attention, clock/motion distinctions, native overlay focus and cursor restoration in both TUI renderers, and readable compact/expanded request cards. Packed-suite testing performs a real offline RPC cold start and repeat extension loads. `npm run pack:check` passes for Frame, Ask and the suite. `git diff --check` passes.
@@ -38,6 +102,8 @@ The approved browser design was implemented natively in the checkout, without ch
 **Still unperformed:** authenticated end-to-end model delivery/application, physical IME, hands-on font/contrast/drag-selection review of the new surfaces, and a new live pi-vim interaction. Existing automated native/Vim tests remain available but are not those human observations. The Tasks gate protects linked **agent task state transitions**, not arbitrary tool side effects; immediate high-risk consent remains a separate permission/synchronous Ask boundary. User task edits retain precedence. No publishing, installation migration, live preference write, or `AGENTS.md` edit was performed.
 
 ## Tasks transcript typography follow-up
+
+**Historical increment:** read the latest acceptance section for current totals and remaining gates; these results document this earlier typography change.
 
 The screenshot-approved typography was implemented in Tasks' display-only `transcript.ts` adapter: status-colored marks with neutral work titles, neutral bold request headings, shared coverage wording once in the body, grouped **Criterion / Original request / Linked work / Reference / Disposition**, an 80-cell prose measure plus indentation, and attributed expanded outcomes/evidence. Canonical metadata, task status transitions, question consent/delivery, native editor/input, panel/overview navigation, preferences and settings authority are unchanged. Existing `/workspace` Transcript/Tasks rooms do not acquire a new live setting for these self-rendering bodies.
 
@@ -57,6 +123,8 @@ These are automated and isolated terminal checks, not physical font/IME/contrast
 
 ## Connected appearance previews follow-up
 
+**Historical increment:** its proposed refactor and Home typing limitations were superseded by the implemented refactor/repair records above. Preserve the evidence as history, not current instructions.
+
 The authorized first cohesion slice is implemented in Home's existing `/workspace`, with no preference schema or installation change. Input, Tasks, Ask and Transcript retain a persistent target highlight and a named target/location. Display-only hover inspection uses existing normalized pointer events without activating controls, changing keyboard selection or writing preferences. Selected perimeters exclude unrelated labels; assistant-name and successful-status controls identify only affected labels, leaving user identity and failures fixed. Status-specific frame-color controls identify the input perimeter even while Assistant status remains the selected element. Hidden, absent and vertically clipped targets receive explanations. Ask help/spec wording now follows its active Pi accent (purple in the current Composer theme), not the obsolete orange description.
 
 - **Automated:** the final `npm test` run passes **371 tests** (12 Frame, 113 Ask, 193 Home, 45 Tasks, 7 harness, 1 packed suite). Sixteen new Home tests cover selected-region geometry/style preservation, light/dark and narrow/wide fallbacks, perimeter/body linkage, static hover versus keyboard selection, property-specific perimeter targeting, immutable native draft/cursor/run facts and preference snapshots, click geometry, hidden/absent/clipped explanations, and hover cleanup on blur/resize/invalidation/abort. Existing tests retain native Vim/IME-marker, transaction/Undo/failed-Save/unknown-version, lifecycle, semantic status and self-renderer fallback coverage. The suite smoke test performs a real isolated offline packed cold start, repeat loads, standalone Ask and Tasks-only loading. Final log: `/tmp/pi-workspace-connected-final-suite.log`.
@@ -68,13 +136,17 @@ The authorized first cohesion slice is implemented in Home's existing `/workspac
 
 ## Post-switch live-configuration check
 
+**Migration-day record:** the command inventory below includes commands later renamed or retired. Use the current isolated-review procedure, not this inventory, for a new check.
+
 After explicit approval despite the remaining gaps, the live settings replaced the two standalone Frame/Ask package entries with one checkout suite path and added exact exclusions for old Home/Tasks auto-discovery. The old source directories and saved preferences remained unchanged. A separate fresh offline Pi RPC process found one suite-owned `/home`, `/footer`, `/tasks`, `/recaps` and `/composer-preview` command. A no-session terminal process started with Composer and the existing pi-vim, displayed `/footer` at 100×36 and 40×24, opened `/tasks`, completed `/reload` and reopened `/footer`. There was no model call, preference save or session-history change. This **does not** mean the already-running Pi conversation changed in place; a fresh user process is required. The original settings, source and preference copies and checksum-guarded rollback instructions are in the restricted `~/.pi/backups/pi-workspace-*/` directory; see [MIGRATION.md](MIGRATION.md).
 
 **Not verified by a person at the terminal:** physical IME positioning/candidate selection, actual font/color legibility across the user's terminal themes, transcript selection while dragging, animation perception/reduced motion, an authenticated tool run, and live-installation rollback. Automated tests and the offline post-switch start cover the relevant layout and state contracts, but are not substitutes for these observations. The user approved the live switch with these unknowns; do not describe the suite as fully visually accepted on that basis.
 
 ## Repeatable isolated review
 
-Use a **fresh, temporary** agent directory outside `~/.pi` and a throwaway project. Do not run `pi install` against your normal agent directory or start the suite alongside the older live copies. **A fresh checkout now defaults to Composer.** To review any custom saved appearance rather than only defaults, optionally copy *only* existing `pi-home.json` and `pi-footer.json` into the sandbox before launching Pi. The owner's `pi-home.json` selected Composer; `pi-footer.json` did not exist, so only Home was copied in the earlier comparison. Do not copy credentials, sessions, task history or a whole agent directory. For example:
+This procedure is for source reviewers with a compatible Pi host and the checkout dependencies installed. For ordinary setup, use [Install the local suite](INSTALL.md); for a no-save keyboard exercise, use [Try a reversible preview](TRY-PREVIEW.md).
+
+Use a **fresh, temporary** agent directory outside `~/.pi` and a throwaway project. Do not run `pi install` against your normal agent directory or start the suite alongside the older live copies. **A fresh checkout now defaults to Composer.** To review any custom saved appearance rather than only defaults, optionally copy *only* existing `pi-home.json`, `pi-workspace.json` and legacy `pi-footer.json` into the sandbox before launching Pi. The owner's `pi-home.json` selected Composer; `pi-footer.json` did not exist, so only Home was copied in the earlier comparison. Do not copy credentials, sessions, task history or a whole agent directory. For example:
 
 ```bash
 cd ~/code/pi-workspace
@@ -82,7 +154,7 @@ npm ci && npm test && npm run pack:check
 sandbox=$(mktemp -d)
 mkdir -p "$sandbox/agent" "$sandbox/project"
 # Optional: match your saved appearance without changing live Pi.
-for name in pi-home.json pi-footer.json; do
+for name in pi-home.json pi-workspace.json pi-footer.json; do
   if test -f "$HOME/.pi/agent/$name"; then
     install -m 600 "$HOME/.pi/agent/$name" "$sandbox/agent/$name"
   fi
@@ -94,6 +166,6 @@ PI_CODING_AGENT_DIR="$sandbox/agent" PI_OFFLINE=1 pi --offline --no-session \
   --use-theme dark
 ```
 
-No model sign-in is necessary to inspect `/footer`. Test its four rooms, use keyboard and fullscreen mouse where available, change a visual control, Undo, Discard, Save, then `/reload` and reopen. Repeat with `--use-theme light --tui-mode regular` and a narrow terminal. Use Pi's actual terminal to check IME, selection, theme contrast and motion. Stop Pi before deleting the **temporary** sandbox; do not remove or overwrite your live preference files. Add `pi-vim` only in the sandbox if checking that optional integration. Capture no private drafts or credentials in a committed log.
+Do not submit agent prompts during the appearance review. Offline mode disables automatic network activity; it is not an OS permission/network sandbox. No model sign-in is necessary to inspect `/workspace`. Test its six sections (Input, Tasks, Ask, Transcript, More settings and General), use keyboard and fullscreen mouse where available, change a visual control, Undo, Discard, Save, then `/reload` and reopen. Repeat with `--use-theme light --tui-mode regular` and a narrow terminal. Use Pi's actual terminal to check IME, selection, theme contrast and motion. Stop Pi before deleting the **temporary** sandbox; do not remove or overwrite your live preference files. Add `pi-vim` only in the sandbox if checking that optional integration. Capture no private drafts or credentials in a committed log.
 
 The authorized live switch and its rollback are recorded in [MIGRATION.md](MIGRATION.md). For ordinary use, finish the current Pi conversation and start Pi in a fresh process rather than relying on cached modules from this already-running session. Further rollouts or preference changes still require separate authorization.

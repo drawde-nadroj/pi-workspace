@@ -26,13 +26,13 @@ You can leave decisions open: “Pick restrained defaults, show me the alternati
 
 ### Example that uses the current feature set
 
-> For the persistent Tasks overview, prioritize the active task and blockers, with completed/total in the upper-right and additional-open-work count in the lower-right rail. Keep the title upper-left and normal text neutral. While work is actually running, send a soft white highlight clockwise around a purple border every four seconds at medium intensity. Keep body text still, but let the title have a very gentle color pulse. Give progress changes one fresh sweep. Waiting should be still; blockers amber and errors red, with written explanations. Let me change colors, positions, text emphasis, effect, timing, strength and state rules in `/footer`, with demo states and Save/Discard/Undo. Preserve the native editor and task data; stop live motion while typing or answering a question.
+> For the persistent Tasks overview, prioritize the active task and blockers, with completed/total in the upper-right and additional-open-work count in the lower-right rail. Keep the title upper-left and normal text neutral. While work is actually running, send a soft white highlight clockwise around a purple border every four seconds at medium intensity. Keep body text still, but let the title have a very gentle color pulse. Give progress changes one fresh sweep. Waiting should be still; blockers amber and errors red, with written explanations. Let me change colors, positions, text emphasis, effect, timing, strength and state rules in `/workspace`, with demo states and Save/Discard/Undo. Preserve the native editor and task data; stop live motion while typing or answering a question.
 
 That request maps to existing package capabilities. Applying it to another surface still requires an integration adapter and tests; installing the package does not restyle everything automatically.
 
 ### Requests that extend the package
 
-You can also ask for effects that are not implemented yet, for example a multi-stop static gradient, a moving light across individual text cells, or coordinated transitions among several panels. State the desired behavior and constraints, and say **“add this as a reusable package capability, not a Home-only effect.”**
+You can also ask for effects that are not implemented yet, for example a multi-stop static gradient, a moving light across individual text cells, or coordinated transitions among several panels. State the desired behavior and constraints, and say **“add this as a reusable package capability, not a Workspace-only effect.”**
 
 This release provides a travelling border shimmer, whole-border pulse and gentle uniform text-color pulse. It does **not** provide arbitrary shaders, moving letters, font changes, independent per-character animations, a global layout engine, or a replacement editor. No need to constrain your ideas to these limits—but an implementation should distinguish configuration from new development.
 
@@ -93,7 +93,7 @@ The integration must call `update` when lifecycle/safety facts change, including
 
 ### Existing shared clock
 
-Home already has a scheduler. It uses `createFrameController()` without `automatic`, updates it with current facts, and uses the returned `active` flag to select its frame cadence. Rendering passes the returned sample to `presentationRows`. No second live animation timer is created for Tasks. The settings demo is a separate, disposable interaction and uses managed-clock mode.
+Workspace already has a scheduler. It uses `createFrameController()` without `automatic`, updates it with current facts, and uses the returned `active` flag to select its frame cadence. Rendering passes the returned sample to `presentationRows`. No second live animation timer is created for Tasks. The settings demo is a separate, disposable interaction and uses managed-clock mode.
 
 Do not infer work from frame animation, parse display labels back into application state, or change tool results to achieve a visual effect. Keep state, stored content, input ownership and presentation separate.
 
@@ -122,7 +122,7 @@ Call it only for renderers whose text rows you can safely wrap; pass through gra
 
 ### Persisting settings
 
-Store a `FramePresentation` as versioned JSON and validate it with `readFramePresentation` when reading it. Do not persist controller instances, frame timestamps or demo state. Keep one preference authority per surface; Home uses `pi-footer.json` → `tasks` for this integration.
+Store a `FramePresentation` as versioned JSON and validate it with `readFramePresentation` when reading it. Do not persist controller instances, frame timestamps or demo state. Keep one preference authority per surface; Workspace uses `pi-workspace.json` → `tasks`. `pi-footer.json` is read-only legacy fallback. The Frame parser normalizes a supported version; the persistence owner must reject unknown versions before Save, not silently downgrade them.
 
 ### Definition of done for another integration
 
@@ -136,10 +136,12 @@ Store a `FramePresentation` as versioned JSON and validate it with `readFramePre
 
 ## Using the first integration
 
-1. Run `/reload` after the code update.
-2. Open `/footer` and choose **Tasks**. Keyboard: Tab cycles Elements → Properties → Other options → Tasks → Ask → Transcript; arrows and Enter navigate.
+This is the end-user appearance path for the Workspace overview. For control lookup, see [workspace controls](../../extensions/pi-workspace/FOOTER.md); for package API/setup, see [Frame reference](README.md). Suite-relative links describe the source checkout, not a separately extracted Frame tarball.
+
+1. Start a fresh Pi process after package/export or imported-module changes; `/reload` may retain dependencies.
+2. Open `/workspace` and choose **Tasks**. Tab/Shift+Tab cycles Input → Tasks → Ask → Transcript → More settings → General. Ctrl+R opens the room selector; narrow terminals also show **Rooms…**. Input properties remain inside Input. Arrows and Enter navigate.
 3. Choose **Demo state** to inspect working, waiting, blocked, error, idle or done without starting real work. Use **Replay progress sweep** for a one-shot demonstration.
 4. Scroll through controls for colors, text, timing, placement and state overrides. Each state has its own override controls.
 5. **Save** commits; **Undo** reverses edits; **Discard** restores the original settings. Demo state is never saved. Escape backs out before discarding.
 
-The persistent overview uses sourced counts and prioritizes open work. `/tasks` remains the full plan/history browser. Its legacy `prev`, `next`, `follow` and focus/compact settings still control the independent no-Home fallback, not the new overview. Hiding or disabling Tasks still removes the overview and does not erase the plan.
+The persistent overview uses sourced counts and prioritizes open work. `/tasks` remains the full plan/history browser. Its legacy `prev`, `next`, `follow` and focus/compact settings still control the independent no-Workspace fallback, not the new overview. Hiding or disabling Tasks still removes the overview and does not erase the plan.

@@ -6,7 +6,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const directory = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const { jiti, root, kb, theme, initTheme, plain, visibleWidth, CURSOR_MARKER } = await import(pathToFileURL(join(directory, '../../extensions/pi-home/tests/host.mjs')));
+const { jiti, root, kb, theme, initTheme, plain, visibleWidth, CURSOR_MARKER } = await import(pathToFileURL(join(directory, '../../extensions/pi-workspace/tests/host.mjs')));
 const { InlineRewind } = await jiti.import(join(directory, 'extensions/inline-rewind.ts'));
 const { connectJournal, list, loadProgress, localDay } = await jiti.import(join(directory, 'extensions/journal.ts'));
 const { passRoute } = await jiti.import(join(directory, 'extensions/passes.ts'));

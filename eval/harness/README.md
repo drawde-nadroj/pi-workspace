@@ -1,5 +1,7 @@
 # Opt-in harness comparison
 
+**Source-checkout workflow:** this README may accompany a packed suite so its help links work, but the harness CLI, executable fixtures and review records are not packaged. Run the commands below only from the suite source checkout; installing the runtime package does not install an evaluation runner.
+
 A small, synthetic evaluation kit for evidence-based stopping, request coverage, and answer handoff. Inspired by the conditional component comparisons in [An Empirical Study of Harness Design for Coding Agents](https://arxiv.org/pdf/2609.20804), not a reproduction of that benchmark or evidence that Pi improves by the paper's reported percentages.
 
 **Nothing here starts Pi, calls a model, reads personal sessions, collects telemetry, or sends data.** The CLI prepares disposable fixtures and compares explicitly supplied review records. Model sessions are operator-run only, after explicit authorization of provider/model, number of runs, and budget. Local model runs also require approval; do not infer permission from this kit's presence. No credentials belong in reports.

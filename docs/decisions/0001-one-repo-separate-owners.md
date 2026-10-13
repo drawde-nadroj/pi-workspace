@@ -1,14 +1,14 @@
 # 0001: One source repository, separate runtime owners
 
-**Status:** Accepted; private suite packaging implemented in the repository root. Live installation remains unchanged.
+**Status:** Accepted. The context/decision/consequences below record the initial source-import increment, not current installation state. Private suite packaging was implemented; a separately authorized live switch and later cleanup followed. See [later migration](../MIGRATION.md). The initial no-live-change boundary is preserved below as history.
 
 ## Context
 
-Frame and Ask were local Pi packages, Home and Tasks auto-discovered extensions, and shared adapters lived in `~/.pi/agent/lib/`. None was under local version control. They share a terminal visual language but own different data and input behavior.
+Frame and Ask were local Pi packages, Workspace and Tasks auto-discovered extensions, and shared adapters lived in `~/.pi/agent/lib/`. None was under local version control. They share a terminal visual language but own different data and input behavior.
 
 ## Decision
 
-Import the existing source into one private npm-workspace Git repository outside `~/.pi`, retaining the agent-like `packages/`, `extensions/`, and `lib/` paths so current relative imports and tests remain meaningful. Keep Frame and Ask separately packaged. Do not change the live installation. The root has an explicit private Pi suite manifest listing Home, Tasks and Ask; Frame is a bundled runtime library with no extension entry. Work toward per-surface customization adapters instead of a universal renderer or merged domain state.
+Import the existing source into one private npm-workspace Git repository outside `~/.pi`, retaining the agent-like `packages/`, `extensions/`, and `lib/` paths so current relative imports and tests remain meaningful. Keep Frame and Ask separately packaged. Do not change the live installation. The root has an explicit private Pi suite manifest listing Workspace, Tasks and Ask; Frame is a bundled runtime library with no extension entry. Work toward per-surface customization adapters instead of a universal renderer or merged domain state.
 
 ## Consequences
 

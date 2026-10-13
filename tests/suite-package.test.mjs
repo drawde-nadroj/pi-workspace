@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 
 const checkout = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const install = join(homedir(), ".pi/agent/install");
-const hostModules = process.env.PI_HOME_HOST_MODULES || join(install, "releases", readFileSync(join(install, "current-version"), "utf8").trim(), "node_modules");
+const hostModules = process.env.PI_WORKSPACE_HOST_MODULES || process.env.PI_HOME_HOST_MODULES || join(install, "releases", readFileSync(join(install, "current-version"), "utf8").trim(), "node_modules");
 const loader = join(hostModules, "@earendil-works/pi-coding-agent/dist/core/extensions/loader.js");
 
 function command(file, args, options = {}) {
@@ -29,14 +29,26 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     assert.ok(paths.includes("packages/pi-ask/extensions/questions.ts"));
     assert.ok(!paths.some(path => path.includes("/tests/") || path.includes("/test/") || path.includes("auth.json")));
     assert.ok(!paths.some(path => path.startsWith("node_modules/@earendil-works/")), "host packages must not be bundled");
-    assert.ok(!paths.some(path => path.startsWith("eval/")), "evaluation fixtures and review records are development-only");
+    assert.ok(!paths.some(path => path.startsWith("eval/") && path !== "eval/harness/README.md"), "only the harness reference guide is packaged, never executable fixtures/review records");
 
     const archive = join(sandbox, packed.filename);
     command("npm", ["install", "--prefix", runtime, archive, "--offline", "--legacy-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: project, env });
     const suite = join(runtime, "node_modules/pi-workspace-suite");
     const manifest = JSON.parse(readFileSync(join(suite, "package.json"), "utf8"));
+    let checkedHelpLinks = 0;
+    for (const path of paths.filter(path => path.endsWith(".md") && !path.startsWith("node_modules/"))) {
+      const markdown = readFileSync(join(suite, path), "utf8");
+      for (const match of markdown.matchAll(/(?<!!)\[[^\]]*\]\(([^)]+)\)/g)) {
+        const target = match[1].split("#")[0];
+        if (!target || target.includes(":") || target.startsWith("/")) continue;
+        checkedHelpLinks++;
+        assert.ok(paths.some(file => join(suite, file) === resolve(suite, dirname(path), target) ||
+          join(suite, file).startsWith(resolve(suite, dirname(path), target) + "/")), `${path}: missing packed help ${target}`);
+      }
+    }
+    assert.ok(checkedHelpLinks > 0, "local help-link closure must not pass vacuously");
     assert.deepEqual(manifest.pi.extensions, [
-      "./extensions/pi-home/index.ts", "./extensions/pi-tasks/index.ts", "./packages/pi-ask/extensions/questions.ts",
+      "./extensions/pi-workspace/index.ts", "./extensions/pi-tasks/index.ts", "./packages/pi-ask/extensions/questions.ts",
     ]);
     assert.ok(readFileSync(join(suite, "node_modules/pi-embeddable-frame/primitives.js"), "utf8"));
     command("pi", ["install", suite], { cwd: project, env });
@@ -50,7 +62,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     const response = rpc.find(record => record.id === "suite-commands");
     assert.equal(response?.success, true, "the real Pi process loads the packed suite");
     const packageCommands = response.data.commands.filter(entry => entry.source === "extension" && entry.sourceInfo?.origin === "package");
-    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["home", "questions", "recaps", "tasks", "workspace"]);
+    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer", "questions", "recaps", "tasks", "workspace"]);
     assert.ok(packageCommands.every(entry => entry.sourceInfo.baseDir === suite), "commands come from one packed suite");
 
     const previous = process.env.PI_CODING_AGENT_DIR;
@@ -67,13 +79,13 @@ test("packed private suite loads its only three entry points in an isolated Pi d
         assert.equal(tools.length, new Set(tools).size, "one owner per tool name");
         assert.equal(commands.length, new Set(commands).size, "one owner per command name");
         for (const name of ["tasks", "ask_user_question", "ask_questions", "question_queue"]) assert.ok(tools.includes(name), name);
-        for (const name of ["home", "workspace", "tasks", "questions"]) assert.ok(commands.includes(name), name);
+        for (const name of ["composer", "workspace", "tasks", "questions"]) assert.ok(commands.includes(name), name);
       }
       const tasksOnly = await loadExtensions([entries[1]], project);
-      assert.deepEqual(tasksOnly.errors, [], "Tasks cold-loads without Home or Ask");
+      assert.deepEqual(tasksOnly.errors, [], "Tasks cold-loads without Workspace or Ask");
       assert.ok(tasksOnly.extensions[0].tools.has("tasks"));
       const askOnly = await loadExtensions([entries[2]], project);
-      assert.deepEqual(askOnly.errors, [], "Ask cold-loads without Home or Tasks");
+      assert.deepEqual(askOnly.errors, [], "Ask cold-loads without Workspace or Tasks");
       assert.ok(askOnly.extensions[0].tools.has("question_queue"));
       assert.ok(askOnly.extensions[0].commands.has("questions"));
     } finally {

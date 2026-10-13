@@ -103,7 +103,7 @@ export class MirrorReader implements Component {
       "PageUp / PageDown or Space: scroll a page",
       "N / P: next / previous thought",
       "[ / ]: previous / next saved day",
-      "Home: start of journal; End: latest and follow new saves",
+      "Workspace: start of journal; End: latest and follow new saves",
       "B: jump to this thought's parent",
       "Mouse wheel: scroll in fullscreen Pi",
       "? or Escape: return from help; Escape / Q: close reader",

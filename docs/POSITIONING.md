@@ -2,11 +2,11 @@
 
 **Working category:** a **Pi extension suite and agent workspace** with a reusable terminal design system. The name of the product is still open. Do not imply that it replaces Pi or that every proposed customization is already implemented.
 
-Pi describes itself as a minimal, extensible AI agent for the terminal. Pi's host and SDK own the agent session, model/tool loop, resource loading and persistence. This repository supplies extensions and packages on top of that host: Home (terminal presentation), Tasks (plan/history tool), Ask (human questions) and Frame (reusable rendering/presentation primitives). The private suite currently packages these together; `/footer` now has focused Input & footer, Tasks, Ask and Transcript rooms; a public surface-registration API and separate settings files remain **in design**. The live installation still uses the original copies.
+Pi describes itself as a minimal, extensible AI agent for the terminal. Pi's host and SDK own the agent session, model/tool loop, resource loading and persistence. This repository supplies extensions and packages on top of that host: Workspace (terminal presentation), Tasks (plan/history tool), Ask (human questions) and Frame (reusable rendering/presentation primitives). The private suite currently packages these together; `/workspace` has Input, Tasks, Ask, Transcript, More settings and General sections. Shared visual preferences use `pi-workspace.json`; operational Workspace/Tasks/recap preferences retain separate authorities. A public surface-registration API remains **in design**. After explicit approval, live Pi settings load this checkout once; the old personal Workspace copy has been removed and the old Tasks copy remains excluded (see the migration record).
 
 | Term | Use it when | Accurate for this work now? |
 | --- | --- | --- |
-| **Pi extension suite / package** | Describing what people install and what is versioned together | **Yes.** The private `pi-workspace-suite` has an explicit Pi manifest; Frame and Ask also retain independent package manifests. It has not been published; after explicit approval, live Pi settings load this local checkout once with the older entries excluded. |
+| **Pi extension suite / package** | Describing what people install and what is versioned together | **Yes.** The private `pi-workspace-suite` has an explicit Pi manifest; Frame and Ask also retain independent package manifests. It has not been published; after explicit approval, live Pi settings load this local checkout once without duplicate legacy loading; the current legacy inventory is recorded in migration. |
 | **Agent workspace / experience layer** | Explaining the integrated terminal UI, planning and human-in-the-loop workflow | **Yes, as a descriptive phrase.** Define it on first use; it is not a formal Pi API category. |
 | **Terminal design system / toolkit** | Describing shared visual grammar, Frame primitives, surface adapters and developer documentation | **Yes for the existing primitives and integrations; expanding.** A public third-party surface contract and full visual editor are future work. |
 | **Agent** | Describing the configured Pi-plus-extensions system a person uses | **Qualified yes:** a *customized Pi-based agent experience*, not a new agent runtime built from scratch. Tasks/Ask provide real behavior, not merely a theme. |
@@ -16,7 +16,7 @@ Pi describes itself as a minimal, extensible AI agent for the terminal. Pi's hos
 ## Audience-ready wording
 
 - **One sentence:** “I’m building a customizable agent workspace for Pi: planning, human questions and terminal presentation work together, with reusable components so others can adapt the experience.”
-- **For technical readers:** “It’s a version-controlled Pi extension suite with explicit package entry points. Home, Tasks and Ask retain separate state/input ownership; Frame supplies reusable rendering primitives. The shared settings workspace currently covers Input & footer, Tasks, Ask and supported transcript frames; we’re developing additional per-surface appearance adapters without forking Pi’s agent loop or replacing its native editor.”
+- **For technical readers:** “It’s a version-controlled Pi extension suite with explicit package entry points. Workspace, Tasks and Ask retain separate state/input ownership; Frame supplies reusable rendering primitives. The shared settings workspace currently covers Input & footer, Tasks, Ask and supported transcript frames; we’re developing additional per-surface appearance adapters without forking Pi’s agent loop or replacing its native editor.”
 - **For less technical readers:** “I’m making a workspace around a coding assistant that lets you see its work clearly, organize plans, answer questions, and eventually rearrange the interface without editing code.”
 - **For future contributors:** “Use the existing [Frame feature guide](../packages/pi-frame/FEATURE-GUIDE.md) to request or implement frame behavior. The [surface specification](SURFACE-WORKSPACE.md) describes proposed adapter boundaries. A public add-on API will be documented only after it is implemented and tested.”
 
@@ -24,7 +24,7 @@ Use **“built on Pi”**, **“extends Pi”** or **“Pi-based”** rather tha
 
 ## Teaching path
 
-1. Show the user outcome: a task plan, a question, a readable transcript and the current `/footer` preview. Explain that the assistant's actual data remains separate from its presentation.
+1. Show the user outcome: a task plan, a question, a readable transcript and the current `/workspace` preview. Explain that the assistant's actual data remains separate from its presentation.
 2. Teach a safe customization: select an element, preview, Undo, Discard and Save. Identify the implemented Input & footer, Tasks, Ask and Transcript rooms; explain that unsupported tool renderers stay native.
 3. Show the developer boundary: Pi host → extension/tool/state owner → semantic surface adapter → Frame presentation → Pi TUI redraw. Keep keyboard, cursor and native fallbacks intact.
 4. Show how to contribute: feature request using `FEATURE-GUIDE.md`, isolated tests, design decision, versioned change, changelog and rollback. Do not promise a third-party registration API before it exists.

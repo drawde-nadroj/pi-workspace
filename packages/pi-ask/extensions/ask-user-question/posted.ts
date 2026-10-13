@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { OptionSchema } from './domain.ts';
-import { POSTED, unresolved, type QuestionOpen, type TaskCatalogue } from './posted-protocol.ts';
+import { POSTED, unresolved, isTaskCatalogue, type QuestionOpen, type TaskCatalogue } from './posted-protocol.ts';
 import { ANSWER_MESSAGE, QUESTION_EVENT, POSTED_ENTRY, emptyPostedBook, restorePostedBook, postQuestion, changeQuestion,
   projectQuestion, postedContext, type PostedBook, type PostedQuestion, type PostedInput, type PostedResponse } from './posted-state.ts';
 import { postedQuestionUI, postedOutcomeUI, questionEventCard } from './posted-ui.ts';
@@ -29,7 +29,7 @@ export function registerPostedQuestions(pi: ExtensionAPI, lock: <T>(fn: () => Pr
     const open = book.questions.filter(q => unresolved(projectQuestion(q)));
     const blocking = open.filter(q => q.urgency === 'blocking').length;
     ctx.ui.setWidget('pi-ask:posted', fault ? [`Question history unreadable · /questions · ${sanitizeDisplayText(fault)}`] :
-      !catalogue?.available && open.length ? [`Questions · ${blocking} blocking · ${open.length - blocking} can wait · /questions`] : undefined);
+      !(catalogue?.attentionHosted ?? catalogue?.available) && open.length ? [`Questions · ${blocking} blocking · ${open.length - blocking} can wait · /questions`] : undefined);
   };
   const publish = () => {
     if (!ctx) return;
@@ -74,16 +74,30 @@ export function registerPostedQuestions(pi: ExtensionAPI, lock: <T>(fn: () => Pr
         if (context.mode !== 'tui') { context.ui.notify('Answering posted questions requires the interactive TUI.', 'warning'); return; }
         pi.events.emit(POSTED.interaction, { version: 1, sessionId: sid(), id: 'pi-ask:posted', active: true });
         if (q.state !== 'awaiting') { await postedOutcomeUI(context, structuredClone(q), bindClose); return; }
-        const current = () => epoch === openedEpoch && book.questions.some(x => x.id === q.id && x.revision === q.revision && x.state === 'awaiting');
-        const { result, draft } = await postedQuestionUI(context, structuredClone(q), current, bindClose);
+        const view = structuredClone(q);
+        const current = () => {
+          const latest = book.questions.find(x => x.id === q.id);
+          if (epoch !== openedEpoch || !latest || latest.state !== 'awaiting') return false;
+          // Only urgency/boundary attention may advance while this answer is edited.
+          if (JSON.stringify([latest.definition, latest.why, latest.boundary, latest.planId, latest.taskIds]) !==
+              JSON.stringify([q.definition, q.why, q.boundary, q.planId, q.taskIds])) return false;
+          Object.assign(view, { revision: latest.revision, urgency: latest.urgency, neededNow: latest.neededNow });
+          return true;
+        };
+        const workContext = () => {
+          if (!view.planId) return ['Standalone question · no task links'];
+          const plan = catalogue?.plans.find(p => p.id === view.planId);
+          return [`Linked plan: ${plan?.title ?? view.planId}`, ...view.taskIds.map(id => `Linked work: ${plan?.tasks?.find(t => t.id === id)?.title ?? id} · ${id}`)];
+        };
+        const { result, draft } = await postedQuestionUI(context, view, current, bindClose, workContext);
         if (!current()) { context.ui.notify('Question/session changed. The stale response was not submitted.', 'warning'); return; }
-        if (!result) { if (draft) commit(changeQuestion(book, q.id, q.revision, { op: 'draft', draft })); return; }
+        if (!result) { if (draft) commit(changeQuestion(book, q.id, view.revision, { op: 'draft', draft })); return; }
         let response: PostedResponse;
         if (!Array.isArray(result)) {
           if (result.action !== 'clarification') return;
           response = { status: 'clarification_requested', answers: result.answers, clarification: result.clarification };
         } else response = { status: result[0]?.skipped ? 'skipped' : 'answered', answers: result };
-        commit(changeQuestion(book, q.id, q.revision, { op: 'submit', response }));
+        commit(changeQuestion(book, q.id, view.revision, { op: 'submit', response }));
         const submitted = book.questions.find(x => x.id === q.id)!;
         try { deliver(submitted); } catch (error) { context.ui.notify(`Response saved but delivery failed: ${String(error)}. /questions retry ${q.id}`, 'warning'); }
       });
@@ -125,7 +139,7 @@ export function registerPostedQuestions(pi: ExtensionAPI, lock: <T>(fn: () => Pr
   pi.registerMessageRenderer(ANSWER_MESSAGE, (message: any, options: any, theme: any) => questionEventCard(message.details, theme, options.expanded));
   pi.events.on(POSTED.probe, (request: any) => { if (request?.version === 1 && request.sessionId === sid()) publish(); });
   pi.events.on(POSTED.catalogue, (value: any) => {
-    if (!ctx || !value || value.version !== 1 || value.sessionId !== sid() || typeof value.available !== 'boolean' || !Array.isArray(value.plans)) return;
+    if (!ctx || !isTaskCatalogue(value) || value.sessionId !== sid()) return;
     catalogue = value; fallback();
   });
   pi.events.on(POSTED.open, (value: any) => { void open(value); });
@@ -147,7 +161,7 @@ export function registerPostedQuestions(pi: ExtensionAPI, lock: <T>(fn: () => Pr
       if (message.role !== 'custom' || message.customType !== ANSWER_MESSAGE) continue;
       const d = message.details as any, q = book.questions.find(q => q.id === d?.id);
       if (q?.state === 'submitted' && q.submissionRevision === d.submissionRevision) {
-        commit(changeQuestion(book, q.id, q.revision, { op: 'deliver' })); recordEvent('Answer delivered to model context', book.questions.find(x => x.id === q.id)!);
+        commit(changeQuestion(book, q.id, q.revision, { op: 'deliver' })); recordEvent('Response delivered to model context', book.questions.find(x => x.id === q.id)!);
       }
     }
     const messages = event.messages.filter(m => !(m.role === 'custom' && m.customType === MEMORY));

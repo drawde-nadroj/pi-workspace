@@ -4,6 +4,16 @@ const toColor = value => typeof value === "string" && value.startsWith("#") ? pa
 const fit = (value, width) => truncateToWidth(value, Math.max(0, width), "…");
 const ink = (theme, glyph, color, bold = false) => color && theme?.style ? theme.style(glyph, { fg: toColor(color), bold }) : glyph;
 const cover = (row, width, surface) => surface ? surface(row, width) : row + " ".repeat(Math.max(0, width - visibleWidth(row)));
+// Bounded drawing metadata, not application state. Ambiguous identical rails keep
+// only cells owned by both layouts; unknown rails fall back to physical edges.
+const railMasks = new Map();
+const rememberRail = (row, width, columns) => {
+  const previous = railMasks.get(row);
+  const mask = previous?.width === width ? new Set([...columns].filter(x => previous.columns.has(x))) : columns;
+  railMasks.set(row, { width, columns: mask });
+  if (railMasks.size > 256) railMasks.delete(railMasks.keys().next().value);
+  return row;
+};
 
 /** Optional, Pi-independent presentation preset. The caller owns state detection and rerenders. */
 export function statusPreset({ state = "observed", appearance = "dark", attention = false, markers = {}, colors = {}, labels = {} }) {
@@ -24,7 +34,11 @@ export function frameRail({ theme, width, left = "", center = "", right = "", si
   if (width < 4) return cover(fit(left, width), width, surface);
   const inner = width - 2;
   const label = text => textColor ? ink(theme, text, textColor) : text;
-  const rule = count => ink(theme, "─".repeat(count), color);
+  const columns = new Set([0, width - 1]);
+  const rule = (count, start) => {
+    for (let x = start; x < start + count; x++) columns.add(x);
+    return ink(theme, "─".repeat(count), color);
+  };
   let content;
   if (center) {
     // Center stays centered in terminal cells, even when the two side labels differ.
@@ -34,15 +48,15 @@ export function frameRail({ theme, width, left = "", center = "", right = "", si
     const end = start + visibleWidth(center);
     left = fit(left, Math.max(0, start - (start > 0 ? 1 : 0)));
     right = fit(right, Math.max(0, inner - end - (end < inner ? 1 : 0)));
-    content = label(left) + rule(start - visibleWidth(left)) + label(center)
-      + rule(inner - end - visibleWidth(right)) + label(right);
+    content = label(left) + rule(start - visibleWidth(left), 1 + visibleWidth(left)) + label(center)
+      + rule(inner - end - visibleWidth(right), 1 + end) + label(right);
   } else {
     right = fit(right, Math.max(0, inner - 2));
     left = fit(left, inner - visibleWidth(right));
-    content = label(left) + rule(Math.max(0, inner - visibleWidth(left) - visibleWidth(right))) + label(right);
+    content = label(left) + rule(Math.max(0, inner - visibleWidth(left) - visibleWidth(right)), 1 + visibleWidth(left)) + label(right);
   }
-  return cover(ink(theme, side === "top" ? "╭" : "╰", color) + content
-    + ink(theme, side === "top" ? "╮" : "╯", color), width, surface);
+  return rememberRail(cover(ink(theme, side === "top" ? "╭" : "╰", color) + content
+    + ink(theme, side === "top" ? "╮" : "╯", color), width, surface), width, columns);
 }
 
 /** Frame pre-rendered content without taking over its input, mouse, or focus. */
@@ -82,10 +96,19 @@ export function paintFramePerimeter(rows, { theme, width, bottom = rows.length -
   return rows.map((row, y) => {
     if (y > bottom) return row;
     if (y === 0 || y === bottom) {
-      return cover(row.replace(/[╭╮╰╯─]/g, (glyph, offset) => paint(glyph, visibleWidth(row.slice(0, offset)), y)), width, surface);
+      const mask = railMasks.get(row);
+      return cover(row.replace(/\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))|[╭╮╰╯─]/g, (glyph, offset) => {
+        if (glyph.startsWith("\x1b")) return glyph;
+        const prefix = row.slice(0, offset), x = visibleWidth(prefix);
+        const owned = mask?.width === width ? mask.columns.has(x) : x === 0 || x === width - 1;
+        if (!owned) return glyph;
+        // Restore foreground, weight and background after each painted cell.
+        return paint(glyph, x, y) + "\x1b[0m" + (prefix.match(/\x1b\[[0-9;:]*m/g) ?? []).join("");
+      }), width, surface);
     }
     const first = row.indexOf("│"), last = row.lastIndexOf("│");
-    if (first < 0 || last <= first) return row;
-    return cover(row.slice(0, first) + paint("│", 0, y) + row.slice(first + 1, last) + paint("│", width - 1, y) + row.slice(last + 1), width, surface);
+    if (first < 0 || last <= first || visibleWidth(row.slice(0, first)) !== 0 || visibleWidth(row.slice(0, last)) !== width - 1) return row;
+    const restore = offset => "\x1b[0m" + (row.slice(0, offset).match(/\x1b\[[0-9;:]*m/g) ?? []).join("");
+    return cover(row.slice(0, first) + paint("│", 0, y) + restore(first) + row.slice(first + 1, last) + paint("│", width - 1, y) + restore(last) + row.slice(last + 1), width, surface);
   });
 }

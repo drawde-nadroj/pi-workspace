@@ -1,6 +1,6 @@
 import type { Plan } from "./state.ts";
 import { taskRow } from "./state.ts";
-import type { DockSnapshot } from "../../lib/home-dock.ts";
+import type { DockSnapshot } from "../../lib/workspace-dock.ts";
 
 /** View state only: never changes a task, revision, or execution state. */
 export class FocusWindow {
