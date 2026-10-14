@@ -102,6 +102,14 @@ test("Something else editor embeds the shared closed frame in both choice-list l
     assert.match(plain.join(" "), /else/);
     assert.ok(plain.some(line => /╭.*╮/.test(line)), "top edge is embedded under Other");
     assert.ok(plain.some(line => /╰.*╯/.test(line)), "bottom edge is embedded under Other");
+    for (const line of lines) {
+      const text = sanitizeDisplayText(line).trimStart();
+      if (/^[╭╰]/.test(text)) assert.ok(line.includes(theme.fg("accent", text)), "rails retain the question accent");
+      if (/^│.*│$/.test(text)) {
+        assert.equal(line.split(theme.fg("accent", "│")).length - 1, 2, "both side borders retain the accent");
+        assert.ok(!line.includes(theme.fg("accent", "custom")), "answer text is not recolored");
+      }
+    }
     assert.ok(lines.every(line => visibleWidth(line) <= width));
     assert.equal(lines.join("").split(CURSOR_MARKER).length - 1, 1);
   }

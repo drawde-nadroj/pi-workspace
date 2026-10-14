@@ -421,7 +421,13 @@ export class WrappedChoiceList {
 				const editorWidth = Math.max(1, width - visibleWidth(editorIndent));
 				const editorLines = inlineOtherEditor.render(editorWidth);
 				for (const editorLine of editorLines) {
-					lines.push(truncateToWidth(`${editorIndent}${sanitizeEditorDisplay(editorLine)}`, width));
+					const safe = sanitizeEditorDisplay(editorLine);
+					// Sanitization removes the editor palette. Restore only trusted frame
+					// glyphs, keeping answer text and native cursor markers untouched.
+					const framed = editorWidth >= 7 && /^[╭╰].*[╮╯]$/.test(safe) ? this.theme.fg("accent", safe)
+						: editorWidth >= 7 && /^│.*│$/.test(safe) ? safe.replace(/^│|│$/g, (edge: string) => this.theme.fg("accent", edge))
+						: safe;
+					lines.push(truncateToWidth(`${editorIndent}${framed}`, width));
 				}
 				continue;
 			}
