@@ -119,7 +119,7 @@ export class TaskPanel implements Component {
     const surface = mixColors(colors ? parseColor(colors.panel) : this.theme.colors.customMessageBg, color('text'), .08, 'srgb');
     const selection = mixColors(surface, color('accent'), .17, 'srgb'), inner = Math.max(0, width - 2), contentWidth = Math.max(1, inner - 4);
     const edge = (s: string) => this.theme.style(s, { fg: color('accent'), bg: surface });
-    const line = (s = '', tone: Tone = 'text', selected = false, bold = false, mark?: { marker?: string; glyph?: string; tone: Tone }) => {
+    const line = (s = '', tone: Tone = 'text', selected = false, bold = false, mark?: { marker?: string; glyph?: string; tone: Tone }, active = false) => {
       const prefix = `${mark?.marker !== undefined ? mark.marker + ' ' : ''}${mark?.glyph ? mark.glyph + ' ' : ''}`;
       const prefixWidth = Math.min(visibleWidth(prefix), Math.max(0, inner - 5));
       const value = truncateToWidth(cleanText(s), Math.max(0, inner - 4 - prefixWidth), '…');
@@ -127,7 +127,7 @@ export class TaskPanel implements Component {
       const styledPrefix = mark ? this.theme.style(mark.marker !== undefined ? mark.marker + ' ' : '', { fg: color('accent') }) + this.theme.style(mark.glyph ? mark.glyph + ' ' : '', { fg: color(mark.tone) }) : '';
       const lead = truncateToWidth(styledPrefix, prefixWidth, '');
       const padded = '  ' + lead + this.theme.style(value, { fg: color(tone), bold }) + ' '.repeat(Math.max(0, inner - 2 - visibleWidth(lead) - visibleWidth(value)));
-      return edge('│') + this.theme.style(padded, { bg: selected ? selection : surface }) + edge('│');
+      return edge('│') + this.theme.style(padded, { bg: selected ? selection : active ? mixColors(surface, color('accent'), .08, 'srgb') : surface }) + edge('│');
     };
     const border = (top: boolean) => {
       if (width < 6) return line(top ? 'Tasks' : '', 'accent');
@@ -188,21 +188,21 @@ export class TaskPanel implements Component {
       this.scroll = Math.min(this.scroll, Math.max(0, detail.length - room)); rows.push(...detail.slice(this.scroll, this.scroll + room).map(row => line(row.text, row.tone, false, row.bold, row.glyph ? { glyph: row.glyph, tone: row.glyphTone ?? 'muted' } : undefined)));
       return finish(rows, [line(`↑↓ scroll · ${this.section() === 'work' && current ? 'E/Enter edit · ' : ''}Esc back`, 'muted')]);
     }
-    let entries: { title: string; sub: string; glyph: string; glyphTone: Tone; subTone?: Tone }[];
+    let entries: { title: string; sub: string; glyph: string; glyphTone: Tone; subTone?: Tone; active?: boolean }[];
     if (this.section() === 'requests') entries = this.requests(p).map(r => ({ title: r.title, glyph: REQUEST_STATUS[r.state]?.glyph ?? '?', glyphTone: REQUEST_STATUS[r.state]?.tone ?? 'warning', sub: `${coverageLabel(r.state)} · ${r.taskIds.length} linked`, subTone: REQUEST_STATUS[r.state]?.tone === 'warning' ? 'warning' : 'muted' }));
     else if (this.section() === 'questions') entries = qs.map(q => {
       const blocked = q.urgency === 'blocking' && unresolved(q), disposed = q.state === 'withdrawn' || q.state === 'replaced';
       return { title: q.question, glyph: blocked ? '!' : q.state === 'applied' ? '✓' : disposed ? '–' : '?', glyphTone: blocked ? 'warning' : q.state === 'applied' ? 'success' : 'muted', subTone: blocked ? 'warning' : 'muted', sub: `${q.state === 'awaiting' ? blocked ? q.taskIds.length ? 'Blocks linked work' : 'Blocks stated boundary' : 'Can wait' : questionStatus(q)} · ${q.state === 'awaiting' ? q.neededNow ?? q.boundary : q.consequence ?? (disposed ? 'Withdrawal or replacement is not approval.' : q.state === 'applied' ? 'Agent report, not independent verification.' : 'Submitted is not applied.')} · ${this.questionLink(q)}` };
     });
-    else entries = this.work(p).map(t => ({ title: t.title, glyph: WORK_STATUS[t.status].glyph, glyphTone: WORK_STATUS[t.status].tone,
-      sub: t.status === 'active' ? current && this.running() ? 'Working' : 'Paused' : t.status === 'pending' ? 'Not started' : t.status === 'done' ? '' : t.status === 'blocked' ? `Blocked · ${t.reason}` : 'Cancelled', subTone: t.status === 'blocked' ? 'warning' : 'muted' }));
+    else entries = this.work(p).map(t => ({ title: t.title, active: t.status === 'active', glyph: WORK_STATUS[t.status].glyph, glyphTone: WORK_STATUS[t.status].tone,
+      sub: t.status === 'active' ? current && this.running() ? 'Working' : 'Paused' : t.status === 'pending' ? 'Not started' : t.status === 'done' ? '' : t.status === 'blocked' ? `Blocked · ${t.reason}` : 'Cancelled', subTone: t.status === 'blocked' ? 'warning' : t.status === 'active' && current && this.running() ? 'accent' : 'muted' }));
     this.setIndex(Math.max(0, Math.min(entries.length - 1, this.index())));
     type Wrapped = { text: string; tone: Tone; index: number; bold?: boolean; mark?: { marker?: string; glyph?: string; tone: Tone } };
     const wrapped: Wrapped[] = [], starts: number[] = [], ends: number[] = [];
     for (const [i, e] of entries.entries()) {
       if (i && this.section() !== 'work') wrapped.push({ text: '', tone: 'muted', index: -1 });
       starts.push(wrapped.length);
-      wrapped.push(...wrapTextWithAnsi(cleanText(e.title), Math.max(1, Math.min(80, contentWidth - 4))).map((text, n) => ({ text: n ? '    ' + text : text, tone: 'text' as const, index: i, bold: this.section() === 'requests', mark: n ? undefined : { marker: i === this.index() ? '›' : ' ', glyph: e.glyph, tone: e.glyphTone } })));
+      wrapped.push(...wrapTextWithAnsi(cleanText(e.title), Math.max(1, Math.min(80, contentWidth - 4))).map((text, n) => ({ text: n ? '    ' + text : text, tone: 'text' as const, index: i, bold: this.section() === 'requests' || e.active, mark: n ? undefined : { marker: i === this.index() ? '›' : ' ', glyph: e.glyph, tone: e.glyphTone } })));
       if (e.sub) wrapped.push({ text: `    ${e.sub}`, tone: e.subTone ?? 'muted', index: i });
       ends.push(wrapped.length);
     }
@@ -211,7 +211,7 @@ export class TaskPanel implements Component {
     if (start < this.listTop) this.listTop = start;
     if (end > this.listTop + room) this.listTop = Math.max(start, end - room);
     this.listTop = Math.max(0, Math.min(this.listTop, Math.max(0, wrapped.length - room)));
-    for (const row of wrapped.slice(this.listTop, this.listTop + room)) { if (row.index >= 0) this.mouseRows.set(rows.length + 1, row.index); rows.push(line(row.text, row.tone, row.index === this.index(), row.bold, row.mark)); }
+    for (const row of wrapped.slice(this.listTop, this.listTop + room)) { if (row.index >= 0) this.mouseRows.set(rows.length + 1, row.index); rows.push(line(row.text, row.tone, row.index === this.index(), row.bold, row.mark, entries[row.index]?.active)); }
     if (!entries.length) rows.push(line(this.section() === 'questions' ? this.questions?.fault ? 'Question history unreadable · /questions' : this.questions?.available ? 'No posted questions in this session.' : 'Ask is unavailable. Work remains accessible.' : this.section() === 'requests' ? 'No requests recorded · coverage not established' : 'No open tasks. A adds work; F shows completed.', 'muted'));
     if (entries.length && wrapped.length > room) rows.push(line(`${this.index() + 1} of ${entries.length} · ↑↓ select · ${this.section() === 'questions' ? 'Enter answer/inspect' : 'D full details'}`, 'muted'));
     if (this.section() === 'work' && doneCount) rows.push(line(`${this.nav.showDone ? '▾' : '▸'} ${doneCount} completed · F ${this.nav.showDone ? 'hide' : 'show'}`, 'muted'));

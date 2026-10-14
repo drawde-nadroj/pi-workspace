@@ -87,7 +87,7 @@ function nextForeground(escape: string, current: Color, fallback: Color): Color 
  * Width, hit targets and text never change during a sweep.
  */
 export function selectionHighlight(theme: Theme, text: string, options: {
-  phase?: number; focused?: boolean; underline?: boolean; foreground?: Color;
+  phase?: number; focused?: boolean; underline?: boolean; foreground?: Color; background?: Color;
 } = {}): string {
   const width = visibleWidth(text);
   if (!width) return text;
@@ -96,7 +96,7 @@ export function selectionHighlight(theme: Theme, text: string, options: {
   // Composer deliberately uses transparent panel backgrounds. Mix in sRGB so
   // its black/white fallback still gets a visible tint, not near-black OKLCH.
   const surface = mixColors(theme.colors.selectedBg, theme.colors.toolPendingBg, .35, "srgb");
-  const base = mixColors(surface, theme.colors.accent, options.focused ? .30 : .22, "srgb");
+  const base = options.background ?? mixColors(surface, theme.colors.accent, options.focused ? .30 : .22, "srgb");
   const mode = theme.getColorMode();
   const cache = new Map<string, string[]>();
   const shades = () => {

@@ -61,7 +61,7 @@ The visible Tasks dock now uses the same active Pi accent (purple in the Compose
 
 ## Panel controls
 
-The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
+The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. The active task has a bold title and a separate, softer background tint even when another row is selected. Its sourced **Working** or **Paused** label remains explicit; blockers retain warning marks and reasons. Selection still uses `›` and the stronger selection fill. This presentation does not change navigation, task state, or the Work/Requests/Questions layouts. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
 
 ### Plan view
 

@@ -89,7 +89,7 @@ for (const mode of ["cold", "require", "native", "require-bare", "native-bare", 
       const { appearanceDefaults } = await jiti.import(join(f.workspace, "appearance.ts"));
       let title = "Fix Pi Workspace Footer Session Display";
       const ctx = { cwd: "/work", model: { name: "Model" }, sessionManager: { getSessionName: () => title } };
-      const workspace = { layout: structuredClone(FOOTER_DEFAULTS),
+      const workspace = { layout: structuredClone(FOOTER_DEFAULTS), tools: new Map(), prefs: { enabled: true, motion: "work" }, phase: "working",
         clock: { active: true, transitionAt: 0, timing: { startedAt: 0 } }, promptDepth: 0,
         railStatus: () => ({ text: "6 tools running", tone: "toolTitle", state: "tools" }),
         railRunElapsed: () => 67000, thinkingLevel: () => "high", lastUserSentAt: () => 1000,

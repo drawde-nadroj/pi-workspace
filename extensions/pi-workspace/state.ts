@@ -153,6 +153,8 @@ export interface WorkspaceState {
   promptBlocksWork?: (kind: string) => boolean;
   compacting: boolean;
   lastInputAt: number;
+  /** Coalesced real tool-start feedback; ephemeral and never persisted. */
+  activityEventAt?: number;
 }
 
 export function activity(state: WorkspaceState): string {
@@ -169,7 +171,6 @@ export function activity(state: WorkspaceState): string {
 }
 
 export function shouldAnimate(state: WorkspaceState, now: number, focused: boolean): boolean {
-  return !state.footerPickerOpen && state.prefs.enabled && state.prefs.motion !== "off" &&
-    state.promptDepth === 0 && (state.clock.active || state.compacting ||
-      (state.clock.transitionAt > 0 && now - state.clock.transitionAt < 800));
+  return !state.footerPickerOpen && state.prefs.enabled && state.prefs.motion !== "off" && state.layout?.motion !== "off" &&
+    state.promptDepth === 0 && (state.clock.active || state.compacting);
 }

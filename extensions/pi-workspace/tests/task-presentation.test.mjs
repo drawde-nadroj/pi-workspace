@@ -31,7 +31,7 @@ test('task panel preserves exact counts and bounded geometry, prioritizes open w
   const dock = taskDemo('working'), before = structuredClone(dock);
   const render = time => panel.render(theme, 90, dock, workspace, time, true, 7);
   const a = render(3000), b = render(3500);
-  assert.deepEqual(a.map(plain), b.map(plain)); assert.notDeepEqual(a, b);
+  assert.deepEqual(a, b, "steady emphasis does not animate continuously");
   assert.match(a.map(plain).join('\n'), /3\/7 done/); assert.match(a.map(plain).join('\n'), /\+ 1 open/);
   workspace.promptDepth = 1; const paused = render(4000); assert.deepEqual(paused, render(4500)); assert.equal(panel.tick(workspace, 4600, true), false);
   workspace.promptDepth = 0; workspace.lastInputAt = 4700; render(4700); assert.equal(panel.tick(workspace, 4800, true), false);
@@ -83,7 +83,7 @@ test('changes-only motion ignores mount/history, plan switches and narrow unfram
   const workspace = state(), panel = new TaskPanel(); workspace.layout = { ...FOOTER_DEFAULTS, tasks: taskPanelDefaults() }; workspace.layout.tasks.presentation.motion = 'changes';
   const dock = taskDemo('idle'); dock.overview.planId = 'p1';
   panel.render(theme, 90, dock, workspace, 3000, true, 7); assert.equal(panel.tick(workspace, 3100, true), false);
-  const next = structuredClone(dock); next.overview.revision = 'next';
+  const next = structuredClone(dock); next.overview.revision = 'next'; next.overview.done++;
   panel.render(theme, 90, next, workspace, 3200, true, 7); assert.equal(panel.tick(workspace, 3300, true), true);
   panel.tick(workspace, 8000, true); assert.equal(panel.tick(workspace, 9000, true), false);
   next.overview.planId = 'p2'; next.overview.revision = 'new-plan';
@@ -101,8 +101,8 @@ test('Tasks settings preview supports keyboard, colors, undo, save and untouched
   h.click('[Tasks]');
   assert.match(h.rows().join('\n'), /Example Tasks · no real task changes · working/);
   assert.match(h.rows().join('\n'), /3\/7 done/);
-  h.click('Motion'); h.pick('changes'); assert.equal(h.latest.tasks.presentation.motion, 'changes');
-  h.click('[Undo]'); assert.equal(h.latest.tasks.presentation.motion, 'work');
+  h.click('Motion'); h.pick('work'); assert.equal(h.latest.tasks.presentation.motion, 'work');
+  h.click('[Undo]'); assert.equal(h.latest.tasks.presentation.motion, 'changes');
   h.click('Advanced settings'); h.click('Border effect'); h.pick('pulse'); assert.equal(h.latest.tasks.presentation.effect, 'pulse');
   h.pick('Border color'); h.pick('custom'); h.text('#aabbcc'); assert.equal(h.latest.tasks.presentation.borderColor, '#aabbcc');
   h.click('Task rows'); h.click('Visible tasks'); h.pick('5'); assert.equal(h.latest.tasks.rows, 5);
@@ -138,7 +138,7 @@ test('Tasks room synchronizes list and rendered preview selection without editin
   assert.match(h.rows().join('\n'), /Workspace · Tasks · Progress count/);
   h.click('+ 1 open · /tasks');
   assert.match(h.rows().join('\n'), /Workspace · Tasks · More-work hint/);
-  h.click('▸ Refine task overview');
+  h.click('▸ Working · Refine task overview');
   assert.match(h.rows().join('\n'), /Workspace · Tasks · Active task/);
   h.click('○ Validate narrow and wide layouts');
   assert.match(h.rows().join('\n'), /Workspace · Tasks · Task rows/);

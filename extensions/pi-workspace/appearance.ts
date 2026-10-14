@@ -21,7 +21,7 @@ export const STATES = {
 export type AppearanceState = keyof typeof STATES;
 export const STATE_TEXT: Record<AppearanceState, string> = {
   idle: "What’s next?", thinking: "Thinking", responding: "Writing reply", working: "Working", tools: "Tools running",
-  waiting: "Waiting for you", done: "your turn", error: "Run failed", stopped: "What happened?",
+  waiting: "Waiting for you", done: "your turn", error: "Run failed", stopped: "Run stopped",
   interrupted: "Previous run incomplete", compacting: "Compacting context",
 };
 export const COLORS = {
@@ -65,7 +65,7 @@ export function appearanceDefaults(p: FooterPrefs): Appearance {
     elements[id] = { visible, position: DEFAULT_POSITIONS[id], order,
       text: id === "sentTime" ? "Sent {value}" : id === "hint" ? "Next: {value}" : "{value}",
       color: id === "sentTime" ? "red" : ["session", "vim", "model"].includes(id) ? "frame" : id === "status" || id === "context" || id === "git" ? "auto" : "quiet",
-      bold: id === "session" || id === "vim", priority: ["status", "vim", "thinking"].includes(id) ? "high" : id === "hint" || id === "model" ? "low" : "normal" };
+      bold: id === "session" || id === "vim" || id === "status", priority: ["status", "vim", "thinking"].includes(id) ? "high" : id === "hint" || id === "model" ? "low" : "normal" };
   }
   // Preserve fields deliberately kept in the legacy footer rather than the input border.
   if (p.railTitle === "off" && p.session === "on") Object.assign(elements.session, { visible: true, position: "footer1Left" });

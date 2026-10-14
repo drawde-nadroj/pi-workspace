@@ -335,6 +335,7 @@ export default function workspace(pi: ExtensionAPI) {
     state.phase = "working";
     if (installed) ctx.ui.setWorkingVisible(false);
     state.lastInputAt = 0;
+    state.activityEventAt = undefined;
     outcome = "done";
     wake();
   });
@@ -361,6 +362,8 @@ export default function workspace(pi: ExtensionAPI) {
     if (ctx.mode !== "tui") return;
     activityBlocks.record(event.toolName, event.args, event.parentToolCallId, event.toolCallId);
     state.tools.set(event.toolCallId, event.toolName);
+    const now = Date.now();
+    if (state.activityEventAt === undefined || now - state.activityEventAt >= 700) state.activityEventAt = now;
     wake();
   });
   pi.on("tool_execution_end", (event, ctx) => {

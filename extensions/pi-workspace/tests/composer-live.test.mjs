@@ -148,7 +148,7 @@ test("decorated Vim retains literal rules, scroll hints, large paste storage and
   } finally { cleanup(); }
 });
 
-test("live status breathes during work and typing; pauses for dialogs/off; settles without fake progress", () => {
+test("live ember moves during work and typing; pauses for dialogs/off; stops without fake progress", () => {
   const workspace = state(), clock = new ActivityClock();
   workspace.clock.begin(1000); clock.begin(1000);
   const render = time => composerStatusRows(workspace, clock, FOOTER_DEFAULTS, time, theme, 100);
@@ -161,7 +161,7 @@ test("live status breathes during work and typing; pauses for dialogs/off; settl
   workspace.tools.delete("question");
   assert.deepEqual(render(10000), render(10100));
   workspace.promptDepth = 0; workspace.lastInputAt = 9900;
-  assert.notDeepEqual(render(10000), render(10400), "typing lowers pulse strength but does not freeze activity");
+  assert.notDeepEqual(render(10000), render(10400), "typing does not freeze activity");
   workspace.lastInputAt = 0; workspace.prefs.motion = "off";
   assert.deepEqual(render(10000), render(10100));
   assert.equal(composerPadding(90, 40), 1);
@@ -171,7 +171,7 @@ test("live status breathes during work and typing; pauses for dialogs/off; settl
   const arrival = composerMessageRail(theme, 100, workspace, 11100, "a real session");
   assert.match(plain(arrival), /a real session/);
   assert.doesNotMatch(plain(arrival), /[✧✦⋆·]/);
-  assert.notEqual(arrival, composerMessageRail(theme, 100, workspace, 11500, "a real session"));
+  assert.equal(arrival, composerMessageRail(theme, 100, workspace, 11500, "a real session"), "finished state is static");
   assert.equal(composerMessageRail(theme, 100, workspace, 12000, "a real session"), composerMessageRail(theme, 100, workspace, 13000, "a real session"));
   workspace.clock.begin(11100); workspace.clock.settle(11200, "error");
   const failed = composerMessageRail(theme, 100, workspace, 11200, "a real session");
@@ -281,7 +281,7 @@ test("Chronomancer makes the native composer frame red, preserves Vim and explic
   } finally { cleanup(); }
 });
 
-test("border glint changes light, not symbols or layout, and obeys motion gates", () => {
+test("ember changes shape without moving text or border geometry, and obeys motion gates", () => {
   const workspace = state(); workspace.clock.begin(1000);
   for (const width of [1, 3, 8, 20, 44, 90, 160]) {
     for (const time of [7200, 7500, 7800, 8100, 8700, 9000]) {
@@ -295,7 +295,8 @@ test("border glint changes light, not symbols or layout, and obeys motion gates"
   const a = frame(7800);
   const b = frame(8100);
   assert.notEqual(a, b, "bloom changes its brightness");
-  assert.equal(plain(a).replace(/\d+s/, "time"), plain(b).replace(/\d+s/, "time"), "no extra symbols or changing geometry apart from elapsed time");
+  assert.equal(plain(a).slice(8).replace(/\d+s/, "time"), plain(b).slice(8).replace(/\d+s/, "time"), "only the fixed marker and elapsed time change");
+  assert.equal(visibleWidth(a), visibleWidth(b));
   assert.match(plain(a), /─{8}/);
   for (const gate of ["off", "dialog"]) {
     workspace.prefs.motion = gate === "off" ? "off" : "work";
@@ -321,12 +322,12 @@ test("composer uses the terminal background and interrupts effects on real state
     composerRail(theme, 90, "", "", false)], 90, workspace, time, 1)[0];
   const start = render(1100), next = render(1400);
   assert.notEqual(start, next, "start sweep advances");
-  assert.equal(plain(start), plain(next));
+  assert.equal(plain(start).slice(8), plain(next).slice(8), "status stays still beside the marker");
   assert.match(plain(start), /^╭.*╮$/);
   workspace.clock.settle(1400, "error");
   assert.equal(render(1400), render(1700), "failed run cancels motion immediately");
   workspace.clock.begin(1800); workspace.clock.settle(2000, "done");
-  assert.notEqual(render(2100), render(2400), "settlement fades into the quiet frame");
+  assert.equal(render(2100), render(2400), "settlement is static");
   assert.equal(render(2800), render(3200), "completed transitions do not linger");
 });
 
@@ -353,8 +354,8 @@ test("run state moves into the composer rail below Tasks and timing across width
         assert.ok(composer > lines.findIndex(line => /TASKS/.test(line)));
         assert.ok(composer > lines.findIndex(line => /TIMING/.test(line)));
         assert.ok(lines[composer].includes(phase === "thinking" ? "Thinking" : phase === "ready" ? "What’s next?"
-          : phase === "done" ? "your turn" : phase === "error" ? "Run failed" : "What happened?"));
-        assert.equal(lines.slice(0, composer).filter(line => /your turn|Run failed|What happened\?|What’s next\?/.test(line)).length, 0);
+          : phase === "done" ? "your turn" : phase === "error" ? "Run failed" : "Run stopped"));
+        assert.equal(lines.slice(0, composer).filter(line => /your turn|Run failed|Run stopped|What’s next\?/.test(line)).length, 0);
       }
     }
   } finally { cleanup(); }

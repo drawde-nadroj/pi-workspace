@@ -69,7 +69,9 @@ for (const [name, make, frameId, ids] of factories) test(`${name}: target linkag
           assert.ok(linked.rows.every(row => visibleWidth(row) <= width));
           assert.ok(linked.hits.every(hit => hit.x >= 0 && hit.width > 0 && hit.x + hit.width <= width && hit.y < linked.rows.length));
           const visible = linked.hits.some(hit => hit.id === selected && hit.affected !== false);
-          assert.equal(linked.rows.some(row => background.test(row)), visible, `${appearance}/${width}/${selected}: only visible targets are highlighted`);
+          const backgrounds = rows => rows.map(row => cells(row).map(cell => cell.bg));
+          assert.equal(JSON.stringify(backgrounds(linked.rows)) !== JSON.stringify(backgrounds(original.rows)), visible,
+            `${appearance}/${width}/${selected}: only visible targets change their background`);
           for (const row of linked.rows) for (const cell of cells(row)) {
             if (cell.bg && cell.fg) assert.ok(contrast(cell.fg, cell.bg) >= 4.48, `${appearance}/${width}/${selected}: ${JSON.stringify(cell)}`);
           }

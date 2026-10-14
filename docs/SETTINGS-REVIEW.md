@@ -32,7 +32,7 @@ An atomic workspace Save is not an atomic transaction across these authorities. 
 | Part | Intent and demonstration | Boundary |
 | --- | --- | --- |
 | Assistant status | Real state; hover Preview state options to see each state's label/style | Appearance only; real phase/duration stay unchanged |
-| Chat title | Current chat name in its actual slot | Not a chat rename control |
+| Chat title | Static softly tinted badge in its actual slot; retains chosen foreground/weight | Not a chat rename control |
 | Sent time | Latest recorded user send, with real date/time format | Missing times stay hidden; not a live clock |
 | Directory | Full path/folder name from the real directory | Does not change working directory |
 | Vim mode | Actual installed editor mode | No mode is fabricated without Vim |
@@ -72,9 +72,9 @@ These controls style Workspace's overview, not the stored plan or standalone fal
 | --- | --- |
 | Preview state | Synthetic idle/working/waiting/done/blocked/error example; hover stays static |
 | Replay progress sweep | Explicit one-shot sample revision; respects motion-off |
-| Motion | Work, progress changes or off; menu pauses the effect |
+| Motion | Work animates the border; Changes briefly highlights meaningful task progress (fresh default); Off retains steady emphasis. Menu pauses the effect |
 | Border effect | Travelling shimmer versus in-place pulse; text stays still |
-| Cycle time | Seconds per circuit/pulse, not raw milliseconds in the value display |
+| Cycle time | Seconds per circuit or change highlight; fresh Tasks default is 1.2 seconds |
 | Highlight strength | Blend amount, displayed as a percentage where applicable |
 | Direction | Shimmer direction; pulse does not travel |
 | Progress sweep | New recorded changes only, not restored history |

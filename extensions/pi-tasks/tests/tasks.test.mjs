@@ -1308,6 +1308,13 @@ test("native Tasks shares neutral status typography, short grouped details and d
     const complete = work.find(line => plain(line).includes("Completed item"));
     assert.ok(complete.includes(th.style("✓ ", { fg: th.colors.success })));
     assert.ok(complete.includes(th.style("Completed item", { fg: th.colors.text, bold: false })));
+    const active = work.find(line => plain(line).includes("Active item"));
+    assert.ok(active.includes(th.style("Active item", { fg: th.colors.text, bold: true })), "active title stands out independently of selection");
+    assert.doesNotMatch(plain(active), /›/, "selected completed task does not steal active-task emphasis");
+    assert.match(active, /\x1b\[48;/, "active task has a steady surface");
+    const pausedPanel = new TaskPanel({ terminal: { rows: 60 }, requestRender() {} }, th, () => b, () => undefined, () => {}, { showDone: true }, () => false);
+    assert.match(pausedPanel.render(150).map(plain).join("\n"), /Paused/);
+    assert.doesNotMatch(pausedPanel.render(150).map(plain).join("\n"), /Working/);
     assert.ok(work.some(line => line.includes(th.style("Typography fixture", { fg: th.colors.text, bold: true }))));
     panel.handleInput("q"); const requests = panel.render(150).map(plain).join("\n");
     assert.match(requests, /Reported complete · 1 linked/); assert.doesNotMatch(requests, /linked task/);

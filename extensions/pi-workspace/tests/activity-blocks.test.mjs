@@ -112,14 +112,14 @@ test("custom interfaces, images, hidden tools, narrow views and later decorators
   } finally { blocks.dispose(); }
 });
 
-test("full frame light reaches all four edges without changing draft, cursor, menu or dimensions", () => {
+test("Composer perimeter stays still without changing draft, cursor, menu or dimensions", () => {
   const workspace = { prefs: { ...DEFAULTS, look: "composer" }, clock: new RunClock(), tools: new Map(), phase: "thinking", promptDepth: 0, compacting: false, lastInputAt: 0 };
   workspace.clock.begin(1000);
   for (const width of [8, 24, 90, 140]) {
     const rows = [composerRail(theme, width, " Composer "), composerSurface(theme, "│" + "x".repeat(width - 2) + "│", width), composerSurface(theme, "│" + CURSOR_MARKER + " ".repeat(width - 2) + "│", width), composerRail(theme, width, "", "", false), "completion menu"];
     const frames = Array.from({ length: 30 }, (_, i) => composerFrame(theme, rows, width, workspace, 4000 + i * 100, 3));
-    assert.ok(new Set(frames.map(f => f[0])).size > 1); assert.ok(new Set(frames.map(f => f[3])).size > 1);
-    assert.ok(new Set(frames.map(f => f[1])).size > 1, "side edges move too");
+    assert.equal(new Set(frames.map(f => f[0])).size, 1); assert.equal(new Set(frames.map(f => f[3])).size, 1);
+    assert.equal(new Set(frames.map(f => f[1])).size, 1, "motion is confined to the status marker, not side edges");
     for (const frame of frames) {
       assert.deepEqual(frame.map(plain), rows.map(plain)); assert.equal(frame[4], rows[4]);
       assert.equal(frame.join("").split(CURSOR_MARKER).length - 1, 1);

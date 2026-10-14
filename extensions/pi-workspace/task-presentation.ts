@@ -1,23 +1,24 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { stripVTControlCharacters } from "node:util";
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { mixColors, parseColor, sliceByColumn, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createFrameController, framePresentationDefaults, readFramePresentation, presentationRows,
   type FramePresentation, type FrameSample, type FrameState } from "../../lib/frame.ts";
 import { cleanText, type DockSnapshot } from "../../lib/workspace-dock.ts";
 import type { WorkspaceState } from "./state.ts";
+import { selectionHighlight } from "./footer-selection.ts";
 
 export interface TaskPanelPrefs { version: 1; title: string; rows: number; presentation: FramePresentation }
 export type TaskElementId = "frame" | "title" | "summary" | "hint" | "body" | "active";
 export interface TaskPreviewHit { id: TaskElementId; x: number; y: number; width: number }
 export function taskPanelDefaults(): TaskPanelPrefs {
-  return { version: 1, title: "Tasks", rows: 3, presentation: { ...framePresentationDefaults(), metadataColor: "accent" } };
+  return { version: 1, title: "Tasks", rows: 3, presentation: { ...framePresentationDefaults(), metadataColor: "accent", motion: "changes", periodMs: 1200 } };
 }
 export function readTaskPanel(value: unknown): TaskPanelPrefs {
   const out = taskPanelDefaults(), raw = value as Partial<TaskPanelPrefs> | undefined;
   if (raw?.version !== 1) return out;
   if (typeof raw.title === "string") out.title = Array.from(cleanText(raw.title)).slice(0, 60).join("");
   if (Number.isInteger(raw.rows)) out.rows = Math.max(1, Math.min(5, raw.rows!));
-  out.presentation = readFramePresentation(raw.presentation);
+  out.presentation = raw.presentation ? readFramePresentation(raw.presentation) : out.presentation;
   return out;
 }
 function taskPanelLayout(theme: Theme, width: number, dock: DockSnapshot, prefs: TaskPanelPrefs,
@@ -36,6 +37,10 @@ function taskPanelLayout(theme: Theme, width: number, dock: DockSnapshot, prefs:
   for (const [index, row] of chosen.entries()) {
     const role = row.tone === "accent" ? "active" : row.tone === "warning" || row.tone === "error" || row.tone === "muted" ? row.tone : "text";
     let text = cleanText(row.text);
+    if (role === "active" && width >= 36) {
+      const paused = / · paused$/.test(text);
+      text = `▸ ${paused ? "Paused" : "Working"} · ${text.replace(/^▸\s*/, "").replace(/ · paused$/, "")}`;
+    }
     if (info && !info.activeId && index === 0 && role === "text") text = `Next → ${text.replace(/^○\s*/, "")}`;
     const lines = wrapTextWithAnsi(text, inner);
     const count = index === 0 && bodyBudget > chosen.length ? Math.min(2, lines.length) : 1;
@@ -52,7 +57,22 @@ function taskPanelLayout(theme: Theme, width: number, dock: DockSnapshot, prefs:
     if (hint && content.length < bodyBudget) content.push({ text: hint, role: "muted" });
     return { rows: content.map(row => truncateToWidth(row.text, width, "…")), hits: [] };
   }
-  const rows = presentationRows({ theme, width, rows: content, title: prefs.title, summary, hint, presentation: prefs.presentation, frame });
+  const changesOnly = prefs.presentation.motion === "changes" && prefs.presentation.states[frame.state]?.motion !== "repeat";
+  const rows = presentationRows({ theme, width, rows: content, title: prefs.title, summary, hint, presentation: prefs.presentation,
+    frame: changesOnly ? { ...frame, active: false } : frame });
+  // A steady active-row surface, with one bounded lift on real task progress.
+  // Paint inside the rail only, preserving semantic/custom foregrounds and geometry.
+  const lift = changesOnly && frame.active ? Math.sin(Math.PI * frame.progress) * .18 * prefs.presentation.intensity : 0;
+  const highlight = prefs.presentation.states[frame.state]?.highlightColor ?? prefs.presentation.highlightColor;
+  const flash = highlight === "highlight" ? parseColor(theme.appearance === "light" ? "#29354a" : "#f5f6ff")
+    : highlight.startsWith("#") ? parseColor(highlight) : theme.colors[highlight as "accent"];
+  content.forEach((row, index) => {
+    if (row.role !== "active" && !(lift && index === 0)) return;
+    const y = index + 1;
+    const base = mixColors(theme.colors.customMessageBg, theme.colors.accent, .10, "srgb");
+    const bg = lift ? mixColors(base, flash, lift, "srgb") : base;
+    rows[y] = sliceByColumn(rows[y], 0, 1) + selectionHighlight(theme, sliceByColumn(rows[y], 1, width - 2), { background: bg }) + sliceByColumn(rows[y], width - 1, 1);
+  });
   if (!withHits) return { rows, hits: [] }; // No hit parsing on the live, possibly animated Tasks widget.
   const hits: TaskPreviewHit[] = [];
   // Hit regions are derived from the *rendered* rail, not assumed positions: a
@@ -101,14 +121,20 @@ export class TaskPanel {
   reset() { this.controller.reset(); this.dock = undefined; this.identity = undefined; }
   private update(workspace: WorkspaceState, now: number, focused: boolean) {
     const dock = this.dock, info = dock?.overview;
+    if (!dock || !this.visible) {
+      this.controller.reset();
+      return { active: false, elapsed: 0, progress: 0, state: "idle" as FrameState, once: false };
+    }
     const busy = workspace.clock.active || workspace.compacting;
     const active = info ? !!info.activeId : dock?.rows.some(r => r.tone === "accent");
     const state: FrameState = workspace.promptDepth ? "waiting" : dock?.rows.some(r => r.tone === "error") ? "error"
       : info?.blocked ? "blocked" : busy && active ? "working" : info && info.done === info.total && info.total > 0 ? "done" : active ? "waiting" : "idle";
-    return this.controller.update({ state, revision: info?.revision ?? JSON.stringify([dock?.summary, dock?.rows]),
+    // Notes/evidence edits are not progress. Only focus and completed/cancelled counts trigger feedback.
+    const revision = info ? `${info.activeId ?? ""}:${info.done}:${info.cancelled}` : JSON.stringify([dock?.summary, dock?.rows]);
+    return this.controller.update({ state, revision,
       visible: this.visible && !!dock, reducedMotion: workspace.prefs.motion === "off" || workspace.layout?.motion === "off",
-      suspended: workspace.promptDepth > 0 || !!workspace.footerPickerOpen || !focused || now - workspace.lastInputAt < 1200 },
-      workspace.layout?.tasks?.presentation ?? framePresentationDefaults(), now);
+      suspended: workspace.promptDepth > 0 || !!workspace.footerPickerOpen || !focused },
+      workspace.layout?.tasks?.presentation ?? taskPanelDefaults().presentation, now);
   }
   tick(workspace: WorkspaceState, now: number, focused: boolean): boolean { return this.update(workspace, now, focused).active; }
   render(theme: Theme, width: number, dock: DockSnapshot, workspace: WorkspaceState, now: number, focused: boolean, budget: number) {

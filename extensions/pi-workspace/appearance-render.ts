@@ -9,6 +9,8 @@ import { contextText, decorateFooterPart } from "./footer-view.ts";
 import { COMPOSER_ICONS } from "./composer-icons.ts";
 import type { WorkspaceState } from "./state.ts";
 import { selectionHighlight } from "./footer-selection.ts";
+import { emberStatus, statusWithTools } from "./composer-ember.ts";
+import { sessionBadge } from "./composer-title.ts";
 
 export function currentAppearanceState(workspace: WorkspaceState): AppearanceState {
   if (workspace.footerPickerOpen && workspace.appearancePreview?.state) return workspace.appearancePreview.state;
@@ -45,6 +47,7 @@ export function appearanceValues(workspace: WorkspaceState, width: number, now: 
   if (!simulated && workspace.clock.active && !workspace.promptDepth && state !== "waiting" && p.run !== "off" && p.timing !== "hidden") {
     status += ` ${duration(workspace.railRunElapsed?.(now) ?? workspace.clock.elapsed(now))}`;
   }
+  if (!simulated && state === "tools") status = statusWithTools(status, workspace);
   const sent = workspace.lastUserSentAt?.();
   const lastSendTime = sentTime(sent, p, now, !!workspace.chronomancerDay && workspace.chronomancerDay !== calendarDay(now));
   return {
@@ -80,6 +83,7 @@ export function appearanceRow(theme: Theme, width: number, workspace: WorkspaceS
       // word in Nerd mode; leave deliberate custom templates intact.
       const template = id === "sentTime" && p.icons === "nerd" && e.text === "Sent {value}" ? "{value}" : e.text;
       let text = template.replaceAll("{value}", clean(values[id]));
+      if (id === "session" && text) text = ` ${text} `;
       const icon = p.icons === "nerd" ? (COMPOSER_ICONS as Record<string, string>)[id === "sentTime" ? "sent" : id]
         : !framed ? ({ directory: "dir", git: "git", session: "session", context: "ctx" } as Record<string, string>)[id] : "";
       if (icon && (id === "sentTime" || id === "directory" || !framed)) text = `${icon} ${text}`;
@@ -104,7 +108,7 @@ export function appearanceRow(theme: Theme, width: number, workspace: WorkspaceS
   const rightBudget = c ? side : Math.min(size[2], Math.max(0, inner - Math.min(size[0], 18)));
   const budgets = [c ? side : Math.max(0, inner - rightBudget), c, rightBudget];
   const renderGroup = (parts: Piece[], budget: number) => {
-    const sizes = parts.map(part => visibleWidth(part.text));
+    const sizes = parts.map(part => visibleWidth(part.text) + (part.id === "status" ? 6 : 0));
     const overhead = () => 2 + Math.max(0, sizes.filter(Boolean).length - 1) * visibleWidth(separator);
     let total = sizes.reduce((a, b) => a + b, 0) + overhead();
     while (total > budget && sizes.some(Boolean)) {
@@ -117,9 +121,13 @@ export function appearanceRow(theme: Theme, width: number, workspace: WorkspaceS
     for (let i = 0; i < parts.length; i++) {
       if (!sizes[i]) continue;
       if (content) { content += theme.style(separator, { fg: border }); x += visibleWidth(separator); }
-      const part = parts[i], text = truncateToWidth(part.text, sizes[i], "…");
+      const part = parts[i];
       const selected = workspace.footerPickerOpen && workspace.appearancePreview?.selected === part.id;
-      const styled = theme.style(text, { fg: part.color, bold: framed || part.bold });
+      const styled = part.id === "status"
+        ? emberStatus(theme, part.text, state, workspace, now, sizes[i], part.color, part.bold)
+        : part.id === "session" ? sessionBadge(theme, truncateToWidth(part.text, sizes[i], "…"), part.color, part.bold)
+        : theme.style(truncateToWidth(part.text, sizes[i], "…"), { fg: part.color, bold: part.bold });
+      const text = styled;
       content += selected ? selectionHighlight(theme, styled, { underline: true, foreground: part.color, phase: workspace.appearancePreview?.shimmer }) : styled;
       hits.push({ id: part.id, x, width: visibleWidth(text) }); x += visibleWidth(text);
     }

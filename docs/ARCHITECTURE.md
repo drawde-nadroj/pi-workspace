@@ -18,6 +18,12 @@ Ask question surface ──> package-local Frame loader ──> Frame
 
 Pi's public extension/TUI APIs and host-provided packages are the foundation. Workspace's Pi 1.0 transcript adapters also use guarded native internals; recheck them after host upgrades. Keep the native editor, Vim instance, draft, IME cursor, mouse selection and tool execution independent of visual styling. Support non-TUI modes without starting visual timers.
 
+## Glanceable activity ownership
+
+Workspace owns `composer-ember.ts`, a deterministic five-cell status marker rendered by both Composer rail paths. Real tool-start events supply a coalesced transient response timestamp; the existing Workspace clock schedules redraws. No new timer, saved setting, native-input adapter or Frame behavior is introduced. Composer perimeter motion is retired; ordinary typing leaves the marker at normal strength, dialogs/motion-off stop it, and inactive states are static. Tool names yield before state text in narrow slots. `composer-title.ts` supplies the static session badge for default and configured layouts. It reuses the contrast-aware background painter without changing title data, configured foreground or placement. Input-rail rendering respects per-element weight rather than forcing all labels bold.
+
+Tasks still owns plan state and publishes data-only snapshots. Workspace's `task-presentation.ts` applies steady active-row emphasis and, under Changes motion, one short highlight for changes in active ID or completed/cancelled counts. Fresh defaults select Changes at 1200 ms; saved settings are preserved. Its controller resets when hidden to avoid replay on remount. The standalone `/tasks` browser owns its matching bold active title and soft tint, distinct from selection. It keeps its existing navigation and working/paused semantics. Work-remaining/request-coverage semantics are unchanged.
+
 ## Auxiliary recap authority
 
 Workspace's optional recaps use `pi-recaps.json` and default off on missing/invalid configuration. `/composer` routes to the owner-native recap controls; `/recaps` saves separately and immediately. Opt-in discloses additional bounded OpenAI Codex/OAuth inference and subscription-resource use; off cancels queued/in-flight work. This is not part of the appearance transaction or task verification.

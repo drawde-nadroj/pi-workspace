@@ -105,12 +105,12 @@ test("preferences, elapsed formatting, and motion policy are bounded", () => {
   assert.equal(shouldAnimate(state, 10000, true), false);
   state.promptDepth = 0;
   state.lastInputAt = 9900;
-  assert.equal(shouldAnimate(state, 10000, true), true, "typing quiets the frame, not the real work clock");
+  assert.equal(shouldAnimate(state, 10000, true), true, "ordinary typing does not stop real-work animation");
   state.prefs.motion = "off";
   assert.equal(shouldAnimate(state, 10000, true), false);
   state.prefs.motion = "work";
   state.clock.settle(2000, "done");
-  assert.equal(shouldAnimate(state, 2100, false), true, "a real completion gets one settling transition");
+  assert.equal(shouldAnimate(state, 2100, false), false, "completion uses a static marker");
   assert.equal(shouldAnimate(state, 10000, false), false, "Composer does not animate while idle");
 });
 
@@ -479,7 +479,7 @@ test("approved composer has one real working indicator, no context capsule, and 
     assert.doesNotMatch(all(), /Run failed/);
     await h.emit("message_end", { message: { role: "assistant", stopReason: "aborted", content: [] } });
     await h.emit("agent_settled");
-    assert.match(all(), /What happened\?/);
+    assert.match(all(), /Run stopped/);
     await h.command("off");
     assert.equal(theme.name, "dark", "turning Workspace off restores preceding theme");
   } finally { await h.close(); }
