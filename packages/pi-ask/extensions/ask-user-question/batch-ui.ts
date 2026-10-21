@@ -50,6 +50,7 @@ export class TabbedQuestions {
 		done: (result: any) => void,
 		cwd = process.cwd(),
 		draft?: QuestionDraft,
+		private readonly regenerationEnabled = true,
 	) {
 		this.questions = questions;
 		this.tui = tui;
@@ -237,7 +238,7 @@ export class TabbedQuestions {
 
 	private canRegenerate(): boolean {
 		const answeredCount = this.tabs.filter((tab) => this.isAnswered(tab)).length;
-		return answeredCount > 0 && answeredCount < this.tabs.length;
+		return this.regenerationEnabled && answeredCount < this.tabs.length;
 	}
 
 	private focusNote(): void {
@@ -352,15 +353,14 @@ export class TabbedQuestions {
 	}
 
 	private regenerate(): void {
+		if (!this.regenerationEnabled) return;
 		if (this.noteFocused) this.leaveNoteFocus();
 		// Ctrl+R preserves, but does not commit, an unfinished custom draft.
 		if (this.editMode) this.preserveOtherDraft();
 		this.syncAnswerFromTab();
 		const answers = this.snapshot().map((answer) => ({ ...answer, note: answer.note || "" }));
 		const answeredCount = this.tabs.filter((tab) => this.isAnswered(tab)).length;
-		if (answeredCount === 0) {
-			this.feedback = "Answer a question first.";
-		} else if (answeredCount === this.tabs.length) {
+		if (answeredCount === this.tabs.length) {
 			this.feedback = "All answered. Use Review.";
 		} else {
 			this.done({ action: "regenerate", answers });

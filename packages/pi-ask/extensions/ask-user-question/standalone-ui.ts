@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Key, type KeybindingsManager, matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
-import type { AskAnswer, AskOption, AnswerWithNote, ClarificationRequest, SkipRequest } from "./domain.ts";
+import type { AskAnswer, AskOption, AnswerWithNote, ClarificationRequest, RegenerateRequest, SkipRequest } from "./domain.ts";
 import { frameQuestion, questionViewport, questionTheme } from "./question-surface.ts";
 import { savedAskAppearance } from "./appearance.ts";
 import { answerSelectionKey, getOtherLabel, sortAnswers } from "./domain.ts";
@@ -60,8 +60,8 @@ export function askText(
 	question: string,
 	context: string | undefined,
 	signal?: AbortSignal,
-): Promise<AnswerWithNote<string> | ClarificationRequest | SkipRequest | null> {
-	return customWithAbort<AnswerWithNote<string> | ClarificationRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, _keybindings: KeybindingsManager, done) => {
+): Promise<AnswerWithNote<string> | ClarificationRequest | RegenerateRequest | SkipRequest | null> {
+	return customWithAbort<AnswerWithNote<string> | ClarificationRequest | RegenerateRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, _keybindings: KeybindingsManager, done) => {
 		let cachedWidth: number | undefined;
 		let cachedRows: number | undefined;
 		let cachedLines: string[] | undefined;
@@ -146,7 +146,7 @@ export function askText(
 				} else {
 					addActionHints(lines, width, theme, [
 						noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : answerEditor.getExpandedText().trim() ? "Enter Submit" : "Write answer",
-						noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", cancelArmed ? "Esc again Close" : "Esc Close", "F2 More",
+						noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More",
 					]);
 				}
 				add(theme.fg("accent", "─".repeat(width)));
@@ -159,6 +159,7 @@ export function askText(
 			invalidate,
 			handleInput(data: string): void {
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
+				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : noteActionFocused ? undefined : answerEditor, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
@@ -198,6 +199,7 @@ export function askText(
 			},
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
+				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
 				{ label: "Clear this field", key: "\x03", hint: "Ctrl+C" },
@@ -213,9 +215,9 @@ export function askSingleChoice(
 	context: string | undefined,
 	options: AskOption[],
 	signal?: AbortSignal,
-): Promise<AnswerWithNote<AskAnswer> | ClarificationRequest | SkipRequest | null> {
+): Promise<AnswerWithNote<AskAnswer> | ClarificationRequest | RegenerateRequest | SkipRequest | null> {
 	const otherLabel = getOtherLabel(options);
-	return customWithAbort<AnswerWithNote<AskAnswer> | ClarificationRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, keybindings: KeybindingsManager, done) => {
+	return customWithAbort<AnswerWithNote<AskAnswer> | ClarificationRequest | RegenerateRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, keybindings: KeybindingsManager, done) => {
 		let editMode = false;
 		let noteFocused = false;
 		let noteActionFocused = false;
@@ -328,7 +330,7 @@ export function askSingleChoice(
 				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
 				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : stagedAnswer ? "Enter Confirm or replace" : "Enter Select",
-					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : stagedAnswer ? "Esc Clear selection" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"].filter(Boolean);
+					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : stagedAnswer ? "Esc Clear selection" : cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
 				} else {
@@ -354,6 +356,7 @@ export function askSingleChoice(
 			invalidate,
 			handleInput(data: string): void {
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
+				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : editMode ? editor : undefined, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
@@ -421,6 +424,7 @@ export function askSingleChoice(
 			},
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
+				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
 			]; },
@@ -435,9 +439,9 @@ export function askMultiChoice(
 	context: string | undefined,
 	options: AskOption[],
 	signal?: AbortSignal,
-): Promise<AnswerWithNote<AskAnswer[]> | ClarificationRequest | SkipRequest | null> {
+): Promise<AnswerWithNote<AskAnswer[]> | ClarificationRequest | RegenerateRequest | SkipRequest | null> {
 	const otherLabel = getOtherLabel(options);
-	return customWithAbort<AnswerWithNote<AskAnswer[]> | ClarificationRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, keybindings: KeybindingsManager, done) => {
+	return customWithAbort<AnswerWithNote<AskAnswer[]> | ClarificationRequest | RegenerateRequest | SkipRequest | null>(ctx, signal, (tui: any, theme: any, keybindings: KeybindingsManager, done) => {
 		let editMode = false;
 		let noteFocused = false;
 		let noteActionFocused = false;
@@ -570,7 +574,7 @@ export function askMultiChoice(
 				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
 				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : choiceList.selectedItem.isOther ? "Enter Edit" : selected.size ? "Enter Submit" : "Space Select",
-					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : cancelArmed ? "Esc again Close" : "Esc Close", "F2 More"].filter(Boolean);
+					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
 				} else {
@@ -593,6 +597,7 @@ export function askMultiChoice(
 			invalidate,
 			handleInput(data: string): void {
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
+				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : editMode ? otherEditor : undefined, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
@@ -685,6 +690,7 @@ export function askMultiChoice(
 			},
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
+				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
 			]; },

@@ -19,7 +19,7 @@ export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion,
     const palette = questionTheme(theme, savedAskAppearance());
     const contextDetails = () => [q.definition.details, ...workContext(), `Why: ${q.why}`, q.boundary, ...(q.neededNow ? [`Needed now: ${q.neededNow}`] : []),
       q.urgency === 'blocking' ? 'Only the stated boundary waits. Independent authorized work may continue.' : 'Can wait until this boundary needs the answer.'].filter(Boolean).join('\n\n');
-    const form = new TabbedQuestions([{ ...q.definition, details: contextDetails() }], questionViewport(tui), palette, kb, finish, ctx.cwd, q.draft);
+    const form = new TabbedQuestions([{ ...q.definition, details: contextDetails() }], questionViewport(tui), palette, kb, finish, ctx.cwd, q.draft, false);
     bindClose(() => finish(null));
     const component = {
       get focused() { return form.focused; }, set focused(v: boolean) { form.focused = v; },

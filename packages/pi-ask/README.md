@@ -304,7 +304,7 @@ Controls vary with the active field; the UI shows the available actions.
 - **Ctrl+S** (single or batch): skip the question; in a batch, restore a previously skipped question
 - **Ctrl+Enter / Alt+Enter** (batch): open Review without silently skipping unanswered questions; an explicitly all-skipped batch is also allowed
 - **Number keys in Review**: with up to nine questions, press `1` through the question count to edit immediately; with ten or more, type the question number and press **Enter** to edit, or **Esc** to clear the number
-- **Ctrl+R**: regenerate unanswered batch questions after at least one has been answered; visible on eligible question and Review screens, also under **F2 More**
+- **Ctrl+R**: regenerate a synchronous single question or unanswered batch questions, even before the first answer. Visible in the action hints and **F2 More**; partially answered batches preserve their answers and notes. Single-question regeneration sends the note as context, not an unsubmitted answer. All-answered batches use Review instead. Posted questions retain their clarification workflow.
 - **Ctrl+?** (Ctrl+/ equivalent): ask the agent for clarification; Enter sends it and Escape returns
 
 ### Editing notes

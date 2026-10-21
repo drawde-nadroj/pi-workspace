@@ -99,6 +99,11 @@ export interface ClarificationRequest {
 	clarification: string;
 }
 
+export interface RegenerateRequest {
+	action: "regenerate";
+	note: string;
+}
+
 export interface SkipRequest {
 	action: "skip";
 }
@@ -367,7 +372,7 @@ export function buildRegenerateResult(questions: QuestionDef[], answers: TabAnsw
 		.map((entry) => ({ questionIndex: entry.questionIndex, note: entry.note!.trim() }));
 	const unansweredNoteByIndex = new Map(unansweredNotes.map((entry) => [entry.questionIndex, entry.note]));
 	const lines = [
-		"Reassess the unanswered batch questions using the user's answers and notes as new understanding.",
+		"Reassess the unanswered questions using the user's answers and notes as new understanding.",
 		"Reconsider each unanswered question: drop it if resolved or no longer consequential. Do not repeat resolved questions. Ask only essential revised questions; if none remain, explain why and proceed with the work.",
 	];
 	for (const entry of answered) {

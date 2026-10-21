@@ -103,6 +103,8 @@ export default function askUserQuestion(pi: ExtensionAPI) {
 						if (!result) return cancelledResult(params.question, mode, context);
 						if ("action" in result) return result.action === "skip"
 							? skippedResult(params.question, mode, context)
+						: result.action === "regenerate"
+							? buildRegenerateResult([{ question: params.question, details: context, mode, options }], [{ questionIndex: 0, answer: null, note: result.note }])
 							: buildClarificationResult(params.question, context, mode, options, result.clarification);
 						const answer: TextAnswer = { type: "text", label: result.answer, value: result.answer };
 						return buildResult(params.question, context, mode, [answer], result.note);
@@ -113,6 +115,8 @@ export default function askUserQuestion(pi: ExtensionAPI) {
 						if (!result) return cancelledResult(params.question, mode, context);
 						if ("action" in result) return result.action === "skip"
 							? skippedResult(params.question, mode, context)
+						: result.action === "regenerate"
+							? buildRegenerateResult([{ question: params.question, details: context, mode, options }], [{ questionIndex: 0, answer: null, note: result.note }])
 							: buildClarificationResult(params.question, context, mode, options, result.clarification);
 						return buildResult(params.question, context, mode, [result.answer], result.note);
 					}
@@ -121,6 +125,8 @@ export default function askUserQuestion(pi: ExtensionAPI) {
 					if (!result) return cancelledResult(params.question, mode, context);
 					if ("action" in result) return result.action === "skip"
 						? skippedResult(params.question, mode, context)
+						: result.action === "regenerate"
+							? buildRegenerateResult([{ question: params.question, details: context, mode, options }], [{ questionIndex: 0, answer: null, note: result.note }])
 						: buildClarificationResult(params.question, context, mode, options, result.clarification);
 					return buildResult(params.question, context, mode, result.answer, result.note);
 				});
