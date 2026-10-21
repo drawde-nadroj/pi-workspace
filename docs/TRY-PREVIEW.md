@@ -4,7 +4,7 @@ This short exercise shows the difference between **accepting a temporary edit**,
 
 ## Before you start
 
-Use an installed, loaded suite on a compatible Pi 1.0 host. Start with an empty input prompt, no agent work running and no other dialog open. Preserve any valuable draft with your normal workflow before starting; do not overwrite it just to enter a slash command. Use Pi's default text-field keybindings for the keys below. You need the terminal keyboard; hover is not required. For installation, use [the local suite guide](INSTALL.md). For a credential-free sandbox, use [isolated review](ACCEPTANCE.md#repeatable-isolated-review).
+Use an installed, loaded suite on a compatible Pi 1.3.0 host. Start with an empty input prompt, no agent work running and no other dialog open. Preserve any valuable draft with your normal workflow before starting; do not overwrite it just to enter a slash command. Use Pi's default text-field keybindings for the keys below. You need the terminal keyboard; hover is not required. For installation, use [the local suite guide](INSTALL.md). For a credential-free sandbox, use [isolated review](ACCEPTANCE.md#repeatable-isolated-review).
 
 Do not submit an agent prompt during this exercise. The suite is not a permission or network sandbox. Do not open the separately saved `/composer`, `/tasks` preference or recap controls as part of this appearance-only exercise.
 

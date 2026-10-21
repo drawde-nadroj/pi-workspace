@@ -1,6 +1,6 @@
 # Customize your input box and footer
 
-Implemented against Pi 1.0.0. After the room/compatibility refactor, prefer a fresh Pi process, then `/workspace`. `/reload` remains supported, but a running process can retain imported modules. Preferences now save to `pi-workspace.json`. Existing `pi-footer.json` settings are loaded when the new file is absent and are not modified by migration.
+Implemented against Pi 1.3.0. After the room/compatibility refactor, prefer a fresh Pi process, then `/workspace`. `/reload` remains supported, but a running process can retain imported modules. Preferences now save to `pi-workspace.json`. Existing `pi-footer.json` settings are loaded when the new file is absent and are not modified by migration.
 
 Use this as the control/reference guide for **Input, Tasks, Ask, Transcript, More settings and General**. For a guided first exercise, [try a reversible preview](../../docs/TRY-PREVIEW.md). For the purpose and persistence scope of every setting, consult [the settings reference](../../docs/SETTINGS-REVIEW.md).
 

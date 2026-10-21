@@ -1,6 +1,6 @@
 # pi-tasks
 
-An **independent, optional named-plan library** for Pi 1.0.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Workspace/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
+An **independent, optional named-plan library** for Pi 1.3.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Workspace/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
 
 ## Start
 
