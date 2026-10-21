@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { stripVTControlCharacters } from "node:util";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CURSOR_MARKER, getKeybindings, visibleWidth } from "@earendil-works/pi-tui";
@@ -23,7 +24,7 @@ test("Ask appearance is versioned, bounded and migrates the legacy label setting
   assert.deepEqual(bad, askAppearanceDefaults());
 });
 
-test("standalone Ask reads persisted visual preferences without Workspace and safely falls back", () => {
+test("standalone Ask reads persisted visual preferences without Workspace and safely falls back", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-ask-style-")), previous = process.env.PI_CODING_AGENT_DIR;
   try {
     process.env.PI_CODING_AGENT_DIR = dir;
@@ -35,12 +36,12 @@ test("standalone Ask reads persisted visual preferences without Workspace and sa
     assert.equal(savedWorkspaceVisuals().density, "compact");
     writeFileSync(join(dir, "pi-workspace.json"), '{"version":2}');
     assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
-    rmSync(join(dir, "pi-workspace.json"));
+    await rm(join(dir, "pi-workspace.json"), { force: true });
     writeFileSync(join(dir, "pi-footer.json"), "not json");
     assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
-    rmSync(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 
@@ -65,7 +66,7 @@ test("standalone question applies saved presentation without changing focus or a
     panel.dispose();
   } finally {
     if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous;
-    rmSync(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 

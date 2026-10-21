@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { jiti, source } from "./host.mjs";
@@ -9,7 +10,7 @@ const { DEFAULTS } = await jiti.import(join(source, "state.ts"));
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "pi-composer-prefs-"));
-  return { directory, close: () => rmSync(directory, { recursive: true, force: true }) };
+  return { directory, close: () => rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
 }
 
 test("Composer reads legacy preferences without writing, then explicitly saves only its new authority", async () => {
@@ -27,7 +28,7 @@ test("Composer reads legacy preferences without writing, then explicitly saves o
     assert.equal((await loadComposerPreferences(f.directory)).enabled, true);
     assert.equal(readFileSync(join(f.directory, LEGACY_COMPOSER_SETTINGS), "utf8"), legacy);
     assert.equal(readFileSync(join(f.directory, "pi-workspace.json"), "utf8"), workspace);
-  } finally { f.close(); }
+  } finally { await f.close(); }
 });
 
 test("new Composer authority wins and malformed new data never silently falls back to legacy", async () => {
@@ -41,5 +42,5 @@ test("new Composer authority wins and malformed new data never silently falls ba
     writeFileSync(join(f.directory, COMPOSER_SETTINGS), "broken JSON");
     await assert.rejects(loadComposerPreferences(f.directory), SyntaxError);
     assert.equal(readFileSync(join(f.directory, COMPOSER_SETTINGS), "utf8"), "broken JSON");
-  } finally { f.close(); }
+  } finally { await f.close(); }
 });

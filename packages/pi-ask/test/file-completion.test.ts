@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getKeybindings, visibleWidth } from "@earendil-works/pi-tui";
@@ -64,7 +65,7 @@ for (const batch of [false, true]) {
 				for (const width of [12, 40, 100]) {
 					for (const line of component.render(width)) assert.ok(visibleWidth(line) <= width);
 				}
-			} finally { rmSync(cwd, { recursive: true, force: true }); }
+			} finally { await rm(cwd, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 		});
 	}
 }

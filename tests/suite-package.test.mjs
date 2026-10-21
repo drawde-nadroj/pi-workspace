@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -97,5 +98,5 @@ test("packed private suite loads its only three entry points in an isolated Pi d
       if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = previous;
     }
-  } finally { rmSync(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  } finally { await rm(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });

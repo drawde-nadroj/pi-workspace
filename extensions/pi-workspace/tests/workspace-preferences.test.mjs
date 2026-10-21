@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { jiti, source } from "./host.mjs";
@@ -26,7 +27,7 @@ test("legacy appearance, Ask and transcript migrate on read without altering the
     writeFileSync(join(dir, "pi-workspace.json"), '{"version":2}');
     await assert.rejects(loadWorkspacePrefs(dir), /Unsupported workspace settings version/);
     assert.equal(readFileSync(join(dir, "pi-footer.json"), "utf8"), legacy);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 test("future Tasks section/presentation versions fail before normalization and preserve either authority byte-for-byte", async () => {
@@ -37,7 +38,7 @@ test("future Tasks section/presentation versions fail before normalization and p
       writeFileSync(path, bytes);
       await assert.rejects(loadWorkspacePrefs(dir), /Unsupported Tasks (appearance|presentation) version/);
       assert.equal(readFileSync(path, "utf8"), bytes);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
+    } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
   }
 });
 
@@ -55,5 +56,5 @@ test("Save rejects a changed workspace or legacy file and leaves external change
     assert.match(readFileSync(path, "utf8"), /Other session/);
     await saveFooter(path, FOOTER_DEFAULTS, await workspaceSnapshot(dir));
     assert.equal(JSON.parse(readFileSync(path, "utf8")).version, 1);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { resolve, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -206,7 +207,7 @@ async function harness({ workspace = false, ask = false, order = "workspace-firs
     callQuestion: params => tools.get("question_queue").execute("question-test", params, undefined, undefined, context),
     get editor() { return editor; }, get renders() { return renderCount; },
     branch(value) { branch = value; }, failStorage() { failStorage = true; },
-    async close() { await emit("session_shutdown"); events.clear(); if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir; rmSync(scratch, { recursive: true, force: true }); },
+    async close() { await emit("session_shutdown"); events.clear(); if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir; await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); },
   };
 }
 

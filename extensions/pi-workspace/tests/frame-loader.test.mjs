@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
@@ -114,7 +115,7 @@ for (const mode of ["cold", "require", "native", "require-bare", "native-bare", 
       if (cached) assert.doesNotMatch(cached.frameRail({ width: 140, center: "still legacy" }), /still legacy/,
         "fix must not mutate or evict unrelated module namespaces");
     }
-  } finally { rmSync(f.temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  } finally { await rm(f.temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 for (const warm of [false, true]) test(`Workspace's presentation API loads with ${warm ? "a pre-upgrade module cached" : "a cold bundled loader"}`, async () => {
@@ -165,6 +166,6 @@ for (const warm of [false, true]) test(`Workspace's presentation API loads with 
   } finally {
     abort?.abort(); component?.dispose();
     // Native namespaces cannot be evicted, but never point to a real user's files.
-    rmSync(f.temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    await rm(f.temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });

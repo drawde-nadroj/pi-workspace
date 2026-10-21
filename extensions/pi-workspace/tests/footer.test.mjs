@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -70,7 +71,7 @@ test("Git parser handles rename source, overlaps, conflicts, detached/unborn and
   assert.equal(parseGit("1 .M S..U 160000 160000 160000 a b submodule\0").changed, 1);
 });
 
-test("real Git fixtures: filenames, rename records, untracked files and ahead/behind", () => {
+test("real Git fixtures: filenames, rename records, untracked files and ahead/behind", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-footer-git-"));
   const git = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" });
   try {
@@ -83,12 +84,12 @@ test("real Git fixtures: filenames, rename records, untracked files and ahead/be
     const g = parseGit(git("status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"));
     assert.equal(g.staged, 1); assert.equal(g.changed, 1); assert.equal(g.untracked, 2); assert.equal(g.ahead, 1); assert.equal(g.behind, 0);
     git("checkout", "--detach"); assert.match(parseGit(git("status", "--porcelain=v2", "--branch", "-z")).branch, /^@[a-f0-9]{7}$/);
-  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 test("Git newline filename on filesystems that support it", {
   skip: process.platform === "win32" ? "Windows forbids control characters in filenames; NUL parser coverage runs separately" : false,
-}, () => {
+}, async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-footer-newline-"));
   try {
     execFileSync("git", ["init", dir]);
@@ -96,7 +97,7 @@ test("Git newline filename on filesystems that support it", {
     const status = execFileSync("git", ["-C", dir, "status", "--porcelain=v2", "-z", "--untracked-files=all"], { encoding: "utf8" });
     assert.ok(status.includes("b\nline\0"));
     assert.equal(parseGit(status).untracked, 1);
-  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+  } finally { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 test("Git NUL parser preserves newline filenames on every platform", () => {
@@ -210,7 +211,7 @@ async function harness(mode = "tui") {
       while (!panel && Date.now() < deadline) await wait(1);
       assert.ok(panel, `Workspace panel did not open: ${JSON.stringify(notifications)}`);
     },
-    async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); },
+    async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); },
   };
 }
 
@@ -347,7 +348,7 @@ test("save failures roll back live preview; corrupt settings stay untouched unti
     assert.equal(readFileSync(join(h.scratch, "pi-footer.json"), "utf8"), "not json");
     await h.choose(); // Corrupt legacy settings block editing rather than being overwritten.
     assert.equal(readFileSync(join(h.scratch, "pi-footer.json"), "utf8"), "not json");
-    rmSync(join(h.scratch, "pi-footer.json")); await h.emit("session_start");
+    await rm(join(h.scratch, "pi-footer.json"), { force: true }); await h.emit("session_start");
     const before = h.footer.render(120), pick = h.choose(); await h.panelReady(); h.panel.handleInput("\r");
     mkdirSync(join(h.scratch, "pi-workspace.json")); h.panel.handleInput("\x13"); await pick;
     assert.deepEqual(h.footer.render(120), before); assert.ok(h.notifications.some(([m, t]) => t === "error" && /not saved/.test(m)));
