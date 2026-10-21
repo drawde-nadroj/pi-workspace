@@ -34,7 +34,7 @@ for (const Renderer of [TuiMainScreen, TuiAltScreen]) {
       assert.match(sanitizeDisplayText(writes.join('')), /Which release boundary/);
       for (const width of [16, 32, 80]) assert.ok(shell.render(width).every((line: string) => visibleWidth(line) <= width));
       terminal.columns = 54; terminal.rows = 24; tui.renderNow(true);
-      send('\x1b'); const outcome = await pending;
+      send('\x1b'); send('\x1b'); const outcome = await pending;
       assert.equal(outcome.result, null); assert.equal(outcome.draft?.textBuffer, 'Keep the handoff local');
       assert.equal(tui.getFocusedComponent(), task); assert.equal(taskFocus, true);
       taskHandle.hide(); taskHandle = undefined;

@@ -9,7 +9,7 @@ const theme = {
 	bold: (text: string) => text,
 };
 
-test("Esc clears a staged radio answer and its green highlight without closing the form", () => {
+test("Esc never clears a staged radio answer; Ctrl+C unselects it instead", () => {
 	let result: unknown;
 	const component = new TabbedQuestions([
 		{ question: "First?", mode: "single-select", options: [{ label: "First choice", value: "first" }] },
@@ -26,20 +26,27 @@ test("Esc clears a staged radio answer and its green highlight without closing t
 	component.handleInput("Keep my note");
 	component.handleInput("\t"); // Save note and return directly to the answer.
 	component.handleInput("\x1b");
-	assert.equal(result, undefined);
+	assert.equal(result, undefined, "one Escape asks before closing");
 	assert.equal(state.activeTab, 0);
-	assert.equal(state.cancelArmed, false);
+	assert.equal(state.dismissConfirm, true);
+	assert.equal(state.tabs[0].answer !== null, true, "closing never silently unselects");
+	assert.match(render(), /Discard 1 answer and 1 note and close\?/);
+	component.handleInput("n");
+	assert.equal(state.dismissConfirm, false);
+	assert.match(render(), /<green>First choice<\/green>/, "keeping the form keeps the selection");
+	assert.equal(state.tabs[0].note, "Keep my note");
+	component.handleInput("\x03"); // Ctrl+C clears the selection, not the note.
 	assert.equal(state.tabs[0].answer, null);
 	assert.equal(state.tabs[0].selected.size, 0);
-	assert.equal(state.selected.size, 0);
 	assert.equal(state.tabs[0].note, "Keep my note");
-	assert.doesNotMatch(render(), /<green>First choice<\/green>|\(●\)/);
+	assert.doesNotMatch(render(), /<green>First choice<\/green>/);
 	select();
 	assert.match(render(), /<green>First choice<\/green>/, "the answer can be selected again");
 	component.handleInput("\x1b[C");
 	select();
 	component.handleInput("\x1b");
-	assert.equal(state.tabs[0].selected.size, 1, "other questions keep their answers");
-	assert.equal(state.tabs[1].answer, null);
-	assert.equal(result, undefined);
+	assert.equal(state.tabs[0].selected.size, 1, "the confirmation only asks; it never edits state");
+	assert.equal(state.tabs[1].answer !== null, true, "other questions keep their answers");
+	component.handleInput("\x1b");
+	assert.equal(result, null);
 });

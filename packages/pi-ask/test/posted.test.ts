@@ -115,7 +115,7 @@ test('urgency-only changes preserve open text/notes, refresh linked context and 
   h.pi.events.emit(POSTED.needed, { version: 1, sessionId: 'posted-test', id: 'q1', revision: 1, planId: 'p1', taskId: 't1' });
   f.handleInput(' and after'); f.render(100);
   assert.match(sanitizeDisplayText(f.render(100).join('\n')), /Prepare local handoff/);
-  f.handleInput('\x1b'); await opening;
+  f.handleInput('\x1b'); f.handleInput('\x1b'); await opening;
   const q = h.entries.filter(e => e.customType === POSTED_ENTRY).at(-1).data.questions[0];
   assert.equal(q.urgency, 'blocking'); assert.equal(q.draft.textBuffer, 'Typed before escalation and after'); assert.equal(h.messages.length, 0);
 });
@@ -128,12 +128,14 @@ test('posted Escape respects review/note modes and clarification survives leavin
   f.handleInput('\r'); assert.match(sanitizeDisplayText(f.render(90).join('\n')), /Review/);
   f.handleInput('\x1b'); assert.doesNotMatch(sanitizeDisplayText(f.render(90).join('\n')), /Review 1 answer/);
   f.handleInput('\x1b[47;5u'); f.handleInput('Clarify the scope'); f.handleInput('\x1b');
+  f.handleInput('\x1b');
+  assert.match(sanitizeDisplayText(f.render(90).join('\n')), /Close this question and keep your draft\?/);
   f.handleInput('\x1b'); await opening;
   const q = h.entries.filter(e => e.customType === POSTED_ENTRY).at(-1).data.questions[0];
   assert.equal(q.draft.clarificationText, 'Clarify the scope'); assert.equal(q.draft.note, '');
   opening = h.commands.get('questions').handler('q1', h.ctx); await tick(); f = h.forms.at(-1).component;
   f.handleInput('\x1b[47;5u'); assert.match(sanitizeDisplayText(f.render(90).join('\n')), /Clarify the scope/);
-  f.handleInput('\x1b'); f.handleInput('\x1b'); await opening;
+  f.handleInput('\x1b'); f.handleInput('\x1b'); f.handleInput('\x1b'); await opening;
   assert.equal(h.messages.length, 0);
 });
 
@@ -154,8 +156,14 @@ test('native standalone posting returns immediately; overlay back keeps draft; e
   assert.equal(h.forms.length, 0); assert.equal(h.messages.length, 0); assert.ok(h.widgets.has('pi-ask:posted'));
   let opening = h.commands.get('questions').handler('q1', h.ctx); await tick();
   let f = h.forms.at(-1); assert.equal(f.options.overlay, true);
+  assert.equal(f.options.overlayOptions.anchor, 'bottom-center', 'the panel stays at the bottom while the transcript scrolls');
+  assert.equal(f.options.overlayOptions.width, '75%');
+  assert.equal(f.options.overlayOptions.maxHeight, '85%');
   assert.match(sanitizeDisplayText(f.component.render(100).join('\n')), /Standalone question|stated boundary/);
-  f.component.handleInput('Keep it local'); f.component.handleInput('\x1b'); await opening;
+  f.component.handleInput('Keep it local'); f.component.handleInput('\x1b');
+  assert.match(sanitizeDisplayText(f.component.render(100).join('\n')), /Close this question and keep your draft\?/,
+    'a draft asks before the overlay closes');
+  f.component.handleInput('\x1b'); await opening;
   assert.equal(h.entries.at(-1).data.questions[0].draft.textBuffer, 'Keep it local');
   opening = h.commands.get('questions').handler('q1', h.ctx); await tick(); f = h.forms.at(-1);
   for (const width of [12, 24, 80, 120]) assert.ok(f.component.render(width).every((r: string) => visibleWidth(r) <= width));

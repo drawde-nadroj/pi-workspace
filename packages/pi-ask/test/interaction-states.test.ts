@@ -25,7 +25,7 @@ function formWithQuestions(questions: QuestionDef[]) {
 test("frame shows 1 of N at the bottom left instead of a question-summary bar", () => {
   const h = form(3);
   let lines = h.view().split("\n");
-  assert.match(lines[0], /^╭ Questions ─+╮$/);
+  assert.match(lines[0], /^╭ Questions ─+ Pinned ╮$/);
   assert.match(lines.at(-1)!, /^╰ 1 of 3 ─+╯$/);
   assert.doesNotMatch(h.view(), /○ Topic|✓ Topic/);
   h.shell.handleInput(keys.skip);
@@ -41,11 +41,11 @@ test("Regenerate is visible on an eligible question and in partial Review", () =
   const h = form();
   h.shell.handleInput("First answer");
   h.shell.handleInput(keys.enter);
-  assert.match(h.view(), /Ctrl\+R Regenerate unanswered/);
+  assert.match(h.view(), /Ctrl\+R Regenerate/);
   assert.ok(h.component.getMoreActions().some(action => action.label === "Regenerate unanswered questions"));
   h.shell.handleInput(keys.review);
   assert.match(h.view(), /Review 1 answer · 0 skipped · 1 unanswered/);
-  assert.match(h.view(), /Ctrl\+R Regenerate unanswered/);
+  assert.match(h.view(), /Ctrl\+R Regenerate/);
   assert.ok(h.component.getMoreActions().some(action => action.label === "Regenerate unanswered questions"));
   h.shell.handleInput("\x12");
   assert.equal(h.result.action, "regenerate");
@@ -237,28 +237,46 @@ test("navigating away keeps free text as a draft until Continue commits it", () 
   assert.equal(h.result[1].answer, "Committed answer");
 });
 
-test("Escape warns before discarding a free-text draft", async () => {
+test("Escape asks once before discarding a free-text draft", async () => {
   const batch = form();
   batch.shell.handleInput("Uncommitted draft");
   batch.shell.handleInput("\x1b");
   assert.equal(batch.result, undefined);
-  assert.match(batch.view(), /Esc again to close/);
+  assert.match(batch.view(), /Discard 1 answer and close\?/);
+  assert.match(batch.view(), /↵\/Esc Discard and close/);
+  batch.shell.handleInput("n");
+  assert.match(batch.view(), /Uncommitted draft/, "N keeps editing");
+  assert.equal(batch.result, undefined);
+  batch.shell.handleInput("\x1b");
   batch.shell.handleInput("\x1b");
   assert.equal(batch.result, null);
 
   let component: any;
+  let settle: (value: unknown) => void = () => {};
+  const panel = new Promise(resolve => { settle = resolve; });
   const ctx: any = { cwd: process.cwd(), ui: { custom(factory: any) {
-    return new Promise(resolve => {
-      component = factory({ terminal: { rows: 40 }, requestRender() {} }, theme, getKeybindings(), resolve);
-      component.focused = true;
-    });
+    component = factory({ terminal: { rows: 40 }, requestRender() {} }, theme, getKeybindings(), settle);
+    component.focused = true;
+    return panel;
   } } };
   const pending = askText(ctx, "What matters?", undefined);
   component.handleInput("Uncommitted draft");
   component.handleInput("\x1b");
-  assert.match(sanitizeDisplayText(component.render(100).join("\n")), /Esc again to close/);
+  assert.match(sanitizeDisplayText(component.render(100).join("\n")), /Discard 1 answer and close\?/);
   component.handleInput("\x1b");
   assert.equal(await pending, null);
+
+  // An empty form closes immediately, with no confirmation to dismiss.
+  let empty: any;
+  const emptyPanel = new Promise(resolve => { settle = resolve; });
+  const emptyCtx: any = { cwd: process.cwd(), ui: { custom(factory: any) {
+    empty = factory({ terminal: { rows: 40 }, requestRender() {} }, theme, getKeybindings(), settle);
+    empty.focused = true;
+    return emptyPanel;
+  } } };
+  const emptyPending = askText(emptyCtx, "What matters?", undefined);
+  empty.handleInput("\x1b");
+  assert.equal(await emptyPending, null);
 });
 
 test("single free-text Skip returns skipped rather than cancelled", async () => {
@@ -275,7 +293,7 @@ test("single free-text Skip returns skipped rather than cancelled", async () => 
   } } };
   const pending = tools.get("ask_user_question").execute("skip-single", { question: "What do you think?" }, undefined, undefined, ctx);
   const component = await opened;
-  assert.match(sanitizeDisplayText(component.render(100).join("\n")), /Ctrl\+S Skip question/);
+  assert.match(sanitizeDisplayText(component.render(100).join("\n")), /Ctrl\+S Skip/);
   component.handleInput(keys.skip);
   const result = await pending;
   assert.equal(result.details.status, "skipped");

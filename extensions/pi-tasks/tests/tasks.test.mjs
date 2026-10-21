@@ -1156,7 +1156,7 @@ test("Tasks keeps its selected question under an Ask overlay and stable across a
     panel.render(100); panel.handleInput("\r");
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.equal(forms.at(-1).options.overlay, true);
-    forms.at(-1).component.handleInput("Keep it local"); forms.at(-1).component.handleInput("\x1b");
+    forms.at(-1).component.handleInput("Keep it local"); forms.at(-1).component.handleInput("\x1b"); forms.at(-1).component.handleInput("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.equal(nav.questionId, "q1"); assert.match(panel.render(100).map(plain).join("\n"), /› ! First question/);
     panel.handleInput("\r"); await new Promise(resolve => setTimeout(resolve, 0));

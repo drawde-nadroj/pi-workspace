@@ -20,6 +20,8 @@ export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion,
     const contextDetails = () => [q.definition.details, ...workContext(), `Why: ${q.why}`, q.boundary, ...(q.neededNow ? [`Needed now: ${q.neededNow}`] : []),
       q.urgency === 'blocking' ? 'Only the stated boundary waits. Independent authorized work may continue.' : 'Can wait until this boundary needs the answer.'].filter(Boolean).join('\n\n');
     const form = new TabbedQuestions([{ ...q.definition, details: contextDetails() }], questionViewport(tui), palette, kb, finish, ctx.cwd, q.draft, false);
+    // A posted question is not a submission: an explicit close retains the draft.
+    form.preserveDraftOnDismiss = true;
     bindClose(() => finish(null));
     const component = {
       get focused() { return form.focused; }, set focused(v: boolean) { form.focused = v; },
@@ -27,14 +29,17 @@ export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion,
       handleInput(data: string) {
         if (!current()) { finish(null); return; }
         form.setContextDetails(contextDetails());
-        if (matchesKey(data, 'escape')) { if (!form.backFromNestedMode()) finish(null); return; }
-        form.handleInput(data);
+        // Nested modes and a pending confirmation resolve their own Escape; otherwise
+        // the form's own top-level close decides, so a draft asks before closing.
+        if (!matchesKey(data, 'escape') || !form.backFromNestedMode()) form.handleInput(data);
       },
+      isConfirmingDismiss() { return form.isConfirmingDismiss(); },
+      setAdvanceListener(listener: () => void) { form.setAdvanceListener(listener); },
       getHeaderLabel() { return q.urgency === 'blocking' ? q.taskIds.length ? 'Blocks linked work' : 'Blocks stated boundary' : 'Can wait'; },
-      getMoreActions() { return [{ label: 'Back to Questions (keep draft)', run: () => finish(null) }, ...form.getMoreActions()]; },
+      getMoreActions() { return [{ label: 'Close and keep draft', run: () => finish(null) }, ...form.getMoreActions()]; },
     };
     return frameQuestion(component, palette, tui, undefined, true);
-  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'center' } }).finally(() => bindClose(undefined));
+  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'bottom-center' } }).finally(() => bindClose(undefined));
   return { result, draft };
 }
 export async function postedOutcomeUI(ctx: ExtensionContext, q: PostedQuestion, bindClose: (close?: () => void) => void) {

@@ -4,7 +4,7 @@ import type { AskAnswer, AskOption, AnswerWithNote, ClarificationRequest, Regene
 import { frameQuestion, questionViewport, questionTheme } from "./question-surface.ts";
 import { savedAskAppearance } from "./appearance.ts";
 import { answerSelectionKey, getOtherLabel, sortAnswers } from "./domain.ts";
-import { handleFileCompletion, addActionHints, addWrapped, constrainFrameHeight, createNoteEditor, createQuestionEditor, isAskAgentKey, isSubmitEnter, normalizeFocusCycleKey, renderOptionalNote, sanitizeDisplayText, sanitizeEditorDisplay, WrappedChoiceList, type WrappedChoiceItem } from "./tui-primitives.ts";
+import { handleFileCompletion, addActionHints, countSummary, renderDismissBanner, addWrapped, constrainFrameHeight, createNoteEditor, createQuestionEditor, isAskAgentKey, isSubmitEnter, normalizeFocusCycleKey, renderOptionalNote, sanitizeDisplayText, sanitizeEditorDisplay, WrappedChoiceList, type HintToken, type WrappedChoiceItem } from "./tui-primitives.ts";
 
 export function customWithAbort<T>(ctx: ExtensionContext, signal: AbortSignal | undefined, factory: (tui: any, theme: any, keybindings: KeybindingsManager, done: (value: T) => void) => any): Promise<T> {
 	let removeAbort = () => {};
@@ -69,7 +69,7 @@ export function askText(
 		let noteActionFocused = false;
 		let savedNote = "";
 		let feedback = "";
-		let cancelArmed = false;
+		let dismissConfirm = false;
 		let _focused = false;
 		const answerEditor = createQuestionEditor(tui, theme, undefined, ctx.cwd);
 		const noteEditor = createNoteEditor(tui, theme, ctx.cwd);
@@ -80,6 +80,19 @@ export function askText(
 
 		function invalidate(): void {
 			cachedLines = undefined;
+		}
+
+		/** Nothing typed means nothing to lose: that close is immediate. */
+		function hasWork(): boolean {
+			return Boolean(answerEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+		}
+
+		function requestDismiss(): void {
+			if (!hasWork()) return done(null);
+			dismissConfirm = true;
+			feedback = "";
+			invalidate();
+			tui.requestRender();
 		}
 
 		function finish(): void {
@@ -143,11 +156,20 @@ export function askText(
 				lines.push("");
 				if (clarification.active) {
 					lines.push(...clarification.render(width));
+				} else if (dismissConfirm) {
+					renderDismissBanner(lines, width, theme, countSummary([
+						{ count: answerEditor.getExpandedText().trim() ? 1 : 0, one: "answer", many: "answers" },
+						{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+					]));
 				} else {
-					addActionHints(lines, width, theme, [
-						noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : answerEditor.getExpandedText().trim() ? "Enter Submit" : "Write answer",
-						noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More",
-					]);
+					const tokens: HintToken[] = noteFocused
+						? ["Enter/Tab Save note", { label: "Ctrl+C/Esc Discard note", tone: "error" }, "F2 More"]
+						: noteActionFocused
+							? ["Enter/+ Edit note", "Tab/Esc Back", "F2 More"]
+							: [answerEditor.getExpandedText().trim() ? "Enter Submit" : "Write answer",
+								{ label: "Tab Note", tone: "accent" }, "Ctrl+S Skip", "Ctrl+R Regenerate",
+								{ label: "Esc Close", tone: "error" }, "F2 More"];
+					addActionHints(lines, width, theme, tokens);
 				}
 				add(theme.fg("accent", "─".repeat(width)));
 				constrainFrameHeight(lines, tui.terminal?.rows, 3);
@@ -158,13 +180,19 @@ export function askText(
 			},
 			invalidate,
 			handleInput(data: string): void {
+				// The confirmation owns the keyboard: no other key may reach an editor.
+				if (dismissConfirm) {
+					if (matchesKey(data, Key.enter) || matchesKey(data, Key.escape)) return done(null);
+					if (data === "n" || data === "N") { dismissConfirm = false; invalidate(); tui.requestRender(); }
+					return;
+				}
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
 				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : noteActionFocused ? undefined : answerEditor, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
 				data = normalizeFocusCycleKey(data);
-				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
+				if (!matchesKey(data, Key.escape)) feedback = "";
 				if (noteActionFocused) {
 					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
@@ -179,11 +207,8 @@ export function askText(
 					if (matchesKey(data, Key.tab)) return focusNote();
 					if (matchesKey(data, Key.ctrl("c"))) answerEditor.setText("");
 					else if (matchesKey(data, Key.ctrl("enter")) || matchesKey(data, Key.alt("enter")) || isSubmitEnter(data)) return finish();
-					else if (matchesKey(data, Key.escape)) {
-						if ((!answerEditor.getExpandedText().trim() && !noteEditor.getExpandedText().trim()) || cancelArmed) return done(null);
-						cancelArmed = true;
-						feedback = "Press Esc again to close; your draft will be lost.";
-					} else answerEditor.handleInput(data);
+					else if (matchesKey(data, Key.escape)) return requestDismiss();
+					else answerEditor.handleInput(data);
 				}
 				invalidate();
 				tui.requestRender();
@@ -197,12 +222,14 @@ export function askText(
 				answerEditor.focused = value && !noteFocused && !noteActionFocused;
 				noteEditor.focused = value && noteFocused;
 			},
+			isConfirmingDismiss() { return dismissConfirm; },
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
 				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
 				{ label: "Clear this field", key: "\x03", hint: "Ctrl+C" },
+				{ label: "Discard and close", danger: true, run: () => requestDismiss() },
 			]; },
 		};
 	});
@@ -227,10 +254,12 @@ export function askSingleChoice(
 		let otherEditorValue = "";
 		let savedNote = "";
 		let feedback = "";
-		let cancelArmed = false;
+		let dismissConfirm = false;
 		let stagedAnswer: AskAnswer | null = null;
 		let _focused = false;
 		const editor = createQuestionEditor(tui, theme, undefined, ctx.cwd);
+		// The custom answer is capped so the choices above it stay visible.
+		editor.maxContentLines = 3;
 		const noteEditor = createNoteEditor(tui, theme, ctx.cwd);
 		const clarification = createClarificationEditor(tui, theme, done, (focused) => {
 			editor.focused = focused && _focused && editMode;
@@ -246,6 +275,33 @@ export function askSingleChoice(
 
 		function invalidate(): void { cachedLines = undefined; }
 		function finish(answer: AskAnswer): void { done({ answer, note: noteEditor.getExpandedText() }); }
+		/** Any staged choice, custom draft or note is real work worth confirming. */
+		function hasWork(): boolean {
+			return Boolean(stagedAnswer || otherEditorValue.trim() || editor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+		}
+		function requestDismiss(): void {
+			if (!hasWork()) return done(null);
+			dismissConfirm = true;
+			feedback = "";
+			invalidate();
+			tui.requestRender();
+		}
+		/** Unselecting is Ctrl+C, so Escape stays a single, predictable close gesture. */
+		function clearSelection(): void {
+			stagedAnswer = null;
+			otherEditorValue = "";
+			editor.setText("");
+			invalidate();
+			tui.requestRender();
+		}
+		function dismissSummary(): string {
+			const custom = otherEditorValue.trim() || editor.getExpandedText().trim();
+			return countSummary([
+				{ count: stagedAnswer ? 1 : 0, one: "answer", many: "answers" },
+				{ count: custom ? 1 : 0, one: "custom answer", many: "custom answers" },
+				{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+			]);
+		}
 		function focusNote(): void {
 			if (editMode) {
 				otherEditorValue = editor.getText();
@@ -329,12 +385,20 @@ export function askSingleChoice(
 				const tail: string[] = feedback ? [theme.fg("warning", ` ${feedback}`), ""] : [""];
 				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
-				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : stagedAnswer ? "Enter Confirm or replace" : "Enter Select",
-					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : stagedAnswer ? "Esc Clear selection" : cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
+				} else if (dismissConfirm) {
+					renderDismissBanner(tail, width, theme, dismissSummary());
 				} else {
-					addActionHints(tail, width, theme, noteFocused ? hints : [...hints, "Ctrl+? Ask agent"], noteFocused || editMode ? "accent" : "dim");
+					const tokens: HintToken[] = noteFocused
+						? ["Enter/Tab Save note", { label: "Ctrl+C/Esc Discard note", tone: "error" }, "F2 More"]
+						: noteActionFocused
+							? ["Enter/+ Edit note", "Tab/Esc Back", "F2 More"]
+							: editMode
+								? ["Enter Save answer", "Ctrl+C Clear", "Alt+↑/↓ Options", "Tab Note", "Esc Back", "Ctrl+S Skip", "F2 More"]
+								: [stagedAnswer ? "Enter Confirm or replace" : "Enter Select", { label: "+ Note", tone: "accent" },
+									"Ctrl+S Skip", "Ctrl+R Regenerate", { label: "Esc Close", tone: "error" }, "F2 More"];
+					addActionHints(tail, width, theme, tokens);
 				}
 				tail.push(truncateToWidth(theme.fg("accent", "─".repeat(width)), width));
 				const availableLines = Math.max(0, (tui.terminal?.rows ?? Number.POSITIVE_INFINITY) - lines.length - tail.length);
@@ -355,13 +419,19 @@ export function askSingleChoice(
 			},
 			invalidate,
 			handleInput(data: string): void {
+				// The confirmation owns the keyboard: no other key may reach an editor.
+				if (dismissConfirm) {
+					if (matchesKey(data, Key.enter) || matchesKey(data, Key.escape)) return done(null);
+					if (data === "n" || data === "N") { dismissConfirm = false; invalidate(); tui.requestRender(); }
+					return;
+				}
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
 				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : editMode ? editor : undefined, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
 				data = normalizeFocusCycleKey(data);
-				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
+				if (!matchesKey(data, Key.escape)) feedback = "";
 				if (noteActionFocused) {
 					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
@@ -380,35 +450,28 @@ export function askSingleChoice(
 					noteEditor.handleInput(data);
 				} else if (editMode) {
 					if (matchesKey(data, Key.ctrl("c"))) {
-						editor.setText("");
-						otherEditorValue = "";
-						stagedAnswer = null;
+						clearSelection();
 					} else if (matchesKey(data, Key.tab)) return focusNote();
-					else if (matchesKey(data, Key.escape)) {
+					else if (matchesKey(data, Key.alt("up")) || matchesKey(data, Key.alt("down"))) {
+						choiceList.scrollOptions(matchesKey(data, Key.alt("up")) ? -1 : 1);
+					} else if (matchesKey(data, Key.escape)) {
 						editMode = false;
 						otherEditorValue = editor.getText();
 						editor.focused = false;
+						choiceList.resetOptionScroll();
 					} else editor.handleInput(data);
 				} else {
 					if (matchesKey(data, Key.tab)) return focusNote();
 					if (data === "+") { focusNote(); openNote(); return; }
+					if (matchesKey(data, Key.ctrl("c")) && stagedAnswer) { clearSelection(); return; }
 					if (/^[1-9]$/.test(data)) {
 						const index = parseInt(data, 10) - 1;
 						if (index < choiceList.length) { choiceList.setSelectedIndex(index); return stageOrConfirm(choiceList.selectedItem); }
 					}
 					const action = choiceList.handleInput(data);
 					if (action === "confirm") return stageOrConfirm(choiceList.selectedItem);
-					if (action === "cancel") {
-						if (stagedAnswer) {
-							stagedAnswer = null;
-							invalidate();
-							tui.requestRender();
-							return;
-						}
-						if (cancelArmed || (!noteEditor.getExpandedText().trim() && !otherEditorValue.trim())) return done(null);
-						cancelArmed = true;
-						feedback = "Press Esc again to close; your draft will be lost.";
-					}
+					// Escape is a close gesture only; Ctrl+C is the way to unselect.
+					if (action === "cancel") return requestDismiss();
 				}
 				invalidate();
 				tui.requestRender();
@@ -422,11 +485,14 @@ export function askSingleChoice(
 				editor.focused = value && editMode;
 				noteEditor.focused = value && noteFocused;
 			},
+			isConfirmingDismiss() { return dismissConfirm; },
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
 				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
+				{ label: "Clear selection", key: "\x03", hint: "Ctrl+C" },
+				{ label: "Discard and close", danger: true, run: () => requestDismiss() },
 			]; },
 		};
 	});
@@ -452,9 +518,11 @@ export function askMultiChoice(
 		let otherPending = false;
 		let savedNote = "";
 		let feedback = "";
-		let cancelArmed = false;
+		let dismissConfirm = false;
 		const selected = new Map<string, AskAnswer>();
 		const otherEditor = createQuestionEditor(tui, theme, undefined, ctx.cwd);
+		// The custom answer is capped so the choices above it stay visible.
+		otherEditor.maxContentLines = 3;
 		const noteEditor = createNoteEditor(tui, theme, ctx.cwd);
 		const clarification = createClarificationEditor(tui, theme, done, (focused) => {
 			otherEditor.focused = focused && _focused && editMode;
@@ -478,6 +546,34 @@ export function askMultiChoice(
 				return;
 			}
 			done({ answer: sortAnswers(Array.from(selected.values())), note: noteEditor.getExpandedText() });
+		}
+		/** Any checked choice, custom draft or note is real work worth confirming. */
+		function hasWork(): boolean {
+			return selected.size > 0 || Boolean(otherText.trim() || otherEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+		}
+		function requestDismiss(): void {
+			if (!hasWork()) return done(null);
+			dismissConfirm = true;
+			feedback = "";
+			invalidate();
+			tui.requestRender();
+		}
+		/** Unselecting is Ctrl+C, so Escape stays a single, predictable close gesture. */
+		function clearSelection(): void {
+			selected.clear();
+			otherText = "";
+			otherPending = false;
+			otherEditor.setText("");
+			invalidate();
+			tui.requestRender();
+		}
+		function dismissSummary(): string {
+			const custom = otherText.trim() || otherEditor.getExpandedText().trim();
+			return countSummary([
+				{ count: selected.has("other") ? selected.size - 1 : selected.size, one: "answer", many: "answers" },
+				{ count: custom ? 1 : 0, one: "custom answer", many: "custom answers" },
+				{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+			]);
 		}
 		function focusNote(): void {
 			if (editMode) {
@@ -573,12 +669,20 @@ export function askMultiChoice(
 				const tail: string[] = feedback ? [theme.fg("warning", ` ${feedback}`), ""] : [""];
 				renderOptionalNote(tail, width, theme, noteEditor, noteFocused, 9, noteActionFocused);
 				tail.push("");
-				const hints = [noteFocused ? "Enter/Tab Save note" : noteActionFocused ? "Enter/+ Edit note" : editMode ? "Enter Save answer" : choiceList.selectedItem.isOther ? "Enter Edit" : selected.size ? "Enter Submit" : "Space Select",
-					noteFocused ? "Ctrl+C/Esc Discard note" : "Ctrl+S Skip question", noteFocused ? "" : cancelArmed ? "Esc again Close" : "Esc Close", "Ctrl+R Regenerate", "F2 More"].filter(Boolean);
 				if (clarification.active) {
 					tail.push(...clarification.render(width));
+				} else if (dismissConfirm) {
+					renderDismissBanner(tail, width, theme, dismissSummary());
 				} else {
-					addActionHints(tail, width, theme, noteFocused ? hints : [...hints, "Ctrl+? Ask agent"], noteFocused || editMode ? "accent" : "dim");
+					const tokens: HintToken[] = noteFocused
+						? ["Enter/Tab Save note", { label: "Ctrl+C/Esc Discard note", tone: "error" }, "F2 More"]
+						: noteActionFocused
+							? ["Enter/+ Edit note", "Tab/Esc Back", "F2 More"]
+							: editMode
+								? ["Enter Save answer", "Ctrl+C Clear", "Alt+↑/↓ Options", "Tab Note", "Esc Back", "Ctrl+S Skip", "F2 More"]
+								: [choiceList.selectedItem.isOther ? "Enter Edit" : selected.size ? "Enter Submit" : "Space Select", { label: "+ Note", tone: "accent" },
+									"Ctrl+S Skip", "Ctrl+R Regenerate", { label: "Esc Close", tone: "error" }, "F2 More"];
+					addActionHints(tail, width, theme, tokens);
 				}
 				tail.push(truncateToWidth(theme.fg("accent", "─".repeat(width)), width));
 				const availableLines = Math.max(0, (tui.terminal?.rows ?? Number.POSITIVE_INFINITY) - lines.length - tail.length);
@@ -596,13 +700,19 @@ export function askMultiChoice(
 			},
 			invalidate,
 			handleInput(data: string): void {
+				// The confirmation owns the keyboard: no other key may reach an editor.
+				if (dismissConfirm) {
+					if (matchesKey(data, Key.enter) || matchesKey(data, Key.escape)) return done(null);
+					if (data === "n" || data === "N") { dismissConfirm = false; invalidate(); tui.requestRender(); }
+					return;
+				}
 				if (clarification.active) { clarification.handle(data); invalidate(); return; }
 				if (matchesKey(data, Key.ctrl("r"))) return done({ action: "regenerate", note: noteEditor.getExpandedText() });
 				if (matchesKey(data, Key.ctrl("s"))) return done({ action: "skip" });
 				if (handleFileCompletion(noteFocused ? noteEditor : editMode ? otherEditor : undefined, data)) { invalidate(); tui.requestRender(); return; }
 				if (isAskAgentKey(data)) { feedback = ""; clarification.open(); invalidate(); return; }
 				data = normalizeFocusCycleKey(data);
-				if (!matchesKey(data, Key.escape)) { cancelArmed = false; feedback = ""; }
+				if (!matchesKey(data, Key.escape)) feedback = "";
 				if (noteActionFocused) {
 					if (isSubmitEnter(data) || matchesKey(data, Key.space) || data === "+") return openNote();
 					if (matchesKey(data, Key.tab) || matchesKey(data, Key.escape)) return focusPrimary();
@@ -640,12 +750,15 @@ export function askMultiChoice(
 						return finish();
 					}
 					if (matchesKey(data, Key.tab)) return focusNote();
-					if (matchesKey(data, Key.escape)) {
+					if (matchesKey(data, Key.alt("up")) || matchesKey(data, Key.alt("down"))) {
+						choiceList.scrollOptions(matchesKey(data, Key.alt("up")) ? -1 : 1);
+					} else if (matchesKey(data, Key.escape)) {
 						editMode = false;
 						otherPending = false;
 						otherText = otherEditor.getText();
 						if (!otherText.trim()) selected.delete("other");
 						otherEditor.focused = false;
+						choiceList.resetOptionScroll();
 					} else otherEditor.handleInput(data);
 				} else {
 					if (matchesKey(data, Key.tab)) return focusNote();
@@ -653,6 +766,7 @@ export function askMultiChoice(
 					if (matchesKey(data, Key.ctrl("enter")) || matchesKey(data, Key.alt("enter"))) {
 						return finish();
 					}
+					if (matchesKey(data, Key.ctrl("c")) && selected.size > 0) { clearSelection(); return; }
 					if (/^[1-9]$/.test(data)) {
 						const index = parseInt(data, 10) - 1;
 						if (index < choiceList.length) {
@@ -670,9 +784,8 @@ export function askMultiChoice(
 							if (selected.size > 0) return finish();
 							toggleOption(choiceList.selectedItem);
 						} else if (action === "cancel") {
-							if (cancelArmed || (!selected.size && !otherText.trim() && !noteEditor.getExpandedText().trim())) return done(null);
-							cancelArmed = true;
-							feedback = "Press Esc again to close; your draft will be lost.";
+							// Escape is a close gesture only; Ctrl+C is the way to unselect.
+							return requestDismiss();
 						}
 					}
 				}
@@ -688,11 +801,14 @@ export function askMultiChoice(
 				otherEditor.focused = value && editMode;
 				noteEditor.focused = value && noteFocused;
 			},
+			isConfirmingDismiss() { return dismissConfirm; },
 			getMoreActions() { return [
 				{ label: "Add or edit note", run: () => { focusNote(); openNote(); } },
 				{ label: "Regenerate question", key: "\x12", hint: "Ctrl+R" },
 				{ label: "Skip question", key: "\x13", hint: "Ctrl+S" },
 				{ label: "Ask for clarification", key: "\x1b[47;5u", hint: "Ctrl+?" },
+				{ label: "Clear selection", key: "\x03", hint: "Ctrl+C" },
+				{ label: "Discard and close", danger: true, run: () => requestDismiss() },
 			]; },
 		};
 	});

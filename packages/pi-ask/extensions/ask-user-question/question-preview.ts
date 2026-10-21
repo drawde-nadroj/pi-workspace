@@ -9,7 +9,7 @@ export interface AskPreviewHit { id: AskElementId; x: number; y: number; width: 
 export function questionPreview(theme: any, width: number, appearance: AskAppearance): { rows: string[]; hits: AskPreviewHit[] } {
   const palette = questionTheme(theme, appearance);
   const text = "Which option suits this sample?";
-  const hint = "Enter Select · Esc Back · F2 More";
+  const hint = "Enter Select · + Note · Tab Note · Esc Back · F2 More";
   const component = {
     getHeaderLabel: () => "2 of 3",
     render: (innerWidth: number) => [

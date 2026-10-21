@@ -94,15 +94,21 @@ function scrubCursorMarkers(text: string): string {
 /** Keep marker provenance at the shared editable-input boundary. */
 export class SafeEditor extends Editor {
 	protected boxed = true;
+	/** Optional bound on visible content rows; the cursor row is always kept. */
+	maxContentLines?: number;
 	private topLabel = "";
 	private bottomLabel = "";
 	private bottomRail = "";
 	private framed = false;
+	private hiddenTop = 0;
+	private hiddenBottom = 0;
 	protected override renderTopBorder(width: number, hidden: number): string {
+		this.hiddenTop = hidden;
 		this.topLabel = hidden ? ` ↑ ${hidden} more ` : "";
 		return this.roundedRail(width, this.topLabel, true);
 	}
 	protected override renderBottomBorder(width: number, hidden: number): string {
+		this.hiddenBottom = hidden;
 		this.bottomLabel = hidden ? ` ↓ ${hidden} more ` : "";
 		return this.bottomRail = this.roundedRail(width, this.bottomLabel, false);
 	}
@@ -120,9 +126,10 @@ export class SafeEditor extends Editor {
 		if (this.framed) {
 			const bottom = lines.lastIndexOf(this.bottomRail);
 			if (bottom < 1) return lines; // Unknown editor shape: do not discard input.
-			const framed = frameRows({ width, rows: lines.slice(1, bottom), inset: 1, color: "accent",
+			const capped = this.capContent(lines.slice(1, bottom));
+			const framed = frameRows({ width, rows: capped.rows, inset: 1, color: "accent",
 				theme: { style: (text: string) => this.borderColor(text) },
-				corners: { topLeft: this.topLabel, bottomLeft: this.bottomLabel } });
+				corners: { topLeft: capped.top, bottomLeft: capped.bottom } });
 			// Suggestions follow the bottom rail and remain outside the input box.
 			return [...framed, ...lines.slice(bottom + 1).map(line => `  ${line}  `)];
 		}
@@ -136,6 +143,22 @@ export class SafeEditor extends Editor {
 			const cell = cursor && visibleWidth(cursor[1]) <= renderWidth ? cursor[1] : " ";
 			return modern ? `${CURSOR_MARKER}${FAKE_CURSOR_START}${cell}${FAKE_CURSOR_END}` : `${CURSOR_MARKER}\x1b[7m${cell}\x1b[0m`;
 		});
+	}
+
+	/** A bounded inline editor keeps the cursor's row and reports every hidden row. */
+	private capContent(content: string[]): { rows: string[]; top: string; bottom: string } {
+		const limit = this.maxContentLines;
+		if (!limit || limit < 1 || content.length <= limit) return { rows: content, top: this.topLabel, bottom: this.bottomLabel };
+		const cursorRow = content.findIndex((line) => line.includes(CURSOR_MARKER));
+		const anchor = cursorRow >= 0 ? cursorRow : content.length - 1;
+		const start = Math.max(0, Math.min(anchor - limit + 1, content.length - limit));
+		const hiddenAbove = this.hiddenTop + start;
+		const hiddenBelow = this.hiddenBottom + (content.length - start - limit);
+		return {
+			rows: content.slice(start, start + limit),
+			top: hiddenAbove ? ` ↑ ${hiddenAbove} more ` : "",
+			bottom: hiddenBelow ? ` ↓ ${hiddenBelow} more ` : "",
+		};
 	}
 
 	override handleMouse(event: Parameters<Editor["handleMouse"]>[0]) {
@@ -214,20 +237,66 @@ export function actionHint(token: string): string {
 	return token.replace(/Shift\+Enter/g, "⇧↵").replace(/Enter/g, "↵");
 }
 
+/** Hints are one vocabulary: a destructive close is never the same tone as a plain navigation key. */
+export type HintTone = "default" | "accent" | "error";
+export type HintToken = string | { label: string; tone?: HintTone };
+
+/** Only the two theme facts a hint row reads; keeps this helper independent of the host theme type. */
+export interface HintTheme {
+	fg(role: string, text: string): string;
+	askAppearance?: { hints?: "dim" | "muted" };
+}
+
+function hintStyle(theme: HintTheme, tone: HintTone = "default"): (text: string) => string {
+	if (tone === "error") return (text: string) => theme.fg("error", text);
+	if (tone === "accent") return (text: string) => theme.fg("accent", text);
+	return (text: string) => theme.fg(theme.askAppearance?.hints === "muted" ? "muted" : "dim", text);
+}
+
 /** Pack complete action tokens instead of silently clipping footer controls. */
-export function addActionHints(lines: string[], width: number, theme: any, tokens: string[], _color = "dim"): void {
+export function addActionHints(lines: string[], width: number, theme: any, tokens: HintToken[]): void {
 	const budget = Math.max(1, width);
-	let packed = "";
+	const separator = hintStyle(theme, "default")(" · ");
+	const separatorCells = visibleWidth(" · ");
+	let styled: string[] = [];
+	let cells = 0;
 	const flush = () => {
-		if (packed) lines.push(truncateToWidth(theme.fg(theme.askAppearance?.hints === "muted" ? "muted" : "dim", " ".repeat(Math.max(0, Math.floor((width - visibleWidth(packed)) / 2))) + packed), width));
-		packed = "";
+		if (!styled.length) return;
+		const pad = " ".repeat(Math.max(0, Math.floor((width - cells) / 2)));
+		lines.push(truncateToWidth(`${pad}${styled.join(separator)}`, width));
+		styled = [];
+		cells = 0;
 	};
-	for (const raw of tokens) {
-		const token = truncateLabel(actionHint(raw), budget);
-		if (packed && visibleWidth(`${packed} · ${token}`) > budget) flush();
-		packed = packed ? `${packed} · ${token}` : token;
+	for (const entry of tokens) {
+		const label = typeof entry === "string" ? entry : entry.label;
+		const text = truncateLabel(actionHint(label), budget);
+		const tokenCells = visibleWidth(text);
+		if (!tokenCells) continue;
+		// A token that cannot share a row keeps its own truncated row.
+		if (styled.length && cells + separatorCells + tokenCells > budget) flush();
+		if (styled.length) cells += separatorCells;
+		styled.push(hintStyle(theme, typeof entry === "string" ? "default" : entry.tone)(text));
+		cells += tokenCells;
 	}
 	flush();
+}
+
+/** Say what is about to be lost, in counts, instead of a generic "unsaved work". */
+export function countSummary(counts: Array<{ count: number; one: string; many: string }>): string {
+	const parts = counts.filter((entry) => entry.count > 0).map((entry) => `${entry.count} ${entry.count === 1 ? entry.one : entry.many}`);
+	return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+}
+
+/**
+ * One close-confirmation banner for every Ask surface. The word "Discard" and the
+ * ⚠ mark carry the meaning; the error tone only reinforces it.
+ */
+export function renderDismissBanner(lines: string[], width: number, theme: HintTheme, summary: string, keepDraft = false): void {
+	addWrapped(lines, theme.fg("error", keepDraft ? "⚠ Close this question and keep your draft?" : `⚠ Discard ${summary} and close?`), width);
+	addActionHints(lines, width, theme, [
+		{ label: keepDraft ? "Enter/Esc Close and keep draft" : "Enter/Esc Discard and close", tone: "error" },
+		"N Keep editing",
+	]);
 }
 
 export function normalizeFocusCycleKey(data: string): string {
@@ -324,6 +393,8 @@ export class WrappedChoiceList {
 	private readonly keybindings: KeybindingsManager;
 	private readonly theme: any;
 	private selectedIndex = 0;
+	/** First visible choice row while the pinned custom-answer editor is open. */
+	private optionScroll = 0;
 
 	constructor(
 		options: AskOption[],
@@ -384,14 +455,118 @@ export class WrappedChoiceList {
 		return "unhandled";
 	}
 
-	render(width: number, options: ChoiceListRenderOptions = {}): string[] {
+	/** The height-driven choice window used while a custom answer is being typed. */
+	scrollOptions(lines: number): boolean {
+		const next = Math.max(0, this.optionScroll + lines);
+		if (next === this.optionScroll) return false;
+		this.optionScroll = next;
+		return true;
+	}
+
+	resetOptionScroll(): void {
+		this.optionScroll = 0;
+	}
+
+	/** Prefix cells for one row; the editor indent reuses the Other row's geometry. */
+	private prefixFor(item: WrappedChoiceItem, hasCursor: boolean, visiblySelected: boolean, showCheckboxes: boolean, showRadio: boolean): string {
+		// Radios communicate single-select state; checkboxes remain reserved
+		// for actual multi-select semantics.
+		const color = visiblySelected ? "success" : hasCursor ? "accent" : "text";
+		const cursorPrefix = hasCursor ? this.theme.fg(visiblySelected ? "success" : "accent", "→ ") : "  ";
+		const selectionPrefix = showCheckboxes
+			? `${visiblySelected ? "☑" : "☐"} `
+			: showRadio ? `${visiblySelected ? "●" : "○"} ` : "";
+		return `${cursorPrefix}${this.theme.fg(color, `${selectionPrefix}${item.index}. `)}`;
+	}
+
+	/** One row group: the choice, its description, and any bounded suggestion rationale. */
+	private renderItem(itemIndex: number, width: number, selectedAnswers: ReadonlyMap<string, AskAnswer> | undefined, showCheckboxes: boolean, showRadio: boolean, customActive: boolean): string[] {
 		const lines: string[] = [];
-		const {
-			selectedAnswers,
-			inlineOtherEditor,
-			showRadio = false,
-		} = options;
+		const item = this.items[itemIndex];
+		const hasCursor = itemIndex === this.selectedIndex;
+		const visiblySelected = (selectedAnswers?.has(item.id) ?? false) || (customActive && !showRadio);
+		const prefix = this.prefixFor(item, hasCursor, visiblySelected, showCheckboxes, showRadio);
+		let label = this.theme.fg(visiblySelected ? "success" : hasCursor ? "accent" : "text", item.label);
+		const suggestion = item.option?.suggestion;
+		if (suggestion?.basis?.trim()) label += this.theme.fg("muted", `  ${suggestionLabel(suggestion.kind)}`);
+
+		if (item.isOther) {
+			const otherAnswer = selectedAnswers?.get("other");
+			if (otherAnswer?.type === "other") label += this.theme.fg("muted", ` — ${sanitizeDisplayText(otherAnswer.label)}`);
+			addWrappedWithPrefix(lines, prefix, label, width);
+			// The inline editor replaces the generic description line beneath this row.
+			if (customActive) return lines;
+			const descriptionPrefix = " ".repeat(Math.min(visibleWidth(prefix), Math.max(0, width - 4)));
+			const descriptionWidth = Math.max(0, width - visibleWidth(descriptionPrefix));
+			lines.push(truncateToWidth(
+				`${descriptionPrefix}${truncateToWidth(this.theme.fg("muted", item.description ?? ""), descriptionWidth)}`,
+				width,
+			));
+			return lines;
+		}
+
+		const wrappedPrefix = " ".repeat(visibleWidth(prefix));
+		addWrappedOption(
+			lines, prefix, label,
+			item.description ? this.theme.fg("muted", item.description) : undefined,
+			width, wrappedPrefix, wrappedPrefix,
+		);
+		if (suggestion?.basis?.trim()) {
+			addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Why: ${sanitizeDisplayText(suggestion.basis)}`), width, wrappedPrefix);
+			if (suggestion.caveat) addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Caveat: ${sanitizeDisplayText(suggestion.caveat)}`), width, wrappedPrefix);
+		}
+		return lines;
+	}
+
+	/** The custom answer's editor is pinned chrome, not a row inside the choice window. */
+	private renderInlineEditor(editor: Editor, width: number, showCheckboxes: boolean, showRadio: boolean, selectedAnswers: ReadonlyMap<string, AskAnswer> | undefined): string[] {
+		const lines: string[] = [];
+		const other = this.items[this.items.length - 1];
+		const prefix = this.prefixFor(other, other === this.selectedItem, true, showCheckboxes, showRadio);
+		// Keep the whole input frame, including its closed top/bottom edges.
+		// At extreme widths, reduce the indent rather than hiding input.
+		const editorIndent = " ".repeat(Math.min(visibleWidth(prefix), Math.max(0, width - 4)));
+		const editorWidth = Math.max(1, width - visibleWidth(editorIndent));
+		for (const editorLine of editor.render(editorWidth)) {
+			const safe = sanitizeEditorDisplay(editorLine);
+			// Sanitization removes the editor palette. Restore only trusted frame
+			// glyphs, keeping answer text and native cursor markers untouched.
+			const framed = editorWidth >= 7 && /^[╭╰].*[╮╯]$/.test(safe) ? this.theme.fg("accent", safe)
+				: editorWidth >= 7 && /^│.*│$/.test(safe) ? safe.replace(/^│|│$/g, (edge: string) => this.theme.fg("accent", edge))
+				: safe;
+			lines.push(truncateToWidth(`${editorIndent}${framed}`, width));
+		}
+		// The answer's own label sits directly above the pinned editor.
+		return [...this.renderItem(this.items.length - 1, width, selectedAnswers, showCheckboxes, showRadio, true), ...lines];
+	}
+
+	render(width: number, options: ChoiceListRenderOptions = {}): string[] {
+		const { selectedAnswers, inlineOtherEditor, showRadio = false } = options;
 		const showCheckboxes = selectedAnswers !== undefined && !showRadio;
+		const maxRenderedLines = options.availableLines === undefined
+			? Number.POSITIVE_INFINITY
+			: Math.max(0, Math.floor(options.availableLines));
+
+		// Reserve the Other row and the editor first: a window anchored at the editor
+		// cursor hides the first options exactly when the user needs to reach them.
+		if (inlineOtherEditor) {
+			const tail = this.renderInlineEditor(inlineOtherEditor, width, showCheckboxes, showRadio, selectedAnswers);
+			const budget = Math.max(0, maxRenderedLines - tail.length);
+			const optionLines = this.items.slice(0, -1)
+				.flatMap((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false));
+			const maxOffset = Math.max(0, optionLines.length - budget);
+			this.optionScroll = Math.max(0, Math.min(this.optionScroll, maxOffset));
+			const window = optionLines.slice(this.optionScroll, this.optionScroll + budget);
+			if (window.length > 0 && this.optionScroll > 0) {
+				window[0] = truncateToWidth(this.theme.fg("dim", "  ↑ more · Alt+↑"), width);
+			}
+			if (window.length > 0 && this.optionScroll + window.length < optionLines.length) {
+				window[window.length - 1] = truncateToWidth(this.theme.fg("dim", "  ↓ more · Alt+↓"), width);
+			}
+			return [...window, ...tail];
+		}
+
+		const lines: string[] = [];
 		const startIndex = Math.max(
 			0,
 			Math.min(
@@ -400,78 +575,9 @@ export class WrappedChoiceList {
 			),
 		);
 		const endIndex = Math.min(startIndex + this.maxVisible, this.items.length);
-		const maxRenderedLines = options.availableLines === undefined
-			? Number.POSITIVE_INFINITY
-			: Math.max(0, Math.floor(options.availableLines));
 
 		for (let itemIndex = startIndex; itemIndex < endIndex; itemIndex++) {
-			const item = this.items[itemIndex];
-			const hasCursor = itemIndex === this.selectedIndex;
-			const answerKey = item.id;
-			const checked = selectedAnswers?.has(answerKey) ?? false;
-			const customActive = item.isOther && inlineOtherEditor !== undefined;
-			const visiblySelected = checked || (customActive && !showRadio);
-			// Radios communicate single-select state; checkboxes remain reserved
-			// for actual multi-select semantics.
-			const color = visiblySelected ? "success" : hasCursor ? "accent" : "text";
-			const cursorPrefix = hasCursor
-				? this.theme.fg(visiblySelected ? "success" : "accent", "→ ")
-				: "  ";
-			const selectionPrefix = showCheckboxes
-				? `${visiblySelected ? "☑" : "☐"} `
-				: showRadio ? `${visiblySelected ? "●" : "○"} ` : "";
-			const prefix = `${cursorPrefix}${this.theme.fg(color, `${selectionPrefix}${item.index}. `)}`;
-			let label = this.theme.fg(color, item.label);
-			const suggestion = item.option?.suggestion;
-			if (suggestion?.basis?.trim()) label += this.theme.fg("muted", `  ${suggestionLabel(suggestion.kind)}`);
-
-			if (item.isOther && inlineOtherEditor) {
-				addWrappedWithPrefix(lines, prefix, label, width);
-				// Keep the whole input frame, including its closed top/bottom edges.
-				// At extreme widths, reduce the indent rather than hiding input.
-				const editorIndent = " ".repeat(Math.min(visibleWidth(prefix), Math.max(0, width - 4)));
-				const editorWidth = Math.max(1, width - visibleWidth(editorIndent));
-				const editorLines = inlineOtherEditor.render(editorWidth);
-				for (const editorLine of editorLines) {
-					const safe = sanitizeEditorDisplay(editorLine);
-					// Sanitization removes the editor palette. Restore only trusted frame
-					// glyphs, keeping answer text and native cursor markers untouched.
-					const framed = editorWidth >= 7 && /^[╭╰].*[╮╯]$/.test(safe) ? this.theme.fg("accent", safe)
-						: editorWidth >= 7 && /^│.*│$/.test(safe) ? safe.replace(/^│|│$/g, (edge: string) => this.theme.fg("accent", edge))
-						: safe;
-					lines.push(truncateToWidth(`${editorIndent}${framed}`, width));
-				}
-				continue;
-			}
-
-			if (item.isOther) {
-				const otherAnswer = selectedAnswers?.get("other");
-				if (otherAnswer?.type === "other") {
-					label += this.theme.fg("muted", ` — ${sanitizeDisplayText(otherAnswer.label)}`);
-				}
-			}
-
-			if (item.isOther) {
-				addWrappedWithPrefix(lines, prefix, label, width);
-				const descriptionPrefix = " ".repeat(Math.min(visibleWidth(prefix), Math.max(0, width - 4)));
-				const descriptionWidth = Math.max(0, width - visibleWidth(descriptionPrefix));
-				lines.push(truncateToWidth(
-					`${descriptionPrefix}${truncateToWidth(this.theme.fg("muted", item.description ?? ""), descriptionWidth)}`,
-					width,
-				));
-				continue;
-			}
-
-			const wrappedPrefix = " ".repeat(visibleWidth(prefix));
-			addWrappedOption(
-				lines, prefix, label,
-				item.description ? this.theme.fg("muted", item.description) : undefined,
-				width, wrappedPrefix, wrappedPrefix,
-			);
-			if (suggestion?.basis?.trim()) {
-				addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Why: ${sanitizeDisplayText(suggestion.basis)}`), width, wrappedPrefix);
-				if (suggestion.caveat) addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Caveat: ${sanitizeDisplayText(suggestion.caveat)}`), width, wrappedPrefix);
-			}
+			lines.push(...this.renderItem(itemIndex, width, selectedAnswers, showCheckboxes, showRadio, false));
 		}
 
 		if (startIndex > 0 || endIndex < this.items.length) {
@@ -480,9 +586,8 @@ export class WrappedChoiceList {
 
 		if (lines.length > maxRenderedLines) {
 			if (maxRenderedLines === 0) return [];
-			const editorCursorLine = lines.findIndex((line) => line.includes(CURSOR_MARKER));
 			const selectedLine = lines.findIndex((line) => line.includes("→"));
-			const cursorLine = Math.max(0, editorCursorLine >= 0 ? editorCursorLine : selectedLine);
+			const cursorLine = Math.max(0, selectedLine);
 			const start = Math.max(0, Math.min(cursorLine - Math.floor(maxRenderedLines / 2), lines.length - maxRenderedLines));
 			const visible = lines.slice(start, start + maxRenderedLines);
 			if (start > 0 && start !== cursorLine) {
