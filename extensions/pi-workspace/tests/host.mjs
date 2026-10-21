@@ -18,6 +18,9 @@ export const jiti = createJiti(import.meta.url, {
 export const { initTheme, theme } = await import(pathToFileURL(join(host, "modes/interactive/theme/theme.js")));
 const { KeybindingsManager } = await import(pathToFileURL(join(host, "core/keybindings.js")));
 export const { visibleWidth, CURSOR_MARKER, setKeybindings, colorToRgb, colorToOklch } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
+// Color assertions use truecolor unless a test explicitly selects 256-color.
+const { setCapabilityOverrides } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
+setCapabilityOverrides({ trueColor: true });
 initTheme("dark", false);
 // pi-vim 0.14.2 sends Ctrl+- internally for "u", independent of host defaults.
 // Match the documented optional-Vim setup without changing real user bindings.

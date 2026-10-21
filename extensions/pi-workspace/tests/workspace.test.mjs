@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { resolve, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -285,7 +286,7 @@ async function harness(mode = "tui", savedComposerPrefs) {
     async close() {
       await emit("session_shutdown");
       if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir;
-      rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      await rm(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
 }
@@ -649,7 +650,9 @@ test("shutdown disposes a temporary native Composer preview before invalidating 
     const native = h.editor;
     native.setText("Unsent preview draft 界面");
     const picker = h.workspaceCommand();
-    await new Promise(resolve => setTimeout(resolve, 10));
+    const deadline = Date.now() + 3000;
+    while (!h.picker && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(h.picker, "preview must actually be mounted before testing teardown");
     const queuedRender = native.render;
     // Exercise the exact boundary before the appearance owner's later abort hook runs.
     const [runtimeShutdown, ...otherShutdowns] = h.handlers.get("session_shutdown");
