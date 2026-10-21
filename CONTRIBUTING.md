@@ -17,7 +17,7 @@ The root suite covers Frame, Ask, Workspace, Tasks, deterministic harness checks
 
 ## Windows CI and portability
 
-`.github/workflows/test.yml` runs the complete pipeline on Windows, Linux and macOS with Node.js 22.23.2, npm 10.9.8 and the locked Pi 1.3.0 host. No personal installation, credentials or administrator setup is needed. See the [Windows setup and smoke test](docs/INSTALL.md#native-windows-supported-setup-and-smoke-test) for Git Bash commands and the optional pi-vim undo alias.
+`.github/workflows/test.yml` runs the complete pipeline on Windows, Linux and macOS with Node.js 22.23.2, npm 10.9.8 and the locked Pi 1.3.0 host. No personal installation, credentials or administrator setup is needed. CI prepares Pi's `fd` file-completion binary in an isolated agent directory using Pi's own downloader; this explicit setup step requires network access. See the [Windows setup and smoke test](docs/INSTALL.md#native-windows-supported-setup-and-smoke-test) for Git Bash commands and the optional pi-vim undo alias.
 
 Use `os.tmpdir()` and unique directories for filesystem fixtures; captures print their paths. Directory-link fixtures use Windows junctions and absolute targets. Keep parser coverage platform-independent; skip only a specifically unrepresentable filesystem case with a reason. Shutdown must await child-process closure before deleting fixtures; bounded cleanup retries cover remaining transient locks, not running work. Do not change assertions to accept lost Vim history.
 

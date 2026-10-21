@@ -15,6 +15,8 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    env:
+      PI_CODING_AGENT_DIR: ${{ runner.temp }}/pi-suite-ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +32,10 @@ jobs:
           echo "PI_WORKSPACE_HOST_MODULES=$HOST" >> "$GITHUB_ENV"
           echo "PI_ASK_HOST_MODULES=$HOST" >> "$GITHUB_ENV"
           echo "PI_FRAME_HOST_MODULES=$HOST" >> "$GITHUB_ENV"
+      - name: Prepare Pi file-completion binary in isolated agent directory
+        shell: bash
+        run: |
+          node --input-type=module -e 'import { ensureTool } from "./node_modules/@earendil-works/pi-coding-agent/dist/utils/tools-manager.js"; if (!await ensureTool("fd", s => console.log(s.message))) process.exit(1);'
       - name: Full pipeline (Frame, Ask, Workspace, Tasks, harness, packed suite)
         run: npm test
       - run: npm run typecheck --workspace=pi-ask

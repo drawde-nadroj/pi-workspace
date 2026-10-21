@@ -51,7 +51,13 @@ Use a normal, non-elevated Git Bash session. The suite does not require Administ
    npm run pack:check
    ```
 
-   Replace `<user>` and the installation path; npm-installed Pi may live elsewhere. For a reproducible test host without a separate managed installation, after `npm ci` all three variables may instead point to the checkout's `node_modules` (its lockfile contains Pi 1.3.0). These overrides select test dependencies, not your interactive Pi executable.
+   Replace `<user>` and the installation path; npm-installed Pi may live elsewhere. For a reproducible test host without a separate managed installation, after `npm ci` all three variables may instead point to the checkout's `node_modules` (its lockfile contains Pi 1.3.0). These overrides select test dependencies, not your interactive Pi executable. Ask's file-completion integration tests also require `fd` on PATH or in `<agent-dir>/bin`; a normally initialized Pi installs it. For a fresh npm-only test host, explicitly prepare that binary using Pi's downloader (network access required):
+
+   ```sh
+   node --input-type=module -e 'import { ensureTool } from "./node_modules/@earendil-works/pi-coding-agent/dist/utils/tools-manager.js"; if (!await ensureTool("fd", s => console.log(s.message))) process.exit(1);'
+   ```
+
+   Run this preparation before `npm test` on that fresh host. It downloads a tool into the configured agent directory, not into Git, and needs no administrator access.
 
    All six stages must complete: Frame, Ask, Workspace, Tasks, harness and suite. Exactly one filesystem test is explicitly skipped on native Windows because Windows forbids newline filenames; portable Git integration and synthetic NUL-delimited newline parsing still run. Capture tests print unique output paths beneath the OS temporary directory. The packed-suite test invokes npm and the selected Pi JavaScript entry points directly, avoiding Windows `.cmd` execution assumptions.
 
