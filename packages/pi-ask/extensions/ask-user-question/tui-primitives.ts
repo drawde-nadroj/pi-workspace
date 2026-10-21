@@ -18,11 +18,18 @@ import {
 } from "@earendil-works/pi-tui";
 import { suggestionLabel, type AskAnswer, type AskOption } from "./domain.ts";
 
+// Pi 1.2 defers reverse video to the renderer. Keep the wire markers local so
+// this adapter also loads on older hosts without the new named exports.
+const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
+const FAKE_CURSOR_END = "\x1b_pi:/fc\x07";
+const nativeCursor = /^\x1b_pi:fc\x07([\s\S]*?)\x1b_pi:\/fc\x07/;
+const legacyCursor = /^\x1b\[7m([\s\S]*?)\x1b\[0m/;
+
 export function sanitizeDisplayText(text: string): string {
 	return text
 		.replace(/\r\n?/g, "\n")
 		.replace(/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, "")
-		.replace(/\x1B_[\s\S]*?\x1B\\/g, "")
+		.replace(/\x1B_[\s\S]*?(?:\x07|\x1B\\)/g, "")
 		.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
 		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ");
 }
@@ -34,12 +41,15 @@ export function sanitizeEditorDisplay(text: string): string {
 	if (markerIndex < 0) return sanitizeDisplayText(text);
 	const before = sanitizeDisplayText(text.slice(0, markerIndex));
 	const after = text.slice(markerIndex + CURSOR_MARKER.length);
-	// Editor.render owns this exact reverse-video pair immediately after its
-	// marker. Preserve that cursor only, not arbitrary SGR or terminal commands
-	// from input. Retaining the marker alone makes the visual cursor invisible.
-	const cursor = /^\x1b\[7m([\s\S]*?)\x1b\[0m/.exec(after);
+	// Preserve only the editor-owned cursor immediately after its IME marker.
+	// Pi 1.2 resolves this wrapper according to the hardware-cursor setting;
+	// converting it to ANSI here would reintroduce a competing software cursor.
+	const modern = nativeCursor.exec(after);
+	const cursor = modern ?? legacyCursor.exec(after);
 	if (!cursor) return `${before}${CURSOR_MARKER}${sanitizeDisplayText(after)}`;
-	return `${before}${CURSOR_MARKER}\x1b[7m${sanitizeDisplayText(cursor[1])}\x1b[0m${sanitizeDisplayText(after.slice(cursor[0].length))}`;
+	const cell = sanitizeDisplayText(cursor[1]);
+	const visual = modern ? `${FAKE_CURSOR_START}${cell}${FAKE_CURSOR_END}` : `\x1b[7m${cell}\x1b[0m`;
+	return `${before}${CURSOR_MARKER}${visual}${sanitizeDisplayText(after.slice(cursor[0].length))}`;
 }
 
 export function renderOptionalNote(
@@ -78,7 +88,7 @@ export function renderOptionalNote(
 }
 
 function scrubCursorMarkers(text: string): string {
-	return text.replaceAll(CURSOR_MARKER, "");
+	return text.replaceAll(CURSOR_MARKER, "").replaceAll(FAKE_CURSOR_START, "").replaceAll(FAKE_CURSOR_END, "");
 }
 
 /** Keep marker provenance at the shared editable-input boundary. */
@@ -120,9 +130,11 @@ export class SafeEditor extends Editor {
 		return lines.map((line) => {
 			const markerIndex = line.indexOf(CURSOR_MARKER);
 			if (markerIndex < 0) return truncateToWidth(line, renderWidth, "");
-			const cursor = /^\x1b\[7m([\s\S]*?)\x1b\[0m/.exec(line.slice(markerIndex + CURSOR_MARKER.length));
+			const after = line.slice(markerIndex + CURSOR_MARKER.length);
+			const modern = nativeCursor.exec(after);
+			const cursor = modern ?? legacyCursor.exec(after);
 			const cell = cursor && visibleWidth(cursor[1]) <= renderWidth ? cursor[1] : " ";
-			return `${CURSOR_MARKER}\x1b[7m${cell}\x1b[0m`;
+			return modern ? `${CURSOR_MARKER}${FAKE_CURSOR_START}${cell}${FAKE_CURSOR_END}` : `${CURSOR_MARKER}\x1b[7m${cell}\x1b[0m`;
 		});
 	}
 

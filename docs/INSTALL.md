@@ -1,6 +1,6 @@
 # Install and maintain the local suite
 
-Use this guide to install this checkout on a computer with a compatible **Pi 1.0 host**, Node.js, npm and Git. Repository access may require authentication. The root is an npm-private local Pi package, not a published npm release.
+Use this guide to install this checkout on a computer with a compatible **Pi 1.3.0 host**, Node.js, npm and Git. Repository access may require authentication. The root is an npm-private local Pi package, not a published npm release.
 
 Extensions execute in Pi's process with its OS access. Review source before installing. This guide does not configure providers, copy credentials or reproduce an entire personal Pi environment.
 

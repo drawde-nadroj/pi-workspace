@@ -4,7 +4,7 @@ Use this guide from the **suite repository root**. For user installation, follow
 
 ## Test environment
 
-Install a compatible Pi 1.0 host, Node.js and npm before `npm ci`. Root tests normally discover `~/.pi/agent/install`. If the host lives elsewhere, set `PI_WORKSPACE_HOST_MODULES` and `PI_ASK_HOST_MODULES` (`PI_HOME_HOST_MODULES` remains a compatibility fallback) to that host's `node_modules` directory. Frame additionally honors `PI_FRAME_HOST_MODULES`, then Workspace/Ask overrides. These paths select test dependencies; they do not install Pi or copy credentials. Workspace/Vim integration tests use the checkout's pinned `pi-vim` development dependency, not your live Vim installation.
+Install a compatible Pi 1.3.0 host, Node.js and npm before `npm ci`. Root tests normally discover `~/.pi/agent/install`. If the host lives elsewhere, set `PI_WORKSPACE_HOST_MODULES` and `PI_ASK_HOST_MODULES` (`PI_HOME_HOST_MODULES` remains a compatibility fallback) to that host's `node_modules` directory. Frame additionally honors `PI_FRAME_HOST_MODULES`, then Workspace/Ask overrides. These paths select test dependencies; they do not install Pi or copy credentials. Workspace/Vim integration tests use the checkout's pinned `pi-vim` development dependency, not your live Vim installation.
 
 ```sh
 npm ci

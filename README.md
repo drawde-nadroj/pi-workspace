@@ -27,7 +27,7 @@ The [documentation index](docs/README.md) connects practical guides, reference, 
 
 ## Install on another computer
 
-Use a compatible **Pi 1.0 host**, Node.js, npm and Git. Install the checkout's locked dependencies before registering its root as one local Pi package. The [installation guide](docs/INSTALL.md) provides the commands, duplicate-loading cautions and update/removal paths.
+Use a compatible **Pi 1.3.0 host**, Node.js, npm and Git. Install the checkout's locked dependencies before registering its root as one local Pi package. The [installation guide](docs/INSTALL.md) provides the commands, duplicate-loading cautions and update/removal paths.
 
 Pi loads local source directly; it does not install dependencies or copy the checkout. Keep the directory in place. **Start a fresh Pi process** after package/export or imported-module changes; `/reload` can retain dependencies.
 

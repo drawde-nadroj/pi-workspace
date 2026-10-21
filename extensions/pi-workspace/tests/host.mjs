@@ -21,4 +21,7 @@ export const { visibleWidth, CURSOR_MARKER, setKeybindings, colorToRgb, colorToO
 initTheme("dark", false);
 export const kb = new KeybindingsManager();
 setKeybindings(kb);
-export const plain = (s) => stripVTControlCharacters(s.replaceAll(CURSOR_MARKER, ""));
+// Node's ANSI stripper does not consume Pi's BEL-terminated APC cursor markers.
+// Strip only these host-owned zero-width markers before asserting visible text.
+export const plain = (s) => stripVTControlCharacters(s.replaceAll(CURSOR_MARKER, "")
+  .replaceAll("\x1b_pi:fc\x07", "").replaceAll("\x1b_pi:/fc\x07", ""));

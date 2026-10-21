@@ -40,7 +40,7 @@ test("fresh batch can regenerate without answering; posted forms cannot silently
   let result: any;
   const c = new TabbedQuestions(questions, tui, theme, getKeybindings(), value => { result = value; });
   assert.match(c.render(80).join("\n"), /Ctrl\+R Regenerate/);
-  assert.ok(c.getMoreActions().some(action => action.hint === "Ctrl+R"));
+  assert.ok(c.getMoreActions().some(action => "hint" in action && action.hint === "Ctrl+R"));
   c.handleInput("\x12");
   assert.equal(result.action, "regenerate");
   assert.equal(result.answers[0].answer, null);

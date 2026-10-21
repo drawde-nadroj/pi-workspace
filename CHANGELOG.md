@@ -6,6 +6,8 @@ This file records source-workspace increments. It is not a published-release ann
 
 ### Current pending source work
 
+- Aligned the development dependency lock and installation guidance with Pi 1.3.0 while retaining host-provided wildcard peers. Ask preserves renderer-owned fake-cursor markers and strips injected markers; cursor regressions cover software/hardware modes. Workspace fixtures strip zero-width cursor wrappers and finish native Codemode partial-result lifecycles so elapsed-time intervals cannot keep tests alive. Narrowed the regeneration test's action union for TypeScript.
+
 - Retired the active Home name: Workspace now owns the session UI runtime, transcript adapters, dock and shared appearance editor; Composer owns `/composer` controls and compatible operational preferences. The suite loads `extensions/pi-workspace/index.ts`; `/home` is no longer registered. Legacy preference/session/protocol identifiers remain readable without an automatic live migration.
 - Fixed `/new` teardown: disposed mounts and temporary previews become inert before session context invalidation, native/Vim adapters restore synchronously, and the paint guard restores the actual renderer through Pi's forwarding TUI reference instead of accumulating wrappers. Regression, strict type, package and isolated real-Pi transition evidence is recorded in `docs/ACCEPTANCE.md`.
 

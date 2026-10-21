@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { writeFileSync } from "node:fs";
@@ -15,9 +15,17 @@ definitions.codemode = codemodeRenderers;
 let id = 0;
 const output = (node, width = 90) => node.render(width).map(plain).join("\n");
 const textResult = (text, details) => ({ content: [{ type: "text", text }], details, isError: false });
+const pendingNodes = new Set();
+afterEach(() => {
+  // Native Codemode now owns an elapsed-time interval during partial results.
+  // Finish fixture lifecycles, including tests that intentionally end mid-stream.
+  for (const node of pendingNodes) node.updateResult(node.result ?? textResult("Fixture finished"), false);
+  pendingNodes.clear();
+});
 function fixture(name, args, result, definition = definitions[name], selectedTheme = theme, presentation = () => undefined) {
   const root = new Container();
   const node = new ToolExecutionComponent(name, `test-${++id}`, args, { showImages: false }, definition, { requestRender() {} }, "/tmp");
+  pendingNodes.add(node);
   if (result) node.updateResult(result);
   root.addChild(node);
   const blocks = new ActivityBlocks(() => selectedTheme, () => {}, () => 'semantic', () => false, presentation);

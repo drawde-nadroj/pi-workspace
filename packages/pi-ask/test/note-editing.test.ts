@@ -22,7 +22,7 @@ function cursorCount(lines: string[]): number {
 }
 function assertCursor(lines: string[], width: number, rows?: number) {
 	assert.equal(cursorCount(lines), 1, "only the active editor owns the hardware cursor");
-	assert.match(lines.join("\n"), /\x1b\[7m[^]*?\x1b\[0m/, "the inverse-video cursor must remain visible");
+	assert.match(lines.join("\n"), /(?:\x1b\[7m[^]*?\x1b\[0m|\x1b_pi:fc\x07[^]*?\x1b_pi:\/fc\x07)/, "the editor retains its visual cursor for the host to render");
 	for (const line of lines) assert.ok(visibleWidth(line) <= width, `line exceeds ${width} columns: ${sanitizeDisplayText(line)}`);
 	if (rows !== undefined) assert.ok(lines.length <= rows, "frame fits terminal height");
 }
@@ -56,7 +56,19 @@ function stage(component: any, mode: QuestionDef["mode"]) {
 	component.handleInput(mode === "text" ? "Primary answer" : mode === "single-select" ? keys.enter : " ");
 }
 
-// These assertions cover the visual ANSI cursor, not just a zero-width marker.
+// Cover both legacy ANSI and Pi 1.2 renderer-owned cursors, not just the IME marker.
+test("cursor sanitization preserves trusted wrappers and scrubs injected markers", () => {
+	const start = "\x1b_pi:fc\x07", end = "\x1b_pi:/fc\x07";
+	assert.equal(sanitizeEditorDisplay(`${CURSOR_MARKER}${start}界${end}`), `${CURSOR_MARKER}${start}界${end}`);
+	assert.equal(sanitizeEditorDisplay(`${CURSOR_MARKER}\x1b[7mX\x1b[0m`), `${CURSOR_MARKER}\x1b[7mX\x1b[0m`);
+	assert.equal(sanitizeDisplayText(`${start}plain${end}`), "plain");
+	const editor = createQuestionEditor(runtime(), theme);
+	editor.setText(`${CURSOR_MARKER}${start}untrusted${end}`);
+	assert.equal(editor.getText(), "untrusted");
+	editor.insertTextAtCursor(`${start}insert${end}`);
+	editor.handleInput(`${start}typed${end}`);
+	assert.ok(!editor.getText().includes("\x1b_pi:"));
+});
 test("sanitizer preserves only the focused editor's generated cursor", () => {
 	const editor = createQuestionEditor(runtime(), theme);
 	editor.setText(`ab${CURSOR_MARKER}cd\x1b[31mred\x1b[0m\x1b[2J`);
@@ -277,8 +289,18 @@ for (const Renderer of [TuiMainScreen, TuiAltScreen]) {
 			input(keys.enter);
 			input("A visible note");
 			tui.renderNow(true);
-			assert.match(writes.join(""), /\x1b\[7m \x1b\[0m/, "cursor remains visible with hardware cursor disabled");
+			assert.match(writes.join(""), /\x1b\[7m \x1b\[(?:0|27)m/, "cursor remains visible with hardware cursor disabled");
 			assert.ok(!writes.join("").includes(CURSOR_MARKER), "Pi consumes the positioning marker before terminal output");
+			assert.ok(!writes.join("").includes("_pi:fc"), "Pi consumes the fake cursor markers too");
+			// Pi 1.2 owns suppression of the software cursor when hardware is on.
+			if (component.render(80).join("").includes("\x1b_pi:fc\x07")) {
+				tui.setShowHardwareCursor(true);
+				writes.length = 0;
+				tui.renderNow(true);
+				assert.ok(!writes.join("").includes("\x1b[7m"), "hardware mode does not draw a second cursor");
+				assert.ok(!writes.join("").includes("_pi:"), "no cursor protocol leaks into terminal output");
+				tui.setShowHardwareCursor(false);
+			}
 			input(keys.clear);
 			input(keys.tab);
 			input(keys.enter);

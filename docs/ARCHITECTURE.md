@@ -16,7 +16,7 @@ Ask question surface ──> package-local Frame loader ──> Frame
 - **Ask** (`packages/pi-ask`) owns the question tools, answer semantics, custom input, focus, versioned visual parser and synthetic shell preview. It reads the `ask` visual section of `pi-workspace.json` (or legacy `pi-footer.json`) once on opening a question, using the old `questionLabels` value only when no section is saved; it works without Workspace.
 - **Shared adapters** (`lib/`) hold the versioned Workspace/Tasks dock event protocol, shared task frame, and local Frame reload adapter. Ask has a package-local reload adapter so it can remain independently installed.
 
-Pi's public extension/TUI APIs and host-provided packages are the foundation. Workspace's Pi 1.0 transcript adapters also use guarded native internals; recheck them after host upgrades. Keep the native editor, Vim instance, draft, IME cursor, mouse selection and tool execution independent of visual styling. Support non-TUI modes without starting visual timers.
+Pi 1.3.0 is the current verification baseline; Ask's development host dependencies are pinned to that release while runtime host peers remain `*` per Pi's package contract. Ask preserves the renderer-owned fake-cursor protocol introduced in Pi 1.2, including hardware-cursor suppression, and strips input-supplied cursor markers. Pi's public extension/TUI APIs and host-provided packages are the foundation. Workspace's Pi 1.0 transcript adapters also use guarded native internals; recheck them after host upgrades. Keep the native editor, Vim instance, draft, IME cursor, mouse selection and tool execution independent of visual styling. Support non-TUI modes without starting visual timers.
 
 ## Glanceable activity ownership
 

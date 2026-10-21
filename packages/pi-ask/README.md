@@ -328,7 +328,7 @@ Question text, answer text, notes, and clarification requests become tool result
 
 ## Compatibility
 
-The package uses the current Pi extension API and declares `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox` as peer dependencies with `*`, as recommended for Pi packages. It is intended for current Pi releases and terminals that support the displayed key sequences. Older Pi/TUI versions are not tested.
+The package uses the current Pi extension API and declares `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox` as peer dependencies with `*`, as recommended for Pi packages. The development dependencies pin Pi 1.3.0, the current verification baseline. Ask preserves Pi's renderer-owned cursor markers so hardware-cursor mode does not draw a second software cursor. Terminals must support the displayed key sequences; older Pi/TUI versions are not tested.
 
 ## Optional herdr interoperability
 
