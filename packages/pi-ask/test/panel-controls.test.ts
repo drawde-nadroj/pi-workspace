@@ -4,7 +4,7 @@ import { CURSOR_MARKER, TuiMainScreen, getKeybindings, visibleWidth } from "@ear
 import { stripVTControlCharacters } from "node:util";
 import { TabbedQuestions } from "../extensions/ask-user-question/batch-ui.ts";
 import { frameQuestion, questionViewport } from "../extensions/ask-user-question/question-surface.ts";
-import { askText } from "../extensions/ask-user-question/standalone-ui.ts";
+import { askMultiChoice, askSingleChoice, askText } from "../extensions/ask-user-question/standalone-ui.ts";
 import { sanitizeDisplayText } from "../extensions/ask-user-question/tui-primitives.ts";
 import { savedAskAppearance } from "../extensions/ask-user-question/appearance.ts";
 import type { QuestionDef } from "../extensions/ask-user-question/domain.ts";
@@ -20,7 +20,7 @@ const theme = {
 	bg(_role: string, text: string) { return text; },
 	bold(text: string) { return text; },
 };
-const keys = { enter: "\r", tab: "\t", escape: "\x1b", clear: "\x03", f2: "\x1bOQ", pageUp: "\x1b[5~", pageDown: "\x1b[6~", plus: "+", newline: "\x1b[13;2u", altUp: "\x1b[1;3A", altDown: "\x1b[1;3B" };
+const keys = { enter: "\r", tab: "\t", escape: "\x1b", clear: "\x03", f2: "\x1bOQ", pageUp: "\x1b[5~", pageDown: "\x1b[6~", plus: "+", newline: "\x1b[13;2u", altUp: "\x1b[1;3A", altDown: "\x1b[1;3B", clarify: "\x1b[47;5u" };
 const single: QuestionDef = { question: "Which release boundary?", label: "Boundary", mode: "single-select", options: [{ label: "First option", value: "first" }, { label: "Second option", value: "second" }] };
 const freeText: QuestionDef = { question: "Why this one?", label: "Reason", mode: "text", options: [] };
 const other = "3"; // Two options put "Something else" on row three.
@@ -297,6 +297,41 @@ test("a pending confirmation owns F2, the menu and the pin", () => {
 	stuck.shell.handleInput("n");
 	ensurePinned(stuck.shell);
 });
+
+for (const [mode, ask] of [["text", askText], ["single-select", askSingleChoice], ["multi-select", askMultiChoice]] as const) {
+	test(`standalone ${mode}: a retained clarification draft is not lost without asking`, async () => {
+		let panel: any;
+		let release: (value: unknown) => void = () => {};
+		const opened = new Promise(resolve => { release = resolve; });
+		const tui = { terminal: { rows: 40 }, requestRender() {} };
+		const ctx: any = { cwd: process.cwd(), ui: { custom(make: any) {
+			panel = make(tui, theme, getKeybindings(), release);
+			panel.focused = true;
+			return opened;
+		} } };
+		const options = [{ label: "First option", value: "first" }, { label: "Second option", value: "second" }];
+		const pending = ask === askText ? askText(ctx, "Which scope?", undefined)
+			: ask === askSingleChoice ? askSingleChoice(ctx, "Which scope?", undefined, options)
+				: askMultiChoice(ctx, "Which scope?", undefined, options);
+		const view = () => sanitizeDisplayText(panel.render(80).join("\n"));
+
+		panel.handleInput(keys.clarify);
+		assert.match(view(), /What are you wondering about\?/);
+		panel.handleInput("Is publishing in scope?");
+		panel.handleInput(keys.escape); // Back to the answer; the draft stays in the editor.
+		panel.handleInput(keys.escape);
+		assert.match(view(), /Discard 1 clarification draft and close\?/, "a retained clarification draft asks before it is dropped");
+
+		panel.handleInput("n");
+		assert.doesNotMatch(view(), /Discard 1 clarification draft/, "N keeps editing");
+		panel.handleInput(keys.clarify);
+		assert.match(view(), /Is publishing in scope\?/, "the draft survives, so closing must not drop it silently");
+		panel.handleInput(keys.escape); // Back to the answer.
+		panel.handleInput(keys.escape); // Ask again.
+		panel.handleInput(keys.escape); // Confirm.
+		assert.equal(await pending, null);
+	});
+}
 
 const many: QuestionDef = { question: "Pick a workspace", label: "Workspace", mode: "single-select",
 	options: ["First option", "Second option", "Third option", "Fourth option", "Fifth option", "Sixth option"].map(label => ({ label, value: label.toLowerCase() })) };

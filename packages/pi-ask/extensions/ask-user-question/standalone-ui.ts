@@ -32,6 +32,8 @@ function createClarificationEditor(tui: any, theme: any, done: (result: Clarific
 	let feedback = "";
 	return {
 		get active() { return active; },
+		/** Text typed and then left with Escape; it reappears on reopen, so closing may lose it. */
+		text() { return editor.getExpandedText().trim(); },
 		setFocused(focused: boolean) { editor.focused = focused && active; },
 		open() { active = true; feedback = ""; setUnderlyingFocus(false); editor.focused = true; tui.requestRender(); },
 		render(width: number) {
@@ -84,7 +86,7 @@ export function askText(
 
 		/** Nothing typed means nothing to lose: that close is immediate. */
 		function hasWork(): boolean {
-			return Boolean(answerEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+			return Boolean(answerEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim() || clarification.text());
 		}
 
 		function requestDismiss(): void {
@@ -160,6 +162,7 @@ export function askText(
 					renderDismissBanner(lines, width, theme, countSummary([
 						{ count: answerEditor.getExpandedText().trim() ? 1 : 0, one: "answer", many: "answers" },
 						{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+						{ count: clarification.text() ? 1 : 0, one: "clarification draft", many: "clarification drafts" },
 					]));
 				} else {
 					const tokens: HintToken[] = noteFocused
@@ -275,9 +278,9 @@ export function askSingleChoice(
 
 		function invalidate(): void { cachedLines = undefined; }
 		function finish(answer: AskAnswer): void { done({ answer, note: noteEditor.getExpandedText() }); }
-		/** Any staged choice, custom draft or note is real work worth confirming. */
+		/** Any staged choice, custom draft, note or clarification is real work worth confirming. */
 		function hasWork(): boolean {
-			return Boolean(stagedAnswer || otherEditorValue.trim() || editor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+			return Boolean(stagedAnswer || otherEditorValue.trim() || editor.getExpandedText().trim() || noteEditor.getExpandedText().trim() || clarification.text());
 		}
 		function requestDismiss(): void {
 			if (!hasWork()) return done(null);
@@ -300,6 +303,7 @@ export function askSingleChoice(
 				{ count: stagedAnswer ? 1 : 0, one: "answer", many: "answers" },
 				{ count: custom ? 1 : 0, one: "custom answer", many: "custom answers" },
 				{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+				{ count: clarification.text() ? 1 : 0, one: "clarification draft", many: "clarification drafts" },
 			]);
 		}
 		function focusNote(): void {
@@ -547,9 +551,9 @@ export function askMultiChoice(
 			}
 			done({ answer: sortAnswers(Array.from(selected.values())), note: noteEditor.getExpandedText() });
 		}
-		/** Any checked choice, custom draft or note is real work worth confirming. */
+		/** Any checked choice, custom draft, note or clarification is real work worth confirming. */
 		function hasWork(): boolean {
-			return selected.size > 0 || Boolean(otherText.trim() || otherEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim());
+			return selected.size > 0 || Boolean(otherText.trim() || otherEditor.getExpandedText().trim() || noteEditor.getExpandedText().trim() || clarification.text());
 		}
 		function requestDismiss(): void {
 			if (!hasWork()) return done(null);
@@ -573,6 +577,7 @@ export function askMultiChoice(
 				{ count: selected.has("other") ? selected.size - 1 : selected.size, one: "answer", many: "answers" },
 				{ count: custom ? 1 : 0, one: "custom answer", many: "custom answers" },
 				{ count: noteEditor.getExpandedText().trim() ? 1 : 0, one: "note", many: "notes" },
+				{ count: clarification.text() ? 1 : 0, one: "clarification draft", many: "clarification drafts" },
 			]);
 		}
 		function focusNote(): void {
