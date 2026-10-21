@@ -37,6 +37,7 @@ export function registerWorkspaceAppearance(pi: ExtensionAPI, workspace: Workspa
   let timer: ReturnType<typeof setInterval> | undefined;
   let git: GitState | undefined, gitUnavailable = false, lastGitAt = 0;
   let gitJob: AbortController | undefined, generation = 0, pickerOpen = false;
+  const gitProcesses = new Set<Promise<void>>();
   let pickerAbort: AbortController | undefined, pickerBaseline: FooterPrefs | undefined;
   const cancelPicker = () => {
     if (pickerBaseline) { prefs = pickerBaseline; workspace.layout = prefs; }
@@ -108,7 +109,7 @@ export function registerWorkspaceAppearance(pi: ExtensionAPI, workspace: Workspa
     if (!ctx || prefs.git === "off" || gitJob || (!force && Date.now() - lastGitAt < 10000)) return;
     lastGitAt = Date.now();
     const gen = generation, cwd = ctx.cwd, job = new AbortController(); gitJob = job;
-    execFile("git", ["--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
+    const child = execFile("git", ["--no-optional-locks", "-C", cwd, "status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"],
       { timeout: 3000, maxBuffer: 2 * 1024 * 1024, encoding: "utf8", signal: job.signal, env: { ...process.env, LC_ALL: "C", GIT_OPTIONAL_LOCKS: "0" } },
       (error, stdout, stderr) => {
         if (gitJob === job) gitJob = undefined;
@@ -117,6 +118,11 @@ export function registerWorkspaceAppearance(pi: ExtensionAPI, workspace: Workspa
         else { git = parseGit(stdout); gitUnavailable = false; }
         refresh();
       });
+    // Abort reports an error before Windows necessarily releases the cwd handle.
+    // Wait for actual process/stdio closure at shutdown, not just the callback.
+    const closed = new Promise<void>(resolve => child.once("close", () => resolve()));
+    gitProcesses.add(closed);
+    void closed.then(() => gitProcesses.delete(closed));
   }
   function restore(context: ExtensionContext) {
     let value: unknown;
@@ -203,7 +209,11 @@ export function registerWorkspaceAppearance(pi: ExtensionAPI, workspace: Workspa
     install(context); pollGit(true);
     wake();
   });
-  pi.on("session_shutdown", () => { if (clock.running) persist(); stop(); });
+  pi.on("session_shutdown", async () => {
+    if (clock.running) persist();
+    stop(); // Detach UI synchronously before waiting for child handles.
+    await Promise.all([...gitProcesses]);
+  });
   pi.on("session_tree", (_event, context) => {
     if (context.mode !== "tui") return;
     generation++; cancelPicker(); gitJob?.abort(); gitJob = undefined;

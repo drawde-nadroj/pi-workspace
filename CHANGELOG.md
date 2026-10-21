@@ -6,6 +6,9 @@ This file records source-workspace increments. It is not a published-release ann
 
 ### Current pending source work
 
+- Added Windows/Linux/macOS CI at Node.js 22.23.2, npm 10.9.8 and Pi 1.3.0, plus a non-admin Windows Git Bash installation and interactive smoke-test guide. Loader fixtures use Windows junctions, path filters accept both separators, captures use unique OS temp directories, and only the unrepresentable newline-filename filesystem case is skipped on Windows. Footer shutdown waits for Git child handles to close; cleanup uses bounded retries. Packed-suite tests invoke npm/Pi JavaScript entry points without Windows shell-shim assumptions.
+- Diagnosed the five Vim undo failures as pi-vim 0.14.2's hard-coded Ctrl+- dispatch versus Pi's Windows Ctrl+Z default. Documented an explicit user-keybinding alias and applied it in integration fixtures without weakening preservation assertions; a separate undecorated-editor regression reproduces the upstream failure and verifies recovery using the same history. No live keybindings or upstream Vim source are modified.
+
 - Aligned the development dependency lock and installation guidance with Pi 1.3.0 while retaining host-provided wildcard peers. Ask preserves renderer-owned fake-cursor markers and strips injected markers; cursor regressions cover software/hardware modes. Workspace fixtures strip zero-width cursor wrappers and finish native Codemode partial-result lifecycles so elapsed-time intervals cannot keep tests alive. Narrowed the regeneration test's action union for TypeScript.
 
 - Retired the active Home name: Workspace now owns the session UI runtime, transcript adapters, dock and shared appearance editor; Composer owns `/composer` controls and compatible operational preferences. The suite loads `extensions/pi-workspace/index.ts`; `/home` is no longer registered. Legacy preference/session/protocol identifiers remain readable without an automatic live migration.

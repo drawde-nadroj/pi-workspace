@@ -79,11 +79,28 @@ test("real Git fixtures: filenames, rename records, untracked files and ahead/be
     git("branch", "upstream"); git("branch", "--set-upstream-to", "upstream");
     writeFileSync(join(dir, "file"), "two\n"); git("commit", "-am", "second");
     git("mv", "file", "new name"); writeFileSync(join(dir, "new name"), "three\n");
-    mkdirSync(join(dir, "newdir")); writeFileSync(join(dir, "newdir", "a"), "x"); writeFileSync(join(dir, "newdir", "b\nline"), "x");
+    mkdirSync(join(dir, "newdir")); writeFileSync(join(dir, "newdir", "a"), "x"); writeFileSync(join(dir, "newdir", "b space 界面"), "x");
     const g = parseGit(git("status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"));
     assert.equal(g.staged, 1); assert.equal(g.changed, 1); assert.equal(g.untracked, 2); assert.equal(g.ahead, 1); assert.equal(g.behind, 0);
     git("checkout", "--detach"); assert.match(parseGit(git("status", "--porcelain=v2", "--branch", "-z")).branch, /^@[a-f0-9]{7}$/);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+test("Git newline filename on filesystems that support it", {
+  skip: process.platform === "win32" ? "Windows forbids control characters in filenames; NUL parser coverage runs separately" : false,
+}, () => {
+  const dir = mkdtempSync(join(tmpdir(), "pi-footer-newline-"));
+  try {
+    execFileSync("git", ["init", dir]);
+    writeFileSync(join(dir, "b\nline"), "x");
+    const status = execFileSync("git", ["-C", dir, "status", "--porcelain=v2", "-z", "--untracked-files=all"], { encoding: "utf8" });
+    assert.ok(status.includes("b\nline\0"));
+    assert.equal(parseGit(status).untracked, 1);
+  } finally { rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+test("Git NUL parser preserves newline filenames on every platform", () => {
+  assert.equal(parseGit("? b\nline\0? ordinary\0").untracked, 2);
 });
 
 test("activity counts whole runs, pauses nested user dialogs, and never invents resumed gaps", () => {
@@ -193,7 +210,7 @@ async function harness(mode = "tui") {
       while (!panel && Date.now() < deadline) await wait(1);
       assert.ok(panel, `Workspace panel did not open: ${JSON.stringify(notifications)}`);
     },
-    async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(scratch, { recursive: true, force: true }); },
+    async close() { resolver?.(undefined); await emit("session_shutdown"); if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previous; rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); },
   };
 }
 

@@ -2,6 +2,10 @@
 
 **Current state:** `~/.pi/agent/settings.json` loads `/Users/jordan/code/pi-workspace`. The old personal `~/.pi/agent/extensions/pi-home/` was deleted at the user's request and its exclusion removed; the old personal Tasks directory and its exclusion remain. No new backup was made for this cleanup. The migration steps below describe the **2026-10-09 historical switch**, not current settings or an executable rollback. Start a fresh Pi process after settings changes; do not load both generations concurrently.
 
+## Pi 1.3.0 and Windows compatibility
+
+The development lock now selects Pi 1.3.0. Windows portability changes affect test fixtures, the packed CLI smoke test and Git-child shutdown; they do not migrate personal settings, appearance files or sessions. Optional pi-vim 0.14.2 needs an explicit user undo-key alias on Windows/WSL as described in [installation](INSTALL.md#optional-pi-vim-0142-on-windows). The suite never writes that alias automatically. Existing users should update the checkout, run `npm ci` and the full test pipeline, then start a fresh Pi process.
+
 ## Home name retirement and Workspace ownership
 
 The active suite now loads `extensions/pi-workspace/index.ts`, not `extensions/pi-home/index.ts`. `workspace-runtime.ts` owns session mounts, transcript adapters and the optional Tasks dock. `composer-controls.ts` owns `/composer`; `composer-preferences.ts` owns its operational preference reader/writer. `/workspace` and its single appearance transaction remain Workspace-owned. Tasks, Ask, Frame and optional Chronomancer keep their existing domain ownership and fallbacks. `/home` is retired, not a second registered alias.

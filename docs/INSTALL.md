@@ -32,6 +32,67 @@ Extensions execute in Pi's process with its OS access. Review source before inst
 
 Pi loads a local package from its resolved checkout path. It does **not** copy its files or install its dependency tree. Keep the directory and installed dependencies in place. CLI input paths resolve from the command's working directory; relative paths already recorded in settings resolve from that settings file. Using `"$PWD"` avoids that distinction during registration.
 
+## Native Windows: supported setup and smoke test
+
+The supported baseline is **Pi 1.3.0, Node.js 22.23.2 and npm 10.9.8**, with Git for Windows and a writable checkout on local NTFS. Pi requires Node.js 22.19.0 or newer; the suite's Windows CI pins 22.23.2 rather than claiming every newer major version is tested. WSL is a separate Linux environment: do not mix Windows Node with WSL dependencies.
+
+Use a normal, non-elevated Git Bash session. The suite does not require Administrator, Developer Mode or privileged symbolic links. Loader fixtures use directory junctions on Windows. Avoid protected installation directories and network shares; keep the checkout outside OneDrive or similar sync folders if they hold transient file locks.
+
+1. Install Pi 1.3.0 using your Pi installation method, and verify `pi --version`, `node --version`, `npm --version` and `git --version`. Install Git for Windows if Pi cannot find Bash.
+2. Clone and install as above. In Git Bash, select your actual Pi host directory using a Windows-compatible absolute path:
+
+   ```sh
+   export PI_WORKSPACE_HOST_MODULES="C:/Users/<user>/.pi/agent/install/releases/1.3.0/node_modules"
+   export PI_ASK_HOST_MODULES="$PI_WORKSPACE_HOST_MODULES"
+   export PI_FRAME_HOST_MODULES="$PI_WORKSPACE_HOST_MODULES"
+   npm ci
+   npm test
+   npm run typecheck --workspace=pi-ask
+   npm run pack:check
+   ```
+
+   Replace `<user>` and the installation path; npm-installed Pi may live elsewhere. For a reproducible test host without a separate managed installation, after `npm ci` all three variables may instead point to the checkout's `node_modules` (its lockfile contains Pi 1.3.0). These overrides select test dependencies, not your interactive Pi executable.
+
+   All six stages must complete: Frame, Ask, Workspace, Tasks, harness and suite. Exactly one filesystem test is explicitly skipped on native Windows because Windows forbids newline filenames; portable Git integration and synthetic NUL-delimited newline parsing still run. Capture tests print unique output paths beneath the OS temporary directory. The packed-suite test invokes npm and the selected Pi JavaScript entry points directly, avoiding Windows `.cmd` execution assumptions.
+
+3. Only after tests pass, register the suite in your personal Pi configuration:
+
+   ```sh
+   pi install "$(pwd -W)"
+   pi list
+   ```
+
+   `pwd -W` is Git Bash's Windows-form absolute checkout path. Register only the root, not Ask and Frame separately. This registration is an intentional personal configuration change; the tests use isolated temporary configuration instead.
+
+4. Start a fresh `pi` in Windows Terminal with Git Bash. For the first pass, use the native editor without optional Vim. Test regular mode and then fullscreen mode through Pi's own settings:
+   - Open `/workspace`; Tab through Input, Tasks, Ask and Transcript. Change one appearance value, use Undo, then Discard. Resize narrow/wide and check that keyboard navigation and the input cursor remain usable.
+   - Open `/tasks`; verify the empty state or existing plan, browse with the keyboard and close without editing it.
+   - Open `/questions`; verify the empty inbox or existing questions and close without submitting an answer.
+   - Type an unsent draft containing `hello 界面`. Use the app's keyboard paths to open and close a panel while preserving that draft; verify typing, cursor movement and native undo afterward. Do not send the draft merely to test styling.
+   - Run `/reload`, reopen all three commands, and check for duplicate UI or errors. Restart Pi once more to check cold loading.
+
+Opening an empty inbox tests registration/navigation, not question answering. For a fuller Ask smoke test, explicitly ask the agent to post a harmless test question; open it in `/questions`, type a note, return without submitting, reopen and check draft recovery. Submit only when you intend to add that test response to the session.
+
+### Optional pi-vim 0.14.2 on Windows
+
+Vim is **not required** for Workspace. Version 0.14.2 internally sends `Ctrl+-` for normal-mode `u`, while Pi 1.3.0 defaults to `Ctrl+Z` on Windows (`Alt+Z` on WSL). Without a matching alias, undo is a no-op even without Workspace; the history has not been erased.
+
+If using this Vim version, merge the following action into your existing `<agent-dir>/keybindings.json`, preserving other actions and any additional undo keys you need:
+
+```json
+{
+  "tui.editor.undo": ["ctrl+z", "ctrl+-"]
+}
+```
+
+On WSL retain `alt+z` instead of `ctrl+z`, which is reserved for suspend there. If another action uses `ctrl+-`, resolve that conflict before enabling this compatibility alias. Restart Pi or `/reload`. Workspace does not rewrite your keybindings, patch pi-vim internals or replace its editor. This is a supported configuration workaround for the upstream Vim limitation, not an upstream code fix.
+
+The integration tests use the same alias while retaining the five original undo-preservation assertions. A separate test reproduces the Windows default-key failure without Workspace and then verifies the alias restores undo from the existing history.
+
+With Vim enabled, type `one two 界面`, press Escape, `0`, `x`, then `u`; the entire original text must return. Repeat across opening/closing `/workspace` and after `/reload`. If it fails, check `/hotkeys` and the undo action before attributing the failure to decoration.
+
+CI checks automated behavior, not Windows Terminal rendering, IME positioning or actual human interaction. Keep the interactive smoke-test result separate from a green CI run.
+
 ## Update an existing checkout
 
 Before updating, preserve your own changes with your normal Git workflow; do not discard them to follow this guide.

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { writeFileSync } from "node:fs";
+import { writeCapture } from "./captures.mjs";
 import { jiti, source, root, theme, plain, visibleWidth } from "./host.mjs";
 const { ActivityBlocks, toolStateStyle } = await jiti.import(join(source, "activity-blocks.ts"));
 const { transcriptDefaults } = await jiti.import(join(source, "transcript-presentation.ts"));
@@ -318,7 +318,7 @@ test('representative actual-renderer captures at wide and narrow widths in compa
       for (const f of cases) f.node.setExpanded(expanded);
       return `WIDTH ${width} · ${expanded ? 'READABLE' : 'COMPACT'}\n` + cases.map(f => output(f.node,width)).join('\n\n');
     })).join('\n\n');
-    writeFileSync('/tmp/pi-readable-tool-captures.txt', captures);
+    writeCapture('pi-readable-tool-captures.txt', captures);
     assert.match(captures, /jordan/); assert.match(captures, /JSON records/); assert.doesNotMatch(captures, /Script completed|\\nreturn/);
   } finally { for (const f of cases) f.blocks.dispose(); }
 });

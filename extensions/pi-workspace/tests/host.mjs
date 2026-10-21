@@ -19,7 +19,12 @@ export const { initTheme, theme } = await import(pathToFileURL(join(host, "modes
 const { KeybindingsManager } = await import(pathToFileURL(join(host, "core/keybindings.js")));
 export const { visibleWidth, CURSOR_MARKER, setKeybindings, colorToRgb, colorToOklch } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));
 initTheme("dark", false);
-export const kb = new KeybindingsManager();
+// pi-vim 0.14.2 sends Ctrl+- internally for "u", independent of host defaults.
+// Match the documented optional-Vim setup without changing real user bindings.
+export const nativeKb = new KeybindingsManager();
+export const kb = new KeybindingsManager({
+  "tui.editor.undo": [...new Set([...nativeKb.getKeys("tui.editor.undo"), "ctrl+-"])],
+});
 setKeybindings(kb);
 // Node's ANSI stripper does not consume Pi's BEL-terminated APC cursor markers.
 // Strip only these host-owned zero-width markers before asserting visible text.

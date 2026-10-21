@@ -18,6 +18,12 @@ Ask question surface ──> package-local Frame loader ──> Frame
 
 Pi 1.3.0 is the current verification baseline; Ask's development host dependencies are pinned to that release while runtime host peers remain `*` per Pi's package contract. Ask preserves the renderer-owned fake-cursor protocol introduced in Pi 1.2, including hardware-cursor suppression, and strips input-supplied cursor markers. Pi's public extension/TUI APIs and host-provided packages are the foundation. Workspace's Pi 1.0 transcript adapters also use guarded native internals; recheck them after host upgrades. Keep the native editor, Vim instance, draft, IME cursor, mouse selection and tool execution independent of visual styling. Support non-TUI modes without starting visual timers.
 
+## Platform compatibility boundary
+
+The supported baseline is Pi 1.3.0 with Node.js 22.23.2; CI exercises Windows, Linux and macOS. Windows fixture links use junctions, captures use OS temporary directories, and the packed smoke test launches the selected host's JavaScript CLI rather than shell shims. Footer shutdown detaches UI synchronously, aborts Git polling and awaits actual child-process closure before returning. Bounded fixture cleanup retries handle residual filesystem locks.
+
+pi-vim 0.14.2 owns its hard-coded undo dispatch. The supported Windows setup adds a user-configured `ctrl+-` undo alias alongside `ctrl+z`; integration fixtures use that same configuration and separately reproduce the unconfigured upstream failure. Workspace does not own or silently change native keybindings, Vim undo state or the Vim implementation. See [installation](INSTALL.md#native-windows-supported-setup-and-smoke-test).
+
 ## Glanceable activity ownership
 
 Workspace owns `composer-ember.ts`, a deterministic five-cell status marker rendered by both Composer rail paths. Real tool-start events supply a coalesced transient response timestamp; the existing Workspace clock schedules redraws. No new timer, saved setting, native-input adapter or Frame behavior is introduced. Composer perimeter motion is retired; ordinary typing leaves the marker at normal strength, dialogs/motion-off stop it, and inactive states are static. Tool names yield before state text in narrow slots. `composer-title.ts` supplies the static session badge for default and configured layouts. It reuses the contrast-aware background painter without changing title data, configured foreground or placement. Input-rail rendering respects per-element weight rather than forcing all labels bold.

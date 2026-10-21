@@ -24,14 +24,14 @@ function fixture() {
   const workspace = join(temp, "extensions/pi-workspace");
   mkdirSync(pkg, { recursive: true });
   mkdirSync(join(temp, "node_modules/@earendil-works"), { recursive: true });
-  symlinkSync(pkg, join(temp, "node_modules/pi-embeddable-frame"));
-  symlinkSync(join(root, "@earendil-works/pi-tui"), join(temp, "node_modules/@earendil-works/pi-tui"));
-  cpSync(source, workspace, { recursive: true, filter: path => !path.includes(`${source}/tests`) });
+  symlinkSync(pkg, join(temp, "node_modules/pi-embeddable-frame"), process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(resolve(root, "@earendil-works/pi-tui"), join(temp, "node_modules/@earendil-works/pi-tui"), process.platform === "win32" ? "junction" : "dir");
+  cpSync(source, workspace, { recursive: true, filter: path => !path.startsWith(join(source, "tests")) });
   cpSync(resolve(source, "../../lib"), join(temp, "lib"), { recursive: true });
   for (const relative of ["extensions/pi-tasks", "packages/pi-ask"]) {
     const from = resolve(source, "../..", relative);
     cpSync(from, join(temp, relative), { recursive: true,
-      filter: path => !/\/(node_modules|tests?|\.git)(\/|$)/.test(path.slice(from.length)) });
+      filter: path => !/[/\\\\](node_modules|tests?|\.git)([/\\\\]|$)/.test(path.slice(from.length)) });
   }
   const install = () => {
     for (const file of ["package.json", ...manifest.files]) cpSync(join(frameSource, file), join(pkg, file));
@@ -114,7 +114,7 @@ for (const mode of ["cold", "require", "native", "require-bare", "native-bare", 
       if (cached) assert.doesNotMatch(cached.frameRail({ width: 140, center: "still legacy" }), /still legacy/,
         "fix must not mutate or evict unrelated module namespaces");
     }
-  } finally { rmSync(f.temp, { recursive: true, force: true }); }
+  } finally { rmSync(f.temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });
 
 for (const warm of [false, true]) test(`Workspace's presentation API loads with ${warm ? "a pre-upgrade module cached" : "a cold bundled loader"}`, async () => {
@@ -165,6 +165,6 @@ for (const warm of [false, true]) test(`Workspace's presentation API loads with 
   } finally {
     abort?.abort(); component?.dispose();
     // Native namespaces cannot be evicted, but never point to a real user's files.
-    rmSync(f.temp, { recursive: true, force: true });
+    rmSync(f.temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writeFileSync } from 'node:fs';
+import { writeCapture } from './captures.mjs';
 import { join } from 'node:path';
 import { jiti, source, theme, initTheme, plain, visibleWidth } from './host.mjs';
 import { workspace } from './workspace-harness.mjs';
@@ -214,7 +214,7 @@ test('representative task panel captures show real hierarchy at narrow/wide widt
       captures.push(`${appearance} · ${width} columns · ${name}`, ...taskPanelRows(theme, width, taskDemo(name), taskPanelDefaults(), frame(name, 1000), 7), '');
     }
   }
-  writeFileSync('/tmp/pi-task-presentation-captures.ansi', captures.join('\n'));
-  writeFileSync('/tmp/pi-task-presentation-captures.txt', captures.map(plain).join('\n'));
+  writeCapture('pi-task-presentation-captures.ansi', captures.join('\n'));
+  writeCapture('pi-task-presentation-captures.txt', captures.map(plain).join('\n'));
   initTheme('dark', false);
 });

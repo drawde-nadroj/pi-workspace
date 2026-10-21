@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
@@ -12,7 +12,12 @@ const hostModules = process.env.PI_WORKSPACE_HOST_MODULES || process.env.PI_HOME
 const loader = join(hostModules, "@earendil-works/pi-coding-agent/dist/core/extensions/loader.js");
 
 function command(file, args, options = {}) {
-  return execFileSync(file, args, { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, ...options });
+  // Execute JS entry points directly: Windows .cmd shims cannot be execFile'd.
+  // Use the selected host, not an unrelated "pi" on PATH.
+  const entry = file === "pi" ? join(hostModules, "@earendil-works/pi-coding-agent/dist/bundle/cli.js")
+    : file === "npm" ? process.env.npm_execpath : undefined;
+  assert.ok(entry, "Run this packaging test through npm run test:suite (npm_execpath required)");
+  return execFileSync(process.execPath, [entry, ...args], { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, ...options });
 }
 
 test("packed private suite loads its only three entry points in an isolated Pi directory", { timeout: 120_000 }, async () => {
@@ -43,7 +48,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
         if (!target || target.includes(":") || target.startsWith("/")) continue;
         checkedHelpLinks++;
         assert.ok(paths.some(file => join(suite, file) === resolve(suite, dirname(path), target) ||
-          join(suite, file).startsWith(resolve(suite, dirname(path), target) + "/")), `${path}: missing packed help ${target}`);
+          join(suite, file).startsWith(resolve(suite, dirname(path), target) + sep)), `${path}: missing packed help ${target}`);
       }
     }
     assert.ok(checkedHelpLinks > 0, "local help-link closure must not pass vacuously");
@@ -92,5 +97,5 @@ test("packed private suite loads its only three entry points in an isolated Pi d
       if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
       else process.env.PI_CODING_AGENT_DIR = previous;
     }
-  } finally { rmSync(sandbox, { recursive: true, force: true }); }
+  } finally { rmSync(sandbox, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

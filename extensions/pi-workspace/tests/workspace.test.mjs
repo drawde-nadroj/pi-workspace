@@ -28,7 +28,11 @@ const { visibleWidth, CURSOR_MARKER, setKeybindings } = await import(pathToFileU
 const { createEventBus } = await import(pathToFileURL(join(host, "core/event-bus.js")));
 const { loadExtensions } = await import(pathToFileURL(join(host, "core/extensions/loader.js")));
 initTheme("dark", false);
-const kb = new KeybindingsManager();
+// Same optional pi-vim compatibility alias documented in docs/INSTALL.md.
+const nativeKb = new KeybindingsManager();
+const kb = new KeybindingsManager({
+  "tui.editor.undo": [...new Set([...nativeKb.getKeys("tui.editor.undo"), "ctrl+-"])],
+});
 setKeybindings(kb);
 const plain = (s) => stripVTControlCharacters(s.replaceAll(CURSOR_MARKER, ""));
 const newState = () => ({ prefs: { ...DEFAULTS }, clock: new RunClock(), tools: new Map(), phase: "working", promptDepth: 0, compacting: false, lastInputAt: 0 });
@@ -281,7 +285,7 @@ async function harness(mode = "tui", savedComposerPrefs) {
     async close() {
       await emit("session_shutdown");
       if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousDir;
-      rmSync(scratch, { recursive: true, force: true });
+      rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
 }

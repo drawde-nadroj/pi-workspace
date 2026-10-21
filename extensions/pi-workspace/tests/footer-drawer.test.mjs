@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { join } from "node:path";
-import { writeFileSync } from "node:fs";
+import { writeCapture } from "./captures.mjs";
 import { pathToFileURL } from "node:url";
 import { root, plain } from "./host.mjs";
 import { workspace } from "./workspace-harness.mjs";
@@ -30,7 +30,7 @@ for (const Renderer of [TuiAltScreen, TuiMainScreen]) for (const history of [0, 
       assert.ok(note > 0 && draft > note && draft - note <= 3);
       assert.equal(handle.getBounds().col, 0); assert.equal(handle.getBounds().row, 0);
       assert.equal(handle.getBounds().width, columns); assert.equal(handle.getBounds().height, rows);
-      if (process.env.PI_FOOTER_SNAPSHOTS) writeFileSync(`/tmp/pi-footer-workspace-${columns}x${rows}.txt`, screen.join("\n") + "\n");
+      if (process.env.PI_FOOTER_SNAPSHOTS) writeCapture(`pi-footer-workspace-${Renderer.name}-${history}-${columns}x${rows}.txt`, screen.join("\n") + "\n");
     }
   } finally {
     h.panel.handleInput("\x13"); await h.pending; handle.hide(); tui.stop();

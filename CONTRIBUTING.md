@@ -15,6 +15,12 @@ npm run pack:check
 
 The root suite covers Frame, Ask, Workspace, Tasks, deterministic harness checks and isolated packed-suite loading. It excludes optional Chronomancer. `pack:check` is a dry run, not publication. The [acceptance record](docs/ACCEPTANCE.md) supplies exact historical commands/results and remaining physical/provider checks; do not turn them into a whole-repository typing or human-usability guarantee.
 
+## Windows CI and portability
+
+`.github/workflows/test.yml` runs the complete pipeline on Windows, Linux and macOS with Node.js 22.23.2, npm 10.9.8 and the locked Pi 1.3.0 host. No personal installation, credentials or administrator setup is needed. See the [Windows setup and smoke test](docs/INSTALL.md#native-windows-supported-setup-and-smoke-test) for Git Bash commands and the optional pi-vim undo alias.
+
+Use `os.tmpdir()` and unique directories for filesystem fixtures; captures print their paths. Directory-link fixtures use Windows junctions and absolute targets. Keep parser coverage platform-independent; skip only a specifically unrepresentable filesystem case with a reason. Shutdown must await child-process closure before deleting fixtures; bounded cleanup retries cover remaining transient locks, not running work. Do not change assertions to accept lost Vim history.
+
 ## Develop safely
 
 1. Clone outside `~/.pi`; do not copy the entire Pi agent directory into this repository.
