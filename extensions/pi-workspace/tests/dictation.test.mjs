@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { jiti, source, root, theme, plain, visibleWidth, kb as nativeKb } from "./host.mjs";
 
@@ -126,13 +127,19 @@ test("capture arguments and device hints follow each OS convention", () => {
 
   // Tool resolution refuses .cmd/.bat shims and honours explicit paths.
   assert.equal(findExecutable("/definitely/not/here", {}, "linux"), undefined);
-  assert.equal(findExecutable("/bin/sh", {}, "darwin"), "/bin/sh");
+  // The absolute-path fast path must work for the host running the test; never use a
+  // POSIX-only fixture such as /bin/sh, which does not exist on Windows.
+  assert.equal(findExecutable(process.execPath, {}, process.platform), process.execPath);
+  // Both separator branches reject a path that cannot exist on any platform.
+  assert.equal(findExecutable(join(tmpdir(), "no-such-tool.exe"), {}, "win32"), undefined);
   assert.equal(findExecutable("definitely-not-a-real-tool", process.env, "darwin"), undefined);
-  assert.equal(cacheDirectory("darwin", { XDG_CACHE_HOME: "/tmp/xdg" }), "/tmp/xdg/pi-dictation");
-  assert.equal(cacheDirectory("win32", { LOCALAPPDATA: "/tmp/local" }), "/tmp/local/pi-dictation");
+  // Expected paths are built by the same `join` the production code uses, so the
+  // assertion tests composition rather than the host's separator.
+  assert.equal(cacheDirectory("darwin", { XDG_CACHE_HOME: "/tmp/xdg" }), join("/tmp/xdg", "pi-dictation"));
+  assert.equal(cacheDirectory("win32", { LOCALAPPDATA: "/tmp/local" }), join("/tmp/local", "pi-dictation"));
   assert.equal(modelCandidates("darwin", { PI_DICTATION_MODEL: "/custom.bin" }, "/cache")[0], "/custom.bin");
-  assert.ok(modelCandidates("darwin", {}, "/cache").includes("/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin"));
-  assert.ok(!modelCandidates("linux", {}, "/cache").includes("/opt/homebrew/share/whisper-cpp/models/ggml-base.en.bin"));
+  assert.ok(modelCandidates("darwin", {}, "/cache").includes(join("/opt/homebrew/share/whisper-cpp/models", "ggml-base.en.bin")));
+  assert.ok(!modelCandidates("linux", {}, "/cache").includes(join("/opt/homebrew/share/whisper-cpp/models", "ggml-base.en.bin")));
   assert.match(MODEL_URL, /^https:\/\/huggingface\.co\/ggerganov\/whisper\.cpp\/.*ggml-base\.en\.bin$/);
 });
 
@@ -370,7 +377,6 @@ test("both editor wrappers route a rail click to the mic without taking focus", 
   const { ComposerEditor } = await jiti.import(join(source, "ui.ts"));
   const { dressComposerEditor } = await jiti.import(join(source, "composer-editor.ts"));
   const { getEditorTheme } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/modes/interactive/theme/theme.js")));
-  const { nativeKb } = await import(join(source, "tests/host.mjs"));
   let toggles = 0;
   const fake = { phase: () => "idle", label: icons => dictationLabel("idle", 0, 0, icons), toggle: () => { toggles++; return Promise.resolve(); } };
   const fullCtx = { ui: { theme }, sessionManager: { getSessionId: () => "s", getSessionName: () => "Alchemy" }, cwd: "/tmp/project", model: { name: "test-model" } };
