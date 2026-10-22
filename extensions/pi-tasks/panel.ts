@@ -274,7 +274,8 @@ export class TaskPanel implements Component {
       if (start + 2 > this.libraryTop + room) this.libraryTop = Math.max(0, start + 2 - room);
       this.libraryTop = Math.max(0, Math.min(this.libraryTop, Math.max(0, rows.length - room)));
       const body = rows.slice(this.libraryTop, this.libraryTop + room);
-      body.forEach((_, i) => { const plan = planRow.get(this.libraryTop + i); if (plan !== undefined) this.mouseRows.set(i + 2, plan); });
+      // finish() adds one top border: body[i] is screen line i + 1, so both plan rows are clickable.
+      body.forEach((_, i) => { const plan = planRow.get(this.libraryTop + i); if (plan !== undefined) this.mouseRows.set(i + 1, plan); });
       const bar = this.nav.searching ? [`Search: ${this.nav.query || 'type a title'}`, 'Enter keep', 'Esc clear'] : ['Enter open', '/ search', 'N new', 'Esc back'];
       return finish(body, [line(fitBar(bar, width), 'muted')]);
     }

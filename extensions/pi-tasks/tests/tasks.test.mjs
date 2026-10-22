@@ -1184,6 +1184,62 @@ test("panel help lists every key, F reveals completed work and the library group
   assert.doesNotMatch(panel.render(64).map(plain).join("\n"), /No plans match/);
 });
 
+test("work rows select by the clicked screen line, title or subline", () => {
+  let b = create(emptyBook(), "Click plan", ["Print", "Mail"]);
+  b = taskWrite(b, "t1", { status: "active" });
+  const nav = {};
+  const panel = new TaskPanel({ terminal: { rows: 24 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, nav);
+  const lines = panel.render(80).map(plain);
+  const title = lines.findIndex(line => line.includes("○ Mail"));
+  assert.notEqual(title, -1);
+  assert.ok(panel.handleMouse({ type: "click", button: "left", x: 2, y: title })?.handled);
+  assert.equal(nav.key, "t:t2", "the clicked title selects its task");
+  const subline = panel.render(80).map(plain).findIndex(line => line.includes("Paused"));
+  assert.notEqual(subline, -1);
+  assert.ok(panel.handleMouse({ type: "click", button: "left", x: 2, y: subline })?.handled);
+  assert.equal(nav.key, "t:t1", "the clicked subline selects its task");
+});
+
+test("library clicks resolve the clicked plan title and subline, including after scrolling", () => {
+  let b = emptyBook();
+  const ids = new Map();
+  for (let i = 1; i <= 12; i++) {
+    const title = `Photo set ${String(i).padStart(2, "0")}`;
+    b = create(b, title, [`Task ${i}`]);
+    ids.set(title, selectedPlan(b).id);
+  }
+  b = bookWrite(b, { op: "select", planId: "p4" }, "user");
+  const nav = { history: true };
+  const panel = new TaskPanel({ terminal: { rows: 12 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, nav);
+  const click = (y, title, row) => {
+    const handled = panel.handleMouse({ type: "click", button: "left", x: 2, y });
+    assert.ok(handled?.handled, `${title} ${row} at y=${y} was not clickable`);
+  };
+  // Coordinates come from the rendered screen, not from assumed offsets.
+  const openAt = (title, row = 0) => {
+    nav.history = true; nav.viewId = undefined; nav.planIndex = 0;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const lines = panel.render(80).map(plain);
+      const y = lines.findIndex((line, index) => index > 0 && index < lines.length - 2 && line.includes(title));
+      if (y >= 0) {
+        if (row) assert.match(lines[y + 1], /\d+ of \d+ done · /, `${title} has a progress subline`);
+        click(y + row, title, row ? "subline" : "title");
+        return nav.viewId;
+      }
+      panel.handleInput("\x1b[B");
+    }
+    assert.fail(`${title} never became visible`);
+  };
+  for (const title of ["Photo set 04", "Photo set 12"]) {
+    assert.equal(openAt(title), ids.get(title), `${title} title opens its own plan`);
+    assert.equal(openAt(title, 1), ids.get(title), `${title} subline opens its own plan`);
+  }
+  // Scroll to the end, then click coordinates from the scrolled screen.
+  for (let i = 0; i < 12; i++) panel.handleInput("\x1b[B");
+  assert.equal(openAt("Photo set 01"), ids.get("Photo set 01"), "scrolled title opens its own plan");
+  assert.equal(openAt("Photo set 01", 1), ids.get("Photo set 01"), "scrolled subline opens its own plan");
+});
+
 test("the panel action bar never clips at 64 columns; keyboard help is the only route to destructive keys", () => {
   let b = create(emptyBook(), "Narrow plan", ["One", "Two", "Three"]);
   const panel = new TaskPanel({ terminal: { rows: 24 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, {});
