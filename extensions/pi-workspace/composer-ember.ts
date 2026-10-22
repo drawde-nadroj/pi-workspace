@@ -136,7 +136,9 @@ export function emberMarker(theme: Theme, state: AppearanceState, workspace: Wor
   const moving = working.has(state) && shouldAnimate(workspace, now, workspace.editorFocused?.() ?? true);
   if (!moving) {
     const glyph = state === "done" ? "✓" : ["error", "waiting", "interrupted", "stopped"].includes(state) ? "!" : working.has(state) ? "●" : "○";
-    return theme.style(`    ${glyph}`, { fg: color, bold: true });
+    // Centre the single mark in the same five cells a scene fills, so idle and working
+    // states share one axis instead of the mark sliding to the label's edge.
+    return theme.style(`  ${glyph}  `, { fg: color, bold: true });
   }
   const elapsed = Math.max(0, now - workspace.clock.transitionAt), t = elapsed / 1000;
   const eventAge = workspace.activityEventAt === undefined ? Infinity : Math.max(0, now - workspace.activityEventAt);

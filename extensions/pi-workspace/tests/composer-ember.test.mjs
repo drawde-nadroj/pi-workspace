@@ -77,16 +77,16 @@ test('scenes stay bounded and visible after a long run', () => {
   }
 });
 
-test('static marks sit against the label inside the same five cells', () => {
+test('static marks centre in the same five cells the scenes fill', () => {
   initTheme('dark', false);
   const s = state(); s.clock.begin(1000); s.clock.settle(11000, 'done');
   for (const phase of ['done', 'error', 'stopped', 'interrupted', 'waiting', 'idle', 'thinking']) {
     const marker = plain(emberMarker(theme, phase, s, 12000, theme.colors.accent));
     assert.equal(visibleWidth(marker), 5, phase);
-    assert.match(marker, /^ {4}\S$/u, `${phase} must hug the label`);
+    assert.match(marker, /^ {2}\S {2}$/u, `${phase} must centre in the five-cell ember block`);
   }
   const status = plain(emberStatus(theme, 'your turn', 'done', s, 12000, 40, theme.colors.accent));
-  assert.equal(status, '    ✓ your turn');
+  assert.equal(status, '  ✓   your turn');
   s.clock.begin(12000);
   assert.equal(plain(emberStatus(theme, 'Thinking', 'thinking', s, 12100, 40, theme.colors.accent)).indexOf('Thinking'), 6,
     'moving and static labels begin in the same column');

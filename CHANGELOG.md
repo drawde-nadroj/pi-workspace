@@ -6,6 +6,8 @@ This file records source-workspace increments. It is not a published-release ann
 
 ### Current pending source work
 
+- Centred Composer's single static ember mark in the five cells the scenes fill. It previously sat in the last of those cells, so the idle `○` beside `What's next?` hugged the label and left the marker block visually empty on its left; idle, waiting, finished, failed and stopped marks now share the working scenes' centre axis, and labels still begin in the same column.
+
 - Replaced Composer's single comet with the five-scene living ember the contract documents: figure-eight for thinking, a four-lane conveyor for writing, twin counter-orbits for tools, corner collapse for compaction and a serpentine trail for generic working. One `dot()` writer snaps to the ten-by-four braille grid, drops off-canvas points and records per-cell heat, so rendering stays deterministic from elapsed run time with no timer, randomness or state write; static marks right-align inside the same five cells so moving and static labels share one column.
 
 - Made the dictation suite portable after a Windows report and recorded the rule in `AGENTS.md`: `npm test` runs on the three-OS CI matrix, so tests must not hardcode an existing POSIX path (`/bin/sh` → `process.execPath`), a separator-bearing expectation (`join` in both the value and the expected string), or a bare path passed to native `import()` (`pathToFileURL`). The reported two failures hid three more, because the `/bin/sh` assertion aborted its test before later assertions ran; the guidance now names that masking and keeps independent platform-sensitive assertions separable.
