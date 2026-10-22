@@ -1,5 +1,5 @@
 /** Tasks-owned visual vocabulary shared by every surface. Nothing else defines glyphs or status words. */
-import { cleanText, type DockRow, type Tone } from "../../lib/workspace-dock.ts";
+import { cleanText, type DockRow, type Tone } from "pi-agent-contracts/dock";
 import type { Plan, Status } from "./state.ts";
 
 export type StatusMark = { glyph: string; tone: Tone; label: string };

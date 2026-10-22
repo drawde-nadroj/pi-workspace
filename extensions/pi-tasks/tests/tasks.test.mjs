@@ -23,15 +23,18 @@ const { BOOK_ENTRY, COMPLETION_MS, emptyBook, mutateBook, migratePlan, restoreBo
 const { reconciliationMessage } = await jiti.import(join(source, "reconciliation.ts"));
 const { ATOMIC_GUIDANCE } = await jiti.import(join(source, "requirements.ts"));
 const factory = await jiti.import(join(source, "index.ts"), { default: true });
-const askFactory = await jiti.import(join(source, "../../packages/pi-ask/extensions/questions.ts"), { default: true });
-const { POSTED } = await jiti.import(join(source, "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts"));
+// Load Ask exactly as Pi would, through the entry its own manifest declares.
+const askPackage = join(source, "../../packages/pi-ask");
+const askEntry = JSON.parse(readFileSync(join(askPackage, "package.json"), "utf8")).pi.extensions[0];
+const askFactory = await jiti.import(join(askPackage, askEntry), { default: true });
+const { POSTED } = await jiti.import("pi-agent-contracts/posted");
 const workspaceFactory = await jiti.import(join(source, "../pi-workspace/index.ts"), { default: true });
 const { TaskPanel } = await jiti.import(join(source, "panel.ts"));
-const { layoutDock } = await jiti.import(join(source, "../../lib/workspace-dock.ts"));
+const { layoutDock } = await jiti.import("pi-agent-contracts/dock");
 const { createDock } = await jiti.import(join(source, "../pi-workspace/dock.ts"));
 const { taskFrame, taskFrameColor } = await jiti.import(join(source, "../../lib/task-frame.ts"));
 const { DEFAULTS, RunClock } = await jiti.import(join(source, "../pi-workspace/state.ts"));
-const { DOCK, isSnapshot, isHost, fitDock } = await jiti.import(join(source, "../../lib/workspace-dock.ts"));
+const { DOCK, isSnapshot, isHost, fitDock } = await jiti.import("pi-agent-contracts/dock");
 const { initTheme, getEditorTheme, theme, getThemeByName, setThemeInstance } = await import(pathToFileURL(join(host, "modes/interactive/theme/theme.js")));
 const { KeybindingsManager } = await import(pathToFileURL(join(host, "core/keybindings.js")));
 const { visibleWidth, setKeybindings } = await import(pathToFileURL(join(root, "@earendil-works/pi-tui/dist/index.js")));

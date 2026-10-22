@@ -1,11 +1,11 @@
 import type { Theme } from '@earendil-works/pi-coding-agent';
 import { matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from '@earendil-works/pi-tui';
-import { cleanText, type DockColors, type Tone } from '../../lib/workspace-dock.ts';
+import { cleanText, type DockColors, type Tone } from 'pi-agent-contracts/dock';
 import { progressText } from './state.ts';
 import { WORK_STATUS, REQUEST_STATUS, planWord, workWord } from './typography.ts';
 import { planInfo, selectedPlan, type PlanBook, type SavedPlan } from './book.ts';
 import { requirementCoverage, coverageGaps } from './requirements.ts';
-import { unresolved, type QuestionProjection } from '../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts';
+import { unresolved, type QuestionProjection } from 'pi-agent-contracts/posted';
 
 export type PanelResult = { op: 'new'; revision: string } | { op: 'add' | 'clear' | 'rename' | 'archive' | 'restore' | 'select' | 'edit'; planId: string; revision: string; id?: string } | 'off' | undefined;
 export interface PanelNavigation {

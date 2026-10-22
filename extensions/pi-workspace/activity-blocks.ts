@@ -52,6 +52,16 @@ type Meta = {
 };
 // Pi 1.0 exports the component, but not metadata accessors. Keep all private reads
 // here; unknown shapes and self-rendering tools retain their native UI.
+//
+// Why not `registerToolRenderer`? Expansion is not the obstacle: Pi wraps renderer
+// components in a MouseRegion that calls `setExpanded` (`tool-execution.js`,
+// `createResultRegion`). Composition is. `render()` prepends an empty row to any
+// self-shell content and wraps default-shell renderers in a padded, tinted Box, so a
+// resolver-drawn card measures 4 rows where this card measures 3 at width 64, and
+// every card gains a blank row regardless of the user's density preference. Pi also
+// adds `renderCall` and `renderResult` as sibling components, so one card would need
+// a shared-state suppression flag. `tests/host-shapes.test.mjs` canaries the private
+// reads instead; revisit if the card design ever becomes two components.
 function info(node: ToolExecutionComponent): Meta | undefined {
   const value = node as unknown as Meta;
   return typeof value.toolName === "string" && typeof value.toolCallId === "string" ? value : undefined;

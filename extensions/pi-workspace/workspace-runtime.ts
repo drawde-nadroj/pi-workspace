@@ -12,8 +12,8 @@ import { readTranscript, transcriptDefaults } from "./transcript-presentation.ts
 import { dressComposerEditor, isEditorComponent } from "./composer-editor.ts";
 import { createFooter, createHeader, ComposerEditor } from "./ui.ts";
 import { createDock } from "./dock.ts";
-import { DOCK, isSnapshot, type DockSnapshot } from "../../lib/workspace-dock.ts";
-import { POSTED } from "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts";
+import { DOCK, isSnapshot, type DockSnapshot } from "pi-agent-contracts/dock";
+import { POSTED } from "pi-agent-contracts/posted";
 import { ThemeLease } from "./composer-theme.ts";
 import { registerRecaps } from "./recaps.ts";
 import { registerWorkspaceAppearance } from "./footer.ts";

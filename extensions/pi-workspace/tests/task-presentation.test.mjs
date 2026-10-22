@@ -9,7 +9,7 @@ const { TASK_ELEMENTS, taskControlElement } = await jiti.import(join(source, 'ta
 const { DEFAULTS, RunClock } = await jiti.import(join(source, 'state.ts'));
 const { footerPrefs, FOOTER_DEFAULTS } = await jiti.import(join(source, 'footer-state.ts'));
 const { taskOverview } = await jiti.import(join(source, '../pi-tasks/state.ts'));
-const { isSnapshot } = await jiti.import(join(source, '../../lib/workspace-dock.ts'));
+const { isSnapshot } = await jiti.import("pi-agent-contracts/dock");
 const state = () => ({ prefs: { ...DEFAULTS, look: 'composer' }, clock: new RunClock(), phase: 'working', tools: new Map(), promptDepth: 0, compacting: false, lastInputAt: 0 });
 const frame = (name, elapsed = 0) => ({ state: name, active: name === 'working', elapsed, progress: 0, once: false });
 

@@ -6,7 +6,7 @@ import { TabbedQuestions, type BatchUIResult, type QuestionDraft } from './batch
 import { questionTheme, questionViewport, frameQuestion } from './question-surface.ts';
 import { savedAskAppearance } from './appearance.ts';
 import { sanitizeDisplayText } from './tui-primitives.ts';
-import { questionStatus } from './posted-protocol.ts';
+import { questionStatus } from 'pi-agent-contracts/posted';
 import type { PostedQuestion } from './posted-state.ts';
 
 /** Reuse Ask's editors/choice/review machinery. Only the temporary overlay/back contract differs. */

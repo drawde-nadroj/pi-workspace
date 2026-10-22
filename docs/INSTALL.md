@@ -1,6 +1,6 @@
 # Install and maintain the local suite
 
-Use this guide to install this checkout on a computer with a compatible **Pi 1.3.0 host**, Node.js, npm and Git. Repository access may require authentication. The root is an npm-private local Pi package, not a published npm release.
+Use this guide to install this checkout on a computer with a **Pi 1.3.0-or-newer host** (1.3.0 is the minimum supported; CI also runs the current 1.4.0 release), Node.js, npm and Git. Repository access may require authentication. The root is an npm-private local Pi package, not a published npm release.
 
 Extensions execute in Pi's process with its OS access. Review source before installing. This guide does not configure providers, copy credentials or reproduce an entire personal Pi environment.
 
@@ -34,7 +34,7 @@ Pi loads a local package from its resolved checkout path. It does **not** copy i
 
 ## Native Windows: supported setup and smoke test
 
-The supported baseline is **Pi 1.3.0, Node.js 22.23.2 and npm 10.9.8**, with Git for Windows and a writable checkout on local NTFS. Pi requires Node.js 22.19.0 or newer; the suite's Windows CI pins 22.23.2 rather than claiming every newer major version is tested. WSL is a separate Linux environment: do not mix Windows Node with WSL dependencies.
+The supported baseline is **Pi 1.3.0 as the minimum host, Node.js 22.23.2 and npm 10.9.8**, with Git for Windows and a writable checkout on local NTFS. CI additionally runs the current Pi 1.4.0 release on Linux; runtime host peers stay `*` per Pi's package contract. Pi requires Node.js 22.19.0 or newer; the suite's Windows CI pins 22.23.2 rather than claiming every newer major version is tested. WSL is a separate Linux environment: do not mix Windows Node with WSL dependencies.
 
 Use a normal, non-elevated Git Bash session. The suite does not require Administrator, Developer Mode or privileged symbolic links. Loader fixtures use directory junctions on Windows. Avoid protected installation directories and network shares; keep the checkout outside OneDrive or similar sync folders if they hold transient file locks.
 

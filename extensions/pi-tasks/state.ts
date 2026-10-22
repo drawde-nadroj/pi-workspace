@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cleanText, type TaskOverview } from "../../lib/workspace-dock.ts";
+import { cleanText, type TaskOverview } from "pi-agent-contracts/dock";
 
 export const ENTRY = "pi-tasks:plan-v1";
 export const STATUSES = ["pending", "active", "blocked", "done", "cancelled"] as const;

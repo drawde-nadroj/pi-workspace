@@ -4,20 +4,19 @@ Use this guide from the **suite repository root**. For user installation, follow
 
 ## Test environment
 
-Install a compatible Pi 1.3.0 host, Node.js and npm before `npm ci`. Root tests normally discover `~/.pi/agent/install`. If the host lives elsewhere, set `PI_WORKSPACE_HOST_MODULES` and `PI_ASK_HOST_MODULES` (`PI_HOME_HOST_MODULES` remains a compatibility fallback) to that host's `node_modules` directory. Frame additionally honors `PI_FRAME_HOST_MODULES`, then Workspace/Ask overrides. These paths select test dependencies; they do not install Pi or copy credentials. Workspace/Vim integration tests use the checkout's pinned `pi-vim` development dependency, not your live Vim installation.
+Install a **Pi 1.3.0-or-newer host** (1.3.0 is the minimum supported; CI also runs the current 1.4.0 release), Node.js and npm before `npm ci`. Root tests normally discover `~/.pi/agent/install`. If the host lives elsewhere, set `PI_WORKSPACE_HOST_MODULES` and `PI_ASK_HOST_MODULES` (`PI_HOME_HOST_MODULES` remains a compatibility fallback) to that host's `node_modules` directory. Frame additionally honors `PI_FRAME_HOST_MODULES`, then Workspace/Ask overrides. These paths select test dependencies; they do not install Pi or copy credentials. Workspace/Vim integration tests use the checkout's pinned `pi-vim` development dependency, not your live Vim installation.
 
 ```sh
 npm ci
 npm test
-npm run typecheck --workspace=pi-ask
 npm run pack:check
 ```
 
-The root suite covers Frame, Ask, Workspace, Tasks, deterministic harness checks and isolated packed-suite loading. It excludes optional Chronomancer. `pack:check` is a dry run, not publication. The [acceptance record](docs/ACCEPTANCE.md) supplies exact historical commands/results and remaining physical/provider checks; do not turn them into a whole-repository typing or human-usability guarantee.
+The root suite covers one whole-repository typecheck, Frame, Ask, Workspace, Tasks, the copyable dock example, the host-shape canary, deterministic harness checks and isolated packed-suite loading. A separately developed Chronomancer plugin is not part of this repository. `pack:check` is a dry run, not publication. The [acceptance record](docs/ACCEPTANCE.md) supplies exact historical commands/results and remaining physical/provider checks; do not turn them into a whole-repository typing or human-usability guarantee.
 
 ## Windows CI and portability
 
-`.github/workflows/test.yml` runs the complete pipeline on Windows, Linux and macOS with Node.js 22.23.2, npm 10.9.8 and the locked Pi 1.3.0 host. No personal installation, credentials or administrator setup is needed. CI prepares Pi's `fd` file-completion binary in an isolated agent directory using Pi's own downloader; this explicit setup step requires network access. See the [Windows setup and smoke test](docs/INSTALL.md#native-windows-supported-setup-and-smoke-test) for Git Bash commands and the optional pi-vim undo alias.
+`.github/workflows/test.yml` runs the complete pipeline on Windows, Linux and macOS with Node.js 22.23.2, npm 10.9.8 and the locked Pi 1.3.0 host, and adds one Linux job against the current Pi 1.4.0 release. No personal installation, credentials or administrator setup is needed. CI prepares Pi's `fd` file-completion binary in an isolated agent directory using Pi's own downloader; this explicit setup step requires network access. See the [Windows setup and smoke test](docs/INSTALL.md#native-windows-supported-setup-and-smoke-test) for Git Bash commands and the optional pi-vim undo alias.
 
 Use `os.tmpdir()` and unique directories for filesystem fixtures; captures print their paths. Directory-link fixtures use Windows junctions and absolute targets. Keep parser coverage platform-independent; skip only a specifically unrepresentable filesystem case with a reason. Shutdown must await child-process closure before deleting fixtures; bounded cleanup retries cover remaining transient locks, not running work. Do not change assertions to accept lost Vim history.
 

@@ -182,7 +182,7 @@ With compatible Pi and Node/npm installed, first run `npm ci` from the **suite r
 pi install "$PWD/packages/pi-ask"
 ```
 
-This loads `extensions/questions.ts`, not Workspace or Tasks. Frame must remain resolvable through the installed dependency tree; local Pi registration does not run npm installation. Start a fresh Pi process after package/imported-module changes.
+This loads `extensions/questions.ts`, not Workspace or Tasks. Frame and the shared `pi-agent-contracts` package must remain resolvable through the installed dependency tree; local Pi registration does not run npm installation, and the Ask tarball alone is not a supported install path while `pi-agent-contracts` is unpublished. Start a fresh Pi process after package/imported-module changes.
 
 Earlier standalone instructions pointed to `the-sleeping-teemo/pi-context-seeker`. That remote repository was not checked for equivalence to this fork; do not use it as a verified route to the features documented here.
 

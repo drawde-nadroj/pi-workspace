@@ -5,7 +5,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi, type TUI } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { DOCK, isHost, cleanText, layoutDock, type DockAck, type DockColors, type DockSnapshot } from "../../lib/workspace-dock.ts";
+import { DOCK, isHost, cleanText, layoutDock, type DockAck, type DockColors, type DockSnapshot } from "pi-agent-contracts/dock";
 import { taskFrame } from "../../lib/task-frame.ts";
 import { taskResultCard, type TaskCardDetails } from "./transcript.ts";
 import { ENTRY, STATUSES, progressText, taskOverview, type Plan, type Change, type Mutation } from "./state.ts";
@@ -15,7 +15,7 @@ import { BOOK_ENTRY, COMPLETION_MS, emptyBook, migratePlan, restoreBook, mutateB
 import { TaskPanel, type PanelResult, type PanelNavigation } from "./panel.ts";
 
 import { reconciliationMessage } from "./reconciliation.ts";
-import { POSTED, isQuestionSnapshot, unresolved, type QuestionSnapshot } from "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts";
+import { POSTED, isQuestionSnapshot, unresolved, type QuestionSnapshot } from "pi-agent-contracts/posted";
 import { ATOMIC_GUIDANCE, coverageGaps, requirementCoverage, type Requirement } from "./requirements.ts";
 
 const TOOL = "tasks", WIDGET = "pi-tasks:fallback", MEMORY = "pi-tasks:context-v1";
@@ -428,7 +428,7 @@ export default function tasks(pi: ExtensionAPI) {
           panelTui = undefined;
           if (!result) break;
           await userChange(context, result);
-          if (result !== "off" && ["new", "select", "restore"].includes(result.op)) { nav.viewId = book.selectedId ?? undefined; nav.history = false; nav.selected = 0; }
+          if (result !== "off" && ["new", "select", "restore"].includes(result.op)) { nav.viewId = book.selectedId ?? undefined; nav.history = false; }
           if (!enabled) break;
         }
       } catch (error) { context.ui.notify(`Tasks: ${String(error)}`, "warning"); }

@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, type Component, type TUI } from "@earendil-works/pi-tui";
-import { cleanText, layoutDock, type DockSnapshot } from "../../lib/workspace-dock.ts";
+import { cleanText, layoutDock, type DockSnapshot } from "pi-agent-contracts/dock";
 import type { WorkspaceState } from "./state.ts";
 import { composerPadding, composerSurface } from "./composer-style.ts";
 import { TaskPanel } from "./task-presentation.ts";

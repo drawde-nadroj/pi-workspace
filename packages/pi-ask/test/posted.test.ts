@@ -4,7 +4,7 @@ import { getKeybindings, visibleWidth, parseColor, CURSOR_MARKER } from '@earend
 import { emptyPostedBook, postQuestion, changeQuestion, restorePostedBook, POSTED_ENTRY, ANSWER_MESSAGE, QUESTION_EVENT, postedContext, type PostedInput } from '../extensions/ask-user-question/posted-state.ts';
 import { registerPostedQuestions } from '../extensions/ask-user-question/posted.ts';
 import { TabbedQuestions } from '../extensions/ask-user-question/batch-ui.ts';
-import { POSTED, isTaskCatalogue } from '../extensions/ask-user-question/posted-protocol.ts';
+import { POSTED, isTaskCatalogue } from 'pi-agent-contracts/posted';
 import { questionEventCard } from '../extensions/ask-user-question/posted-ui.ts';
 import { sanitizeDisplayText } from '../extensions/ask-user-question/tui-primitives.ts';
 

@@ -4,6 +4,12 @@
   "description": "Embeddable terminal frames for Pi components and tool surfaces",
   "type": "module",
   "keywords": ["pi-package", "pi", "tui", "frame"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drawde-nadroj/pi-workspace.git",
+    "directory": "packages/pi-frame"
+  },
+  "engines": { "node": ">=22.23.2" },
   "exports": {
     ".": {
       "types": "./index.d.ts",

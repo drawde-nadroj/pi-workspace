@@ -8,8 +8,9 @@ A local Pi package for Composer appearance, work plans and interactive questions
 | Tasks | Named plans, request coverage, history and independent fallback | [Tasks](extensions/pi-tasks/README.md) |
 | Ask | Immediate and posted questions, answers and temporary input | [Ask](packages/pi-ask/README.md) |
 | Frame | Passive frame primitives and opt-in presentation rules | [Frame](packages/pi-frame/README.md) |
+| Contracts | Versioned, data-only dock and posted-question protocols | [Contracts](packages/pi-agent-contracts/README.md) |
 
-The npm-private root package loads **Workspace, Tasks and Ask once** and bundles Frame as a library. It is not a published npm release. Do not also load the separate Ask or Frame package entries alongside the suite. Optional Chronomancer is not loaded by the root manifest and is outside these guides.
+The npm-private root package loads **Workspace, Tasks and Ask once** and bundles Frame and the contracts package as libraries. It is not a published npm release. Do not also load the separate Ask or Frame package entries alongside the suite. A separately developed Chronomancer plugin is not part of this repository.
 
 ## Choose a starting point
 
@@ -22,12 +23,13 @@ The npm-private root package loads **Workspace, Tasks and Ask once** and bundles
 | Answer or revise questions | [Ask usage](packages/pi-ask/README.md#best-usage-ask-when-inquiry-is-worth-the-interruption) |
 | Find a setting's purpose and persistence scope | [Settings reference](docs/SETTINGS-REVIEW.md) |
 | Develop or integrate a component | [Contributing](CONTRIBUTING.md) and [architecture](docs/ARCHITECTURE.md) |
+| Build a Tasks or Ask plugin | [Primitive contracts](docs/PRIMITIVES.md) |
 
 The [documentation index](docs/README.md) connects practical guides, reference, design explanation and verification records. You can enter at the task you need; no mandatory reading sequence applies.
 
 ## Install on another computer
 
-Use a compatible **Pi 1.3.0 host**, Node.js, npm and Git. Install the checkout's locked dependencies before registering its root as one local Pi package. The [installation guide](docs/INSTALL.md) provides the commands, duplicate-loading cautions and update/removal paths.
+Use a **Pi 1.3.0-or-newer host** (1.3.0 is the minimum supported; CI also runs the current 1.4.0 release), Node.js, npm and Git. Install the checkout's locked dependencies before registering its root as one local Pi package. The [installation guide](docs/INSTALL.md) provides the commands, duplicate-loading cautions and update/removal paths.
 
 Pi loads local source directly; it does not install dependencies or copy the checkout. Keep the directory in place. **Start a fresh Pi process** after package/export or imported-module changes; `/reload` can retain dependencies.
 
@@ -41,7 +43,7 @@ npm test
 npm run pack:check
 ```
 
-Tests need a compatible installed Pi host. See [contributor setup](CONTRIBUTING.md#test-environment) for explicit host overrides and standalone component checks. The root uses npm workspaces for Frame and Ask; Workspace/Tasks keep their source imports from `lib/`. The [opt-in harness](eval/harness/README.md) is development-only: only its README ships in the runtime package, not executable fixtures or review records. Behavioral/model runs require separate authorization and budget.
+Tests need a compatible installed Pi host. See [contributor setup](CONTRIBUTING.md#test-environment) for explicit host overrides and standalone component checks. The root uses npm workspaces for Frame, Ask and the shared contracts; Workspace and Tasks import the versioned contracts package instead of reaching into each other's source. The [opt-in harness](eval/harness/README.md) is development-only: only its README ships in the runtime package, not executable fixtures or review records. Behavioral/model runs require separate authorization and budget.
 
 ## Status and boundaries
 

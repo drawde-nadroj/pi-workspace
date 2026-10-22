@@ -3,7 +3,7 @@ import { stripVTControlCharacters } from "node:util";
 import { mixColors, parseColor, sliceByColumn, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { createFrameController, framePresentationDefaults, readFramePresentation, presentationRows,
   type FramePresentation, type FrameSample, type FrameState } from "../../lib/frame.ts";
-import { cleanText, type DockSnapshot } from "../../lib/workspace-dock.ts";
+import { cleanText, type DockSnapshot } from "pi-agent-contracts/dock";
 import type { WorkspaceState } from "./state.ts";
 import { selectionHighlight } from "./footer-selection.ts";
 

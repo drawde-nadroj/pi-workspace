@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { cleanText } from "../../lib/workspace-dock.ts";
+import { cleanText } from "pi-agent-contracts/dock";
 import { emptyPlan, restorePlan, mutate, progressText, contextSummary, type Plan, type Mutation, type NewTask } from "./state.ts";
 
 import { amendRequirements, restoreRequirements, requirementCoverage, coverageContext, ATOMIC_GUIDANCE, type Requirement, type RequirementInput } from "./requirements.ts";

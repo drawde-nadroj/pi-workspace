@@ -8,7 +8,7 @@ This is a private, locally loaded Pi package. Before changing a surface, read `R
 - **Workspace** (`extensions/pi-workspace`): Composer, transcript adapters, workspace host, and the `/workspace` appearance editor. Preserve Pi's native editor and the installed pi-vim instance.
 - **Tasks** (`extensions/pi-tasks`): plans, history, the `tasks` tool, and the independent no-Workspace fallback. Workspace displays sourced Tasks data; it does not create or complete plans.
 - **Ask** (`packages/pi-ask`): question/answer behavior, focus, and temporary input. Workspace hosts its visual settings room, not its answer semantics.
-- **Shared adapters** (`lib/`): the Workspace/Tasks dock protocol and Frame integration. Keep component-specific state and lifecycle with the component that owns them.
+- **Contracts** (`packages/pi-agent-contracts`): the data-only, versioned dock and posted-question protocols consumed through `pi-agent-contracts/dock` and `pi-agent-contracts/posted`. **Shared adapters** (`lib/`): Frame integration and the shared task frame. Keep component-specific state and lifecycle with the component that owns them.
 
 For a cross-component change, identify the **state owner, visual adapter, settings authority, and fallback** before editing. Change only the owners required by the request. Do not make Frame a global renderer or assume every surface shares the same slots or input contract.
 

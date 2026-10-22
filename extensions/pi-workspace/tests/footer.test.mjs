@@ -15,7 +15,7 @@ const { chooseFooter, OTHER_OPTIONS } = await jiti.import(join(source, "footer-s
 const { RunClock, DEFAULTS } = await jiti.import(join(source, "state.ts"));
 import { workspace } from "./workspace-harness.mjs";
 const { createEventBus } = await import(pathToFileURL(join(root, "@earendil-works/pi-coding-agent/dist/core/event-bus.js")));
-const { DOCK } = await jiti.import(join(source, "../../lib/workspace-dock.ts"));
+const { DOCK } = await jiti.import("pi-agent-contracts/dock");
 const data = { cwd: "/very/long/界面/project/with/é/and/many/components", model: "Model Name v2", thinking: "high", session: "Website redesign 界面", usage: { tokens: 84000, contextWindow: 200000, percent: 42 }, git: { branch: "feature/very-long-branch", staged: 2, changed: 3, untracked: 1, conflicts: 1, ahead: 2, behind: 1 } };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 

@@ -1,4 +1,4 @@
-import { cleanText } from "../../lib/workspace-dock.ts";
+import { cleanText } from "pi-agent-contracts/dock";
 import type { Plan } from "./state.ts";
 
 export type RequirementDisposition = "accepted" | "superseded";

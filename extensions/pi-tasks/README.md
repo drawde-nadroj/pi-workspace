@@ -188,7 +188,7 @@ Customize this surface through **`/workspace` → Tasks**. Workspace uses the re
 
 ## Optional Workspace integration
 
-The checkout's `lib/workspace-dock.ts` defines the small, versioned event protocol. `lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Workspace and Tasks do not import each other's implementations.
+The `pi-agent-contracts` package defines the small, versioned event protocol (`pi-agent-contracts/dock`). `lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Workspace and Tasks do not import each other's implementations.
 
 - Workspace advertises availability and optional semantic colors.
 - Tasks publishes only the current plan's bounded display snapshot—or an empty snapshot once hidden/archived/off.

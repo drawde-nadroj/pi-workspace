@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { normalizeOptions, type QuestionDef, type TabAnswer } from './domain.ts';
-import { STAGE_LABELS, unresolved, type QuestionProjection, type QuestionStage } from './posted-protocol.ts';
+import { STAGE_LABELS, unresolved, type QuestionProjection, type QuestionStage } from 'pi-agent-contracts/posted';
 import type { QuestionDraft } from './batch-ui.ts';
 
 export const POSTED_ENTRY = 'pi-ask:posted-v1', ANSWER_MESSAGE = 'pi-ask:answer-v1', QUESTION_EVENT = 'pi-ask:event-v1';

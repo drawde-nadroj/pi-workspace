@@ -26,6 +26,7 @@ function fixture() {
   mkdirSync(pkg, { recursive: true });
   mkdirSync(join(temp, "node_modules/@earendil-works"), { recursive: true });
   symlinkSync(pkg, join(temp, "node_modules/pi-embeddable-frame"), process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(resolve(source, "../../packages/pi-agent-contracts"), join(temp, "node_modules/pi-agent-contracts"), process.platform === "win32" ? "junction" : "dir");
   symlinkSync(resolve(root, "@earendil-works/pi-tui"), join(temp, "node_modules/@earendil-works/pi-tui"), process.platform === "win32" ? "junction" : "dir");
   cpSync(source, workspace, { recursive: true, filter: path => !path.startsWith(join(source, "tests")) });
   cpSync(resolve(source, "../../lib"), join(temp, "lib"), { recursive: true });

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["extensions/**/*.ts", "lib/**/*.ts", "packages/pi-ask/extensions/**/*.ts", "packages/pi-agent-contracts/src/**/*.ts", "examples/**/*.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,13 +1,12 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { cleanText } from "../../lib/workspace-dock.ts";
+import { cleanText, type Tone } from "pi-agent-contracts/dock";
 import { taskFrame } from "../../lib/task-frame.ts";
 import type { Plan, Status, Task } from "./state.ts";
 import type { Requirement } from "./requirements.ts";
 import type { planInfo } from "./book.ts";
 import { WORK_STATUS as STATES, REQUEST_STATUS as COVERAGE, planWord } from "./typography.ts";
 
-type Tone = "text" | "muted" | "accent" | "warning" | "success";
 type Row = { text: string; tone?: Tone; bold?: boolean; indent?: number; prose?: boolean; glyph?: string; glyphTone?: Tone };
 export type TaskCardDetails = { plan?: Plan; title?: string; requirements?: (Requirement & { state: string })[]; plans?: ReturnType<typeof planInfo>[] };
 type Args = { op?: string; id?: string; items?: unknown[]; changes?: { status?: string } };

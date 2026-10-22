@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { OptionSchema } from './domain.ts';
-import { POSTED, unresolved, isTaskCatalogue, type QuestionOpen, type TaskCatalogue } from './posted-protocol.ts';
+import { POSTED, unresolved, isTaskCatalogue, type QuestionOpen, type TaskCatalogue } from 'pi-agent-contracts/posted';
 import { ANSWER_MESSAGE, QUESTION_EVENT, POSTED_ENTRY, emptyPostedBook, restorePostedBook, postQuestion, changeQuestion,
   projectQuestion, postedContext, type PostedBook, type PostedQuestion, type PostedInput, type PostedResponse } from './posted-state.ts';
 import { postedQuestionUI, postedOutcomeUI, questionEventCard } from './posted-ui.ts';

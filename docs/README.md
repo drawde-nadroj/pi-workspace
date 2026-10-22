@@ -1,6 +1,6 @@
 # Documentation
 
-Choose the path that matches what you need now. These guides cover the root suite and Workspace, Tasks, Ask and Frame; optional Chronomancer is outside this documentation pass.
+Choose the path that matches what you need now. These guides cover the root suite and Workspace, Tasks, Ask and Frame; a separately developed Chronomancer plugin is not part of this repository.
 
 ## Learn by trying
 
@@ -24,6 +24,7 @@ Choose the path that matches what you need now. These guides cover the root suit
 - [Ask user commands and tool parameters](../packages/pi-ask/README.md#tool-parameters).
 - [Frame primitives and presentation API](../packages/pi-frame/README.md).
 - [Workspace dock protocol](../extensions/pi-workspace/DOCK.md).
+- [Primitive contracts](PRIMITIVES.md): tool parameters, event IDs, storage keys and compatibility rules for building a Tasks or Ask plugin.
 
 ## Understand the design
 

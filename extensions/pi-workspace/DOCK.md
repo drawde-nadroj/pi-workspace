@@ -1,6 +1,6 @@
 # Workspace dock v1
 
-A small optional integration contract, not a replacement UI framework. Runtime definitions are in the checkout's shared `lib/workspace-dock.ts`, outside either extension directory. This suite is checkout-loaded; the old personal-agent directory is not its runtime authority. Workspace or Tasks can be disabled independently without deleting the shared adapter.
+A small optional integration contract, not a replacement UI framework. Runtime definitions live in the `pi-agent-contracts` workspace package (`pi-agent-contracts/dock`), outside either extension directory. This suite is checkout-loaded; the old personal-agent directory is not its runtime authority. Workspace or Tasks can be disabled independently without deleting the shared adapter.
 
 ## Ownership
 

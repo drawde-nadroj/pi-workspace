@@ -30,7 +30,9 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     const report = JSON.parse(command("npm", ["pack", "--json", "--pack-destination", sandbox], { cwd: checkout, env }));
     const packed = Array.isArray(report) ? report[0] : Object.values(report)[0];
     const paths = packed.files.map(file => file.path);
-    assert.deepEqual(packed.bundled, ["pi-embeddable-frame"]);
+    // npm reports its own bundle order and it is not stable across npm versions.
+    assert.deepEqual([...packed.bundled].sort(), ["pi-agent-contracts", "pi-embeddable-frame"]);
+    assert.ok(paths.includes("node_modules/pi-agent-contracts/src/dock.ts"));
     assert.ok(paths.includes("node_modules/pi-embeddable-frame/primitives.js"));
     assert.ok(paths.includes("packages/pi-ask/extensions/questions.ts"));
     assert.ok(!paths.some(path => path.includes("/tests/") || path.includes("/test/") || path.includes("auth.json")));

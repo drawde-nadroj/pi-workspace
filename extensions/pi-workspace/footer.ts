@@ -4,7 +4,7 @@ import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { wrapTextWithAnsi, type TUI } from "@earendil-works/pi-tui";
-import { DOCK } from "../../lib/workspace-dock.ts";
+import { DOCK } from "pi-agent-contracts/dock";
 import { shouldAnimate, type WorkspaceState } from "./state.ts";
 import { composerStatus } from "./composer-live.ts";
 import { composerInset, composerPadding, composerSurface } from "./composer-style.ts";
