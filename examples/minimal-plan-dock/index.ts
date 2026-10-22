@@ -22,15 +22,23 @@ type Plan = { version: 1; revision: string; title: string; items: Item[] };
 
 const emptyPlan = (): Plan => ({ version: 1, revision: "r1", title: "Untitled plan", items: [] });
 
+/** Unvalidated input is never trusted: session data, result details or both. */
+function readPlan(value: unknown): { title: string; items: Item[] } | undefined {
+  const plan = value as { title?: unknown; items?: unknown } | undefined;
+  if (!plan || typeof plan !== "object" || typeof plan.title !== "string" || !plan.title || plan.title.length > 200) return undefined;
+  if (!Array.isArray(plan.items)) return undefined;
+  const items = plan.items.slice(0, MAX_ITEMS);
+  if (!items.every(item => item && typeof (item as Item).title === "string" && (item as Item).title.length <= 200 &&
+    ((item as Item).doneWhen === undefined || typeof (item as Item).doneWhen === "string"))) return undefined;
+  return { title: plan.title, items: items as Item[] };
+}
+
 /** Session data is untrusted after a reload: validate it instead of casting. */
 function restore(value: unknown): Plan {
   if (value === undefined) return emptyPlan();
-  const plan = value as Plan;
-  if (!plan || plan.version !== 1 || typeof plan.revision !== "string" || typeof plan.title !== "string" ||
-    !Array.isArray(plan.items) ||
-    !plan.items.every(item => item && typeof item.title === "string" &&
-      (item.doneWhen === undefined || typeof item.doneWhen === "string"))) throw new Error("invalid example plan");
-  return { version: 1, revision: plan.revision, title: plan.title, items: plan.items.slice(0, MAX_ITEMS) };
+  const plan = value as Plan, details = readPlan(plan);
+  if (!details || plan.version !== 1 || typeof plan.revision !== "string") throw new Error("invalid example plan");
+  return { version: 1, revision: plan.revision, title: details.title, items: details.items };
 }
 
 /** A bounded framed card: no colour, no width overflow, honest field names. */
@@ -44,6 +52,13 @@ function card(title: string, open: number, expanded: boolean, width: number): st
   if (expanded) rows.push(row("State lives in one session entry: example-plan:v1."));
   rows.push("╰" + "─".repeat(width - 2) + "╯");
   return rows;
+}
+
+/** Errors and unrecognisable results keep their own text instead of borrowing a plan. */
+function outputRows(result: { content?: readonly { type: string; text?: string }[] }, width: number): string[] {
+  if (width <= 0) return [];
+  const text = (result.content ?? []).filter(part => part.type === "text").map(part => part.text ?? "").join("\n").trim();
+  return (text || "No output").split("\n").slice(0, 6).map(line => truncateToWidth(line, width, "…"));
 }
 
 export default function examplePlanDock(pi: ExtensionAPI) {
@@ -88,10 +103,14 @@ export default function examplePlanDock(pi: ExtensionAPI) {
     async execute(_callId, params, _signal, _onUpdate, context) {
       if (!ctx || context.sessionManager.getSessionId() !== sessionId()) throw new Error("Example plan session changed; retry.");
       const items = (params.items ?? []).map(item => ({ title: item.title, ...(item.doneWhen ? { doneWhen: item.doneWhen } : {}) }));
-      commit({ version: 1, revision: `r${Date.now().toString(36)}`, title: params.title, items });
+      // Refuse before persisting: a plan we cannot render must not enter history.
+      const next = readPlan({ title: params.title, items });
+      if (!next) throw new Error("example_plan: that title or item list cannot be represented in a dock snapshot.");
+      const revision = `r${Date.now().toString(36)}`;
+      commit({ version: 1, revision, title: next.title, items: next.items });
       return {
-        content: [{ type: "text", text: `Example plan “${params.title}” · ${items.length} open item${items.length === 1 ? "" : "s"}` }],
-        details: { title: params.title, revision: plan.revision, items },
+        content: [{ type: "text", text: `Example plan “${next.title}” · ${next.items.length} open item${next.items.length === 1 ? "" : "s"}` }],
+        details: { title: next.title, revision, items: next.items },
       };
     },
   });
@@ -125,10 +144,17 @@ export default function examplePlanDock(pi: ExtensionAPI) {
     return {
       ...base,
       renderShell: "self",
-      renderResult: (_result, _options, _theme, context) => ({
-        render: width => card(plan.title, plan.items.length, context.expanded, width),
-        invalidate() {},
-      }),
+      // Pi keeps this component and repaints it, so it must describe the result it
+      // was built for. Reading the live plan would repaint earlier calls with the
+      // newest title after another call or a branch switch.
+      renderResult: (result, _options, _theme, context) => {
+        const details = result.isError ? undefined : readPlan(result.details);
+        const expanded = context.expanded === true;
+        return {
+          render: width => details ? card(details.title, details.items.length, expanded, width) : outputRows(result, width),
+          invalidate() {},
+        };
+      },
     };
   });
 

@@ -88,17 +88,32 @@ test("the host side of the contract is a valid DockHost plus DockAck", async () 
   assert.deepEqual(Object.keys(ack).sort(), ["id", "mounted", "sessionId", "version"]);
 });
 
-test("a persisted plan that cannot be represented is not published", async () => {
+test("a persisted plan that cannot be represented is rejected, not published", async () => {
   const pi = fakePi();
   examplePlanDock(pi.api);
   const context = fakeContext("s2", [{
     type: "custom", customType: "example-plan:v1",
-    data: { version: 1, revision: "r1", title: "x".repeat(401), items: [{ title: "too long a title to publish" }] },
+    data: { version: 1, revision: 5, title: "x".repeat(401), items: [{ title: "kept out" }] },
   }]);
   await pi.fire("session_start", context);
-  assert.equal(updates(pi).length, 0, "an unrepresentable snapshot is never emitted");
   assert.equal(context.notices.length, 1, "one warning, not one per publish");
-  assert.match(context.notices[0].message, /not publishable/);
+  assert.match(context.notices[0].message, /invalid example plan/);
+  const published = updates(pi);
+  assert.equal(published.length, 1, "the provider still announces its empty state");
+  assert.deepEqual(published[0].payload.rows, [], "the unreadable title never reaches a snapshot");
+});
+
+test("a mutation that cannot be represented is refused before it is persisted", async () => {
+  const pi = fakePi();
+  examplePlanDock(pi.api);
+  const context = fakeContext("s6");
+  await pi.fire("session_start", context);
+  pi.emitted.length = 0;
+  await assert.rejects(
+    () => pi.tools.get("example_plan").execute("call-x", { title: "x".repeat(401), items: [] }, undefined, undefined, context),
+    /cannot be represented/);
+  assert.equal(pi.entries.length, 0, "nothing was persisted");
+  assert.equal(updates(pi).length, 0, "nothing was published");
 });
 
 test("the tool renderer seam covers this tool only and stays width-bounded", async () => {
@@ -113,13 +128,54 @@ test("the tool renderer seam covers this tool only and stays width-bounded", asy
   assert.equal(ours.renderShell, "self");
   assert.equal(ours.renderCall, base.renderCall, "the call slot is left native");
 
-  const compact = ours.renderResult({ content: [] }, { expanded: false, isPartial: false }, {}, { expanded: false }).render(40);
-  const expanded = ours.renderResult({ content: [] }, { expanded: true, isPartial: false }, {}, { expanded: true }).render(40);
+  const result = { content: [{ type: "text", text: "ok" }], details: { title: "Seam card", revision: "r1", items: [{ title: "one" }, { title: "two" }] } };
+  const compact = ours.renderResult(result, { expanded: false, isPartial: false }, {}, { expanded: false }).render(40);
+  const expanded = ours.renderResult(result, { expanded: true, isPartial: false }, {}, { expanded: true }).render(40);
   assert.ok(expanded.length > compact.length, "expanded shows the extra row");
-  assert.match(compact.join("\n"), /example_plan/);
+  assert.match(compact.join("\n"), /Seam card/);
+  assert.match(compact.join("\n"), /2 open items/);
   // Every width either renders inside its budget or renders nothing at all.
-  for (const width of [0, 8, 12, 15, 16, 20, 37, 40, 120]) for (const row of ours.renderResult({ content: [] }, {}, {}, { expanded: true }).render(width))
+  for (const width of [0, 8, 12, 15, 16, 20, 37, 40, 120]) for (const row of ours.renderResult(result, {}, {}, { expanded: true }).render(width))
     assert.ok(visibleWidth(row) <= width, `width ${width}: ${visibleWidth(row)} cells: ${row}`);
+});
+
+test("an earlier result keeps its own plan after later calls and branch switches", async () => {
+  const pi = fakePi();
+  examplePlanDock(pi.api);
+  const context = fakeContext("s5");
+  await pi.fire("session_start", context);
+  const tool = pi.tools.get("example_plan");
+  const [resolve] = pi.resolvers;
+  const renderers = resolve("example_plan", () => ({ renderShell: "default" }));
+
+  const first = await tool.execute("call-a", { title: "Alpha", items: [{ title: "a1" }, { title: "a2" }] }, undefined, undefined, context);
+  // Pi retains this component and repaints it on every transcript redraw.
+  const retained = renderers.renderResult(first, { expanded: false }, {}, { expanded: false });
+
+  await tool.execute("call-b", { title: "Beta", items: [{ title: "b1" }] }, undefined, undefined, context);
+  await pi.fire("session_tree", fakeContext("s5", [{
+    type: "custom", customType: "example-plan:v1", data: { version: 1, revision: "r9", title: "Gamma", items: [] },
+  }]));
+
+  const panel = retained.render(48).join("\n");
+  assert.match(panel, /Alpha/, "the first result keeps the title it was built for");
+  assert.match(panel, /2 open items/);
+  assert.doesNotMatch(panel, /Beta|Gamma/, "later state must not leak into an earlier card");
+});
+
+test("errors and unrecognisable results keep their own text", async () => {
+  const pi = fakePi();
+  examplePlanDock(pi.api);
+  const [resolve] = pi.resolvers;
+  const renderers = resolve("example_plan", () => ({ renderShell: "default" }));
+  const failed = renderers.renderResult({ content: [{ type: "text", text: "example_plan failed: disk full" }], isError: true }, {}, {}, {}).render(48);
+  assert.match(failed.join("\n"), /disk full/);
+  assert.doesNotMatch(failed.join("\n"), /open item/, "an error is not a plan card");
+  const bare = renderers.renderResult({ content: [{ type: "text", text: "ok" }] }, {}, {}, {}).render(48);
+  assert.doesNotMatch(bare.join("\n"), /open item/, "a result without plan details is not a plan card");
+  const malformed = renderers.renderResult({ content: [], details: { title: 7, items: "nope" } }, {}, {}, {}).render(48);
+  assert.match(malformed.join("\n"), /No output/);
+  for (const rows of [failed, bare, malformed]) for (const row of rows) assert.ok(visibleWidth(row) <= 48);
 });
 
 test("a replacement plan is restored from its own session entry", async () => {
