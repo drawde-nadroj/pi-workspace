@@ -1,14 +1,13 @@
 import { FRAME_POSITIONS, FRAME_STATES, type FramePaint, type FrameState } from "../../lib/frame.ts";
-import { cleanText } from "../../lib/workspace-dock.ts";
 import type { TaskElementId, TaskPanelPrefs } from "./task-presentation.ts";
 import type { ChoiceAudition } from "./workspace-room-types.ts";
 export interface TaskControl { label: string; value: string; help: string; element?: TaskElementId; activate(): void }
 export const TASK_ELEMENTS: ReadonlyArray<{ id: TaskElementId; name: string; help: string; control: string }> = [
   { id: "frame", name: "Border and motion", help: "Border styling and a display-only work example.", control: "Border color" },
-  { id: "title", name: "Title", help: "The overview label. The stored plan name stays unchanged.", control: "Title position" },
-  { id: "summary", name: "Progress count", help: "Recorded done, total and blocker counts.", control: "Count position" },
-  { id: "hint", name: "More-work hint", help: "The overflow count and route to /tasks.", control: "More-work hint position" },
-  { id: "body", name: "Task rows", help: "Active work, blockers and pending work, in sourced order.", control: "Visible tasks" },
+  { id: "title", name: "Plan name", help: "The current plan's name on a rail; it comes from Tasks.", control: "Title position" },
+  { id: "summary", name: "Progress", help: "Recorded done, total and blocker counts.", control: "Count position" },
+  { id: "hint", name: "More hint", help: "Overflow count and the /tasks route.", control: "More-work hint position" },
+  { id: "body", name: "Task rows", help: "Open work: working, blocked, then not started.", control: "Visible tasks" },
   { id: "active", name: "Active task", help: "Tasks identifies the active row; color does not start work.", control: "Bold active task" },
 ];
 export const taskControlElement = (control: TaskControl): TaskElementId => control.element ?? "frame";
@@ -60,7 +59,6 @@ export function taskControls(e: Editors): TaskControl[] {
     choice("Title position", s.positions.title, [...FRAME_POSITIONS], "Place the title on a rail. Shared positions form a group.", (p, v) => { p.presentation.positions.title = v as typeof s.positions.title; }, "title"),
     choice("Count position", s.positions.summary, [...FRAME_POSITIONS], "Place recorded progress on a rail. Long labels shorten to fit.", (p, v) => { p.presentation.positions.summary = v as typeof s.positions.summary; }, "summary"),
     choice("More-work hint position", s.positions.hint, [...FRAME_POSITIONS], "Place the overflow count and /tasks route on a rail.", (p, v) => { p.presentation.positions.hint = v as typeof s.positions.hint; }, "hint"),
-    { label: "Panel title", value: p.title, element: "title", help: "Overview label only; does not rename your plan.", activate: () => e.text("Panel title", p.title, "Maximum 60 characters. Task titles stay unchanged.", value => { e.change(() => { e.get().title = Array.from(cleanText(value)).slice(0, 60).join(""); }); return true; }) },
     choice("Visible tasks", String(p.rows), ["1", "2", "3", "4", "5"], "Active work first, then blockers and pending work. Stored order stays unchanged.", (p, v) => { p.rows = Number(v); }, "body"),
     choice(`Motion when ${e.state}`, s.states[e.state]?.motion ?? "inherit", ["inherit", "repeat", "change", "off"], "Override motion for this state. Global off and real safety gates still win.", (p, v) => { if (v === "inherit") delete state(p).motion; else state(p).motion = v as "repeat" | "change" | "off"; }),
     color(`Border when ${e.state}`, s.states[e.state]?.borderColor ?? s.borderColor, (p, v) => { state(p).borderColor = v; }),

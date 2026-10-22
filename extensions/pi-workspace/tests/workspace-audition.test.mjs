@@ -62,7 +62,7 @@ for (const boundary of ["blur", "resize", "invalidate", "dispose", "abort"]) tes
 test("candidate colors/positions across Input, Tasks, Ask and Transcript preview without acceptance; one click creates one Undo", async () => {
   const cases = [
     { room: "Input", part: "Chat title", control: "Position", value: "Input box · bottom left", inspect: p => p.appearance.elements.session.position, expected: "bottomLeft" },
-    { room: "Tasks", part: "Title", control: "Title position", value: "Bottom right", inspect: p => p.tasks.presentation.positions.title, expected: "bottomRight" },
+    { room: "Tasks", part: "Plan name", control: "Title position", value: "Bottom right", inspect: p => p.tasks.presentation.positions.title, expected: "bottomRight" },
     { room: "Ask", part: "Question progress", control: "Progress position", value: "Bottom right", inspect: p => p.ask.progressPosition, expected: "bottomRight" },
     { room: "Transcript", part: "Sourced Sent time", control: "Sent position", value: "Bottom left", inspect: p => p.transcript.chat.sentPosition, expected: "bottomLeft" },
   ];

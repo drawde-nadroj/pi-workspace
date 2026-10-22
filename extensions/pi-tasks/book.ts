@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cleanText } from "../../lib/workspace-dock.ts";
-import { emptyPlan, restorePlan, mutate, counts, contextSummary, type Plan, type Mutation, type NewTask } from "./state.ts";
+import { emptyPlan, restorePlan, mutate, progressText, contextSummary, type Plan, type Mutation, type NewTask } from "./state.ts";
 
 import { amendRequirements, restoreRequirements, requirementCoverage, coverageContext, ATOMIC_GUIDANCE, type Requirement, type RequirementInput } from "./requirements.ts";
 
@@ -126,7 +126,7 @@ export function resultPlan(book: PlanBook, p = selectedPlan(book)): Plan {
 }
 export function planInfo(p: SavedPlan, book: PlanBook) {
   return { id: p.id, title: p.title, current: book.selectedId === p.id,
-    state: p.archivedAt !== null ? "archived" : isPlanClosed(p) ? p.state.tasks.every((t) => t.status === "done") ? "completed" : "closed" : "open", counts: counts(p.state),
+    state: p.archivedAt !== null ? "archived" : isPlanClosed(p) ? p.state.tasks.every((t) => t.status === "done") ? "completed" : "closed" : "open", counts: progressText(p.state),
     createdAt: p.createdAt, updatedAt: p.updatedAt };
 }
 export function bookContext(book: PlanBook): string {

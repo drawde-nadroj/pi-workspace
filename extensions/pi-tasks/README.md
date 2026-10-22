@@ -11,9 +11,9 @@ The agent is instructed and equipped to create a concise named plan for a **new 
 ### Inspect history without changing current work
 
 1. In Pi, open `/tasks history`.
-2. Use Up/Down to choose a saved plan, then Enter to inspect it. **History** or **Archived** identifies a non-current record.
-3. Open a record's details with Enter/D. Read its source, outcome and evidence; these are recorded reports, not independent verification.
-4. Escape returns through details/history to the panel or closes it. Do not press **S make current** or **R restore** if you only intend to inspect.
+2. Use Up/Down to choose a saved plan, then Enter to open its work. Groups are **Current**, **Open**, **Finished**, and **Archived**; `/` filters titles.
+3. Open a task's details with Enter. Read its status, done-when condition, outcome and evidence; these are recorded reports, not independent verification.
+4. Escape returns through details, requests, and the library to the panel, or closes it. Do not press **S make current** or **R restore** if you only intend to inspect.
 
 Inspection does not switch plans, start work or complete tasks. Use the [command table](#commands) for an intentional switch; appearance settings for Workspace's overview belong to `/workspace`, not this panel.
 
@@ -21,14 +21,8 @@ Inspection does not switch plans, start work or complete tasks. Use the [command
 
 | Command | Behavior |
 | --- | --- |
-| `/tasks` or `/tasks show` | Open the current plan in a distinct, raised panel |
-| `/tasks history` | Browse all saved plans, including completed and archived ones |
-| `/tasks requests` | Open readable request coverage with full source/acceptance in details |
-| `/tasks questions` | Open Ask's branch-local question projections; Enter answers above Tasks |
-| `/tasks prev` / `/tasks next` | Move the three-task window one task; freeze the view without changing agent work |
-| `/tasks follow` | Follow the active task again |
-| `/tasks view focus` | Save the three-task appearance (default) |
-| `/tasks view compact` | Save the earlier compact checklist appearance |
+| `/tasks` | Open the work list in a distinct, raised panel |
+| `/tasks history` | Open the plan library: current, open, finished and archived plans |
 | `/tasks new Fix the search page` | Create/select a named plan without replacing older plans |
 | `/tasks new` | Ask for a plan name |
 | `/tasks use p2` | Make an existing non-archived plan current; does not run it |
@@ -50,7 +44,7 @@ Plan IDs (`p1`, `p2`, …) appear in history. Task IDs (`t1`, `t2`, …) are loc
 
 ## Completed plans get out of the way
 
-The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Workspace's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **Plan closed · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
+The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Workspace's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **✓ Plan finished · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
 
 - Counts distinguish completed tasks from cancellations; an all-cancelled plan is not reported as successfully completed.
 - Resume/reload does not replay an old completion acknowledgment. A recent one uses its original expiry rather than restarting four seconds.
@@ -61,58 +55,54 @@ The visible Tasks dock now uses the same active Pi accent (purple in the Compose
 
 ## Panel controls
 
-The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. The active task has a bold title and a separate, softer background tint even when another row is selected. Its sourced **Working** or **Paused** label remains explicit; blockers retain warning marks and reasons. Selection still uses `›` and the stronger selection fill. This presentation does not change navigation, task state, or the Work/Requests/Questions layouts. Plan/request headings are neutral bold text; selected rows keep neutral titles with a separate caret and semantic status mark. Full details use the same short field labels and an up-to-80-cell reading column as transcript cards. Questions keep warning/application meanings explicit rather than treating submission as completion. Its height adapts to the list rather than reserving a full screen for two tasks. Unicode titles, narrow panes and long details are clipped/wrapped within the available area.
+The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. It is one priority-ordered list: unresolved questions first, then active, blocked and not-started work. The plan title is the header and counts are `${done} of ${total} done` plus blockers or cancellations only when they exist. The active task has a bold title and a separate, softer background tint even when another row is selected; its sourced **Working** or **Paused** label remains explicit. Blockers keep a warning mark and reason. Selection uses `›`.
 
-### Plan view
+Completed and cancelled work is a count, not a row: press **F** to reveal it. **V** shows the read-only request/coverage screen, and coverage gaps also appear as one warning line in the work view. Full details use a short field list and an up-to-80-cell reading column. The footer is at most one warning line plus one action bar; segments drop from the end on narrow terminals, but the final help/back key always remains.
 
-- **Tab / Shift+Tab / Left / Right:** switch **Work**, **Requests**, and **Questions**
-- **Up/Down:** choose a record; scroll within full details
-- **Enter / D:** inspect full task/request details; Enter on a question opens Ask above the panel
-- **E:** edit the selected task in the current plan; Enter from task details also edits
-- **Q:** toggle readable **Requests**; technical IDs, original wording, acceptance and links are in selected details
-- **J:** open **Questions**; **W:** return to **Work**
-- **F:** show/hide completed work (quiet and collapsed by default)
-- **A:** add a task to the current plan
-- **H:** open the plan library
-- **N:** create a named plan
-- **T:** rename the viewed plan
-- **X:** archive the viewed plan (confirm if unfinished)
-- **S:** make a historical non-archived plan current
-- **R:** restore an archived plan and make it current
-- **C:** clear the current plan's tasks, with confirmation
-- **O:** turn Tasks off
-- **Escape:** return from details/history, or close the panel
+### Keys
+
+- **Up/Down:** choose a record; scroll within details or help
+- **Enter:** open task/request details, or answer the selected question above the panel
+- **E:** edit the selected task in the current plan (also from its details)
+- **F:** show/hide completed and cancelled work
+- **V:** toggle the read-only **Requests** screen
+- **H:** open the plan library; **A** add a task; **N** create a plan
+- **S:** make a historical non-archived plan current; **R** restore an archived plan
+- **T:** rename the viewed plan; **X** archive it; **C** clear its tasks with confirmation
+- **O:** turn Tasks off; **?** open the one-screen key help; **Escape** returns one level or closes
 - **Ctrl+C:** close the panel directly
+
+Destructive keys are discoverable through **?**, not hidden in the list footer. `A`, `E` and `C` require the viewed plan to be current and unarchived; `T` and `X` work on any unarchived viewed plan; archived plans allow **R** only.
 
 ### Questions and coherent presentation
 
-Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. The Questions view includes the session's posted questions, including other plans and unlinked questions. Selection follows the question ID across answer-state reordering. The inbox is explicitly **Session questions**, not just the viewed plan. Rows name linked work; work details expose their question gates. Enter opens a focused Ask overlay. Escape first handles nested review/note/custom/clarification modes; outer Escape keeps the draft and returns to the same row. Urgency-only changes retain input and refresh the displayed boundary. Answer, skip and clarification kinds remain distinct from delivery stage. `/questions` remains available without Tasks or Workspace, and existing synchronous Ask tools are unchanged.
+Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. Unresolved posted questions from the whole session lead the work list, including other plans and unlinked questions, because they are the one thing that blocks the user. Selection follows the question key, so a question arriving above it does not move it. Rows name their link (`This session`, `<plan> / <task titles>`, or `<plan> / plan boundary`) and say **Waiting for you** or **Can wait**; work details expose their question gates. Enter opens a focused Ask overlay. Escape first handles nested review/note/custom/clarification modes; outer Escape keeps the draft and returns to the same row. Urgency-only changes retain input and refresh the displayed boundary. Answer, skip and clarification kinds remain distinct from delivery stage. `/questions` remains available without Tasks or Workspace, and existing synchronous Ask tools are unchanged.
 
-Blocking and deferred questions are distinct. The dock/Workspace overview shows a separate question count and attention hint; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
+Blocking and deferred questions are distinct. The dock summary leads with `N waiting for you` or `N can wait`; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
 
-Request tool cards lead with neutral bold titles and plain-language coverage. Expand for **Criterion**, **Original request**, **Linked work**, **Reference**, and any supersession **Disposition**. Full values remain available; prose wraps at up to 80 cells plus indentation even in a wide terminal. Field spacing and stronger gaps between records separate inspection from audit. Shared coverage is stated once in the card body (for example **Reported complete**), never only on a rail that can be clipped. Mixed states keep individual labels. Reported completion is structural coverage, not independent verification.
+Request tool cards lead with neutral bold titles and plain-language coverage. Expand for **Done when**, **Original request**, **Linked work**, **Reference**, and any supersession **Disposition**. Full values remain available; prose wraps at up to 80 cells plus indentation even in a wide terminal. Field spacing and stronger gaps between records separate inspection from audit. Shared coverage is stated once in the card body (for example **Reported done**), never only on a rail that can be clipped. Mixed states keep individual labels. Reported completion is structural coverage, not independent verification.
 
-Compact work cards replace repeated `Task · done:` prefixes with small semantic marks: green `✓` complete, accent `●` active status, neutral `○` not started, amber `!` blocked, and `–` cancelled. Titles remain normal text, not green paragraphs. Completion/status summaries appear once; blocker reasons and cancellation labels remain explicit. Top-right result summaries use theme tokens: success for complete, accent for active, warning for blocked, and muted for not-started/cancelled states and request quantities. Updates without a status change retain the underlying status color. Mixed summaries use a muted base with a success-colored completed count and individually colored active, blocked and cancelled counts; the frame and Tasks title remain accent-colored. Expand for textual status, attributed outcome notes, evidence and references. Wrapping aligns continuation lines beneath the title. Tiny unframed cards retain textual summaries; essential states do not depend on color. The transcript and native `/tasks` browser share this status vocabulary through `typography.ts`. In the browser, selection uses its own `›` marker and raised selection fill; status colors affect marks rather than entire titles. Work completion is summarized rather than repeated beneath every completed item. Requests and question attention retain explicit qualifications, with gaps between records. Native overview/dock layout and preferences remain unchanged.
+Compact work cards replace repeated `Task · done:` prefixes with the shared vocabulary: success `✓` **Done**, accent `●` **In progress**, warning `!` **Blocked**, muted `○` **Not started**, and `–` **Cancelled**. Titles remain normal text, not green paragraphs. Status summaries appear once as `${done} of ${total} done`, followed only by the active/blocked/cancelled counts that exist. Updates without a status change retain the underlying status color. The frame and its title remain accent-colored, and plan listings use the plan word (Current/Open/Finished/Archived) instead of a glyph. Expand for textual status, attributed outcome notes, evidence and references. Wrapping aligns continuation lines beneath the title. Tiny unframed cards retain textual summaries; essential states do not depend on color. The transcript and native `/tasks` browser share this status vocabulary through `typography.ts`. In the browser, selection uses its own `›` marker and raised selection fill; status colors affect marks rather than entire titles. Work completion is summarized rather than repeated beneath every completed item. Requests and question attention retain explicit qualifications, with gaps between records. Native overview/dock layout and preferences remain unchanged.
 
-**Enter opens panel details; E edits. Tab switches views; H opens history.** All other work/history actions remain available.
+**Enter opens panel details; E edits. V switches to requests; H opens the library; F reveals completed work.**
 
 `/workspace` → Tasks still owns the persistent **Workspace overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/workspace` → Ask's existing shell settings. Eligible Workspace transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
 
 ### Plan library
 
-Up/Down selects a plan; Enter **opens it for inspection**. Browsing history does **not** change the current plan, task statuses or execution. The detail view labels it **History** or **Archived** and offers explicit **S make current** / **R restore** actions. N creates a new plan.
+The library groups plans as **Current**, **Open**, **Finished**, and **Archived**, only non-empty, each sorted by most recent update. Rows show the plan name, progress and a short age. `/` starts a title search; typing filters case-insensitively, Enter keeps the filter and Escape clears it. Up/Down selects and Enter **opens a plan for inspection**. Browsing the library does **not** change the current plan, task statuses or execution. The opened plan's header says **Current**, **Open**, **Finished** or **Archived** and offers only the actions valid for it.
 
-The default **Focus** dock is a three-task window in authored order, with stable positional numbers and a `Tasks 3–5 of 8` heading. It follows the active task until you browse with `/tasks prev` or `/tasks next`; `/tasks follow` resumes following. Manual browsing changes neither task state nor the library revision. The heading distinguishes **Following**, **Now working: N**, **Paused: N**, **Last worked on: N**, and **Not started**. Last worked on is view-local history, not a completion claim. Selecting another plan or restoring a session/branch resets the view; compaction preserves it.
+### The dock
 
-Focus titles wrap within a fixed physical-line budget at each terminal height. Active text gets spare lines first; an ellipsis marks clipped text. Unused rows are not padded: short titles use only the lines they need. The full panel wraps task titles; **D** opens the complete scrollable task details when a title exceeds the panel viewport. Transcript task cards also wrap. Terminal resize can change the height budget; completion/off/archive retain their existing hide behavior.
+Both hosts render the same facts: the plan name as the frame title, one summary string and the same open-work rows, in the same order. Active work reads `● Working · <title>` or `● Paused · <title>`, blockers read `! <title> · <reason>`, and pending work reads `○ <title>`. Done and cancelled work is never a row; it is a count. If all tasks are closed but accepted requests remain uncovered, the dock shows one warning row: `! N requests need review · /tasks`. Long titles wrap within a fixed physical-line budget; active text gets spare lines first and an ellipsis marks clipped text. Selecting another plan or restoring a session/branch resets the dock; compaction preserves it.
 
-**Compact** keeps the earlier appearance: short checklists retain authored order and completed steps; long lists prioritize focus/blockers with an exact `+ N more · /tasks` row. `/tasks` always retains the full list and plan name. Active tasks are labeled **paused** when their plan is not current or the agent is not running. Appearance is saved separately from task history; `prev`, `next`, and `follow` switch to Focus for the current runtime without saving a preference.
+When the dock is hidden, the composer keeps a fallback hint of the active task title; while the dock is visible it does not duplicate it. There is no separate focus/compact appearance: `pi-tasks.json` stores only enablement and dock visibility.
 
 Transcript tool cards show the operation and committed task titles with explicit statuses, rather than raw implementation details. Single-task updates show only the changed task, and additions show the added tasks. Full titles wrap without an ellipsis or task-count cutoff. Plan creation includes the new name; history listings and plan switches have concise renderers.
 
 ## Independent controls
 
-**`/tasks off` does not change Workspace's editor, identity, appearance or timing.** The enabled setting and appearance preference persist in `~/.pi/agent/pi-tasks.json` (or the configured agent directory), separately from Workspace. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
+**`/tasks off` does not change Workspace's editor, identity, appearance or timing.** `~/.pi/agent/pi-tasks.json` (or the configured agent directory) stores only `enabled` and `hidden`; it is written separately from Workspace. A legacy `appearance` key is read without error and dropped on the next save. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
 
 Workspace off/removal does not disable Tasks. Tasks uses its own compact native widget and theme-aware raised panel. Turning Tasks off is not the same as cancelling the agent's ordinary work: it blocks task mutations immediately, but cannot erase information already sent in an in-flight request or historical transcript messages.
 
@@ -180,7 +170,7 @@ A new requirement supplies `title` (200 characters), `source` (800: an exact quo
 
 To remap, send `{ "id": "r1", "taskIds": ["t2"] }`. Original title/source/acceptance are immutable. A changed request requires an explicit `{ "id": "r1", "disposition": "superseded", "reason": "..." }` and a new record if replacement work is authorized. Superseded records are read-only. The agent cannot overwrite user-authored requirement edits. Explicit user Clear retires accepted requirements and removes task links without letting the agent recreate them; prior snapshots remain in session history.
 
-Coverage reports **uncovered**, **open**, **needs disposition** (a linked task was cancelled), **reported done**, or **superseded**. Cancelled tasks do not satisfy accepted requirements. A structural gap prevents the plan's closure acknowledgment/auto-hide and agent archival; `/tasks` offers Q coverage. An empty ledger says coverage is not established but retains legacy task closure behavior. Read pages contain at most 20 records; the panel can scroll the full ledger.
+Coverage reports **uncovered**, **open**, **needs disposition** (a linked task was cancelled), **reported done**, or **superseded**. Cancelled tasks do not satisfy accepted requirements. A structural gap prevents the plan's closure acknowledgment/auto-hide and agent archival; `/tasks` offers V coverage. An empty ledger says coverage is not established but retains legacy task closure behavior. Read pages contain at most 20 records; the panel can scroll the full ledger.
 
 These checks validate structure, not meaning: source references and outcomes are agent reports, and a link does not prove a task satisfies the request. The final checkpoint instructs the model to compare against available conversation context, recover source context when needed, and disclose uncertainty rather than invent missing context. No mechanism guarantees that every natural-language requirement was recognized. No paid-model success rate is claimed.
 
@@ -188,13 +178,13 @@ List/history pages default to 20 and are capped at 20. Mutation responses includ
 
 Only the user controls enable/disable, restores archived plans and clears lists. Archive is not deletion. Creating/selecting a plan never authorizes additional work beyond the user's request.
 
-## Persistent overview in Workspace
+## Workspace dock
 
-The Workspace host now consumes a separate, data-only overview: sourced done/total/blocker/cancelled counts, active identity, and open tasks ordered active → blocked → pending. This does not reorder the stored plan or change any task status. Completed work stays in the counts and full `/tasks` browser rather than occupying the persistent overview.
+The Workspace host consumes the same snapshot as the native fallback: plan title, summary, open-work rows ordered active → blocked → pending, and machine counts (done/blocked/cancelled plus the active identity) for progress feedback. The machine facts never reorder the stored plan or change a task status. Completed work stays in the counts and the full `/tasks` list rather than occupying the dock.
 
 Customize this surface through **`/workspace` → Tasks**. Workspace uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
 
-The legacy `/tasks prev`, `next`, `follow`, and `view focus|compact` controls remain available for the independent native fallback. They do not page the new Workspace overview away from active work. `/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
+`/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
 
 ## Optional Workspace integration
 

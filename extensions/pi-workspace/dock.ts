@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { cleanText, layoutDock, type DockSnapshot } from "../../lib/workspace-dock.ts";
 import type { WorkspaceState } from "./state.ts";
-import { composerInset, composerPadding, composerSurface } from "./composer-style.ts";
+import { composerPadding, composerSurface } from "./composer-style.ts";
 import { TaskPanel } from "./task-presentation.ts";
 
 /** Composer's optional dock sits above the native editor; no art or idle animation. */
@@ -27,22 +27,12 @@ export function createDock(tui: TUI, ctx: () => ExtensionContext, state: Workspa
           remaining -= frame.length;
           continue;
         }
-        if (!state.prefs.details && dock.layout !== "focus") {
-          const primary = dock.rows.find((row) => row.tone === "error" || row.tone === "warning")
-            ?? dock.rows.find((row) => row.tone === "accent") ?? dock.rows[0];
-          const text = `${cleanText(dock.title)}${dock.summary ? " · " + cleanText(dock.summary) : ""}${primary ? " · " + cleanText(primary.text) : ""}`;
-          const inset = composerInset(width);
-          rows.push(" ".repeat(inset) + truncateToWidth(theme.fg(primary?.tone === "error" ? "error" : primary?.tone === "warning" ? "warning" : "muted", text), Math.max(0, width - 2 * inset), "…"));
-          continue;
-        }
         if (remaining < 2) {
           rows.push(truncateToWidth(theme.fg("muted", `+ ${providers.length - index} more panels`), width));
           break;
         }
         const items = layoutDock(dock, Math.max(1, width - 2), Math.min(7, remaining - 1));
-        const heading = dock.layout === "focus" ? dock.summary ?? dock.title : dock.title;
-        const summary = dock.layout === "focus" ? "" : dock.summary;
-        rows.push(truncateToWidth(theme.fg("muted", ` ${cleanText(heading)}${summary ? " · " + cleanText(summary) : ""}`), width));
+        rows.push(truncateToWidth(theme.fg("muted", ` ${cleanText(dock.title)}${dock.summary ? " · " + cleanText(dock.summary) : ""}`), width));
         for (const row of items) rows.push(truncateToWidth(theme.fg(row.tone ?? "text", " " + cleanText(row.text)), width));
         remaining -= items.length + 1;
       }

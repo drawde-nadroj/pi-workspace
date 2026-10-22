@@ -8,12 +8,12 @@ import { Type } from "typebox";
 import { DOCK, isHost, cleanText, layoutDock, type DockAck, type DockColors, type DockSnapshot } from "../../lib/workspace-dock.ts";
 import { taskFrame } from "../../lib/task-frame.ts";
 import { taskResultCard, type TaskCardDetails } from "./transcript.ts";
-import { ENTRY, STATUSES, counts, dockRows, progressLabel, taskOverview, type Plan, type Change, type Mutation } from "./state.ts";
+import { ENTRY, STATUSES, progressText, taskOverview, type Plan, type Change, type Mutation } from "./state.ts";
+import { dockRows } from "./typography.ts";
 import { BOOK_ENTRY, COMPLETION_MS, emptyBook, migratePlan, restoreBook, mutateBook, selectedPlan, resultPlan, planInfo, bookContext, isPlanClosed,
   type PlanBook, type BookMutation } from "./book.ts";
 import { TaskPanel, type PanelResult, type PanelNavigation } from "./panel.ts";
 
-import { FocusWindow } from "./focus.ts";
 import { reconciliationMessage } from "./reconciliation.ts";
 import { POSTED, isQuestionSnapshot, unresolved, type QuestionSnapshot } from "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts";
 import { ATOMIC_GUIDANCE, coverageGaps, requirementCoverage, type Requirement } from "./requirements.ts";
@@ -50,26 +50,12 @@ export default function tasks(pi: ExtensionAPI) {
   let ctx: ExtensionContext | undefined;
   let enabled = true, hidden = false, mounted = false, running = false;
   let touchedPlanId: string | undefined, reconciliationRequested = false;
-  let appearance: "focus" | "compact" = "focus";
-  const focus = new FocusWindow();
   let colors: DockColors | undefined;
   let book = emptyBook(), fault: string | undefined;
   let panelTui: TUI | undefined;
   let questions: QuestionSnapshot | undefined;
   const questionRecords = () => questions?.available ? questions.questions : [];
   const catalogue = () => { if (ctx) pi.events.emit(POSTED.catalogue, { version: 1, sessionId: sessionId(), available: enabled && !fault, attentionHosted: enabled && !hidden && !fault && ctx.mode === 'tui', plans: book.plans.filter(p => p.archivedAt === null).map(p => ({ id: p.id, title: p.title, taskIds: p.state.tasks.map(t => t.id), tasks: p.state.tasks.map(t => ({ id: t.id, title: t.title })) })) }); };
-  const withAttention = (s: DockSnapshot): DockSnapshot => {
-    const p = selectedPlan(book), open = questionRecords().filter(unresolved);
-    if (!open.length) return s;
-    const blocking = open.filter(q => q.urgency === "blocking").length, deferred = open.length - blocking;
-    const row = { text: `${blocking ? `! ${blocking} blocking` : ""}${blocking && deferred ? " · " : ""}${deferred ? `? ${deferred} can wait` : ""} · /tasks questions`, tone: blocking ? "warning" as const : "muted" as const };
-    s.rows = [row, ...s.rows].slice(0, 12); s.summary = `${blocking} blocking question${blocking === 1 ? "" : "s"} · ${deferred} can wait`;
-    if (!s.overview) s.overview = { revision: book.revision, ...(p ? { planId: p.id } : {}), total: p?.state.tasks.length ?? 0,
-      done: p?.state.tasks.filter(t => t.status === "done").length ?? 0, blocked: p?.state.tasks.filter(t => t.status === "blocked").length ?? 0,
-      cancelled: p?.state.tasks.filter(t => t.status === "cancelled").length ?? 0, rows: [], more: 0 };
-    s.overview.rows = [row, ...s.overview.rows].slice(0, 12);
-    s.overview.questions = { blocking, deferred }; return s;
-  };
   let completionTimer: ReturnType<typeof setTimeout> | undefined;
   let saves = Promise.resolve();
   const preferencesPath = join(getAgentDir(), "pi-tasks.json");
@@ -78,24 +64,26 @@ export default function tasks(pi: ExtensionAPI) {
   const snapshot = (): DockSnapshot => {
     const p = selectedPlan(book);
     const s: DockSnapshot = { version: 1, sessionId: sessionId() ?? "", id: "pi-tasks", title: p?.title ?? "Plans", rows: [], hint: "/tasks" };
-    if (!enabled || hidden) return s;
+    if (!enabled) return s;
     if (fault) { s.rows = [{ text: "Plan history couldn't be read · /tasks clear to reset", tone: "error" }]; return s; }
-    if (!p) return withAttention(s);
+    if (!p) return s;
+    s.overview = { ...taskOverview(p.state), planId: p.id };
+    const openQuestions = questionRecords().filter(unresolved);
+    const blocking = openQuestions.filter(q => q.urgency === "blocking").length;
+    if (openQuestions.length) s.overview.questions = { blocking, deferred: openQuestions.length - blocking };
+    if (hidden) return s; // Facts stay available to the composer hint; the dock itself stays hidden.
+    const count = progressText(p.state);
+    const attention = blocking ? `${blocking} waiting for you` : openQuestions.length ? `${openQuestions.length} can wait` : "";
+    s.summary = attention && p.state.tasks.length ? `${attention} · ${count}` : attention || count;
     if (p.closedAt !== null) {
-      if (Date.now() >= p.closedAt && Date.now() - p.closedAt < COMPLETION_MS) s.rows = [{ text: `${p.state.tasks.some((t) => t.status === "done") ? "✓" : "–"} Plan closed · ${counts(p.state)} · saved in /tasks`, tone: "muted" }];
-      return withAttention(s);
+      if (Date.now() >= p.closedAt && Date.now() - p.closedAt < COMPLETION_MS) s.rows = [{ text: `${p.state.tasks.some((t) => t.status === "done") ? "✓" : "–"} Plan finished · ${count} · saved in /tasks`, tone: "muted" }];
+      return s;
     }
-    s.rows = dockRows(p.state, running); s.summary = progressLabel(p.state); s.more = Math.max(0, p.state.tasks.length - 12);
-    if (appearance === "focus") focus.apply(s, p.id, p.state, running);
+    const open = dockRows(p.state, running); s.rows = open.slice(0, 12); s.more = open.length - s.rows.length;
     const gaps = coverageGaps(p.requirements, p.state);
-    if (gaps.length) {
-      s.summary = `${gaps.length} requirement${gaps.length === 1 ? " needs" : "s need"} coverage review`;
-      // A closed task list is not a closed plan while accepted requests remain uncovered.
-      if (!s.rows.length || p.state.tasks.every(t => t.status === "done" || t.status === "cancelled")) s.rows = [{ text: s.summary, tone: "warning" }];
-    }
-    s.overview = { ...taskOverview(p.state, running), planId: p.id };
-    if (gaps.length && !s.overview.rows.length) s.overview.rows = [{ text: s.summary!, tone: "warning" }];
-    return withAttention(s);
+    // A closed task list is not a closed plan while accepted requests remain uncovered.
+    if (!s.rows.length && gaps.length) s.rows = [{ text: `${gaps.length} request${gaps.length === 1 ? " needs" : "s need"} review · /tasks`, tone: "warning" }];
+    return s;
   };
   function fallback() {
     if (ctx?.mode !== "tui") return;
@@ -107,7 +95,7 @@ export default function tasks(pi: ExtensionAPI) {
       if (!current.rows.length) return [];
       const budget = Math.max(3, Math.min(7, Math.floor(tui.terminal.rows / 4)));
       const content = layoutDock(current, Math.max(1, width - 2), budget).map(r => th.fg(r.tone ?? "text", cleanText(r.text)));
-      return taskFrame(th, width, content, "Tasks", current.summary ?? "");
+      return taskFrame(th, width, content, cleanText(current.title), current.summary ?? "");
     } }), { placement: "aboveEditor" });
   }
   function publish() {
@@ -128,7 +116,7 @@ export default function tasks(pi: ExtensionAPI) {
   }
   function restore(context: ExtensionContext, preserveActivity = false) {
     ctx = context; questions = undefined;
-    if (!preserveActivity) { running = false; touchedPlanId = undefined; reconciliationRequested = false; focus.reset(); }
+    if (!preserveActivity) { running = false; touchedPlanId = undefined; reconciliationRequested = false; }
     let value: unknown, legacy = false;
     for (const entry of context.sessionManager.getBranch()) if (entry.type === "custom" && (entry.customType === ENTRY || entry.customType === BOOK_ENTRY)) {
       value = entry.data; legacy = entry.customType === ENTRY;
@@ -209,7 +197,7 @@ export default function tasks(pi: ExtensionAPI) {
           reason: t.reason.length > 400 ? t.reason.slice(0, 400) + "… (full text in /tasks)" : t.reason,
           note: t.note.length > 400 ? t.note.slice(0, 400) + "… (full text in /tasks)" : t.note,
           evidence: t.evidence.length > 400 ? t.evidence.slice(0, 400) + "… (full text in /tasks)" : t.evidence }));
-        const payload = { revision: book.revision, selectedId: book.selectedId, planId: p?.id ?? null, title: p?.title ?? null, counts: counts(plan), tasks: page, coverage: coverageSummary,
+        const payload = { revision: book.revision, selectedId: book.selectedId, planId: p?.id ?? null, title: p?.title ?? null, counts: progressText(plan), tasks: page, coverage: coverageSummary,
           ...pageInfo(changed.length), ...((params.op === "add" || params.op === "create") ? { addedIds: changed.map((t) => t.id) } : {}) };
         return { content: [{ type: "text", text: JSON.stringify(payload) }], details: { plan, planId: p?.id, title: p?.title } };
       },
@@ -256,8 +244,7 @@ export default function tasks(pi: ExtensionAPI) {
     try {
       const p = JSON.parse(await readFile(preferencesPath, "utf8"));
       if (typeof p.enabled !== "boolean") throw new Error("enabled must be boolean"); enabled = p.enabled;
-      if (p.appearance !== undefined && !["focus", "compact"].includes(p.appearance)) throw new Error("Invalid task appearance");
-      appearance = p.appearance ?? "focus";
+      // The old fallback view preference is retired: a legacy `appearance` key is read without error and dropped on save.
       if (p.hidden !== undefined && typeof p.hidden !== "boolean") throw new Error("hidden must be boolean");
       hidden = p.hidden ?? false;
     } catch (error) {
@@ -299,13 +286,13 @@ export default function tasks(pi: ExtensionAPI) {
   });
 
   async function savePreferences(context: ExtensionContext) {
-    const preferences = { enabled, appearance, hidden };
+    const preferences = { enabled, hidden };
     saves = saves.then(async () => {
       const temp = preferencesPath + "." + randomUUID() + ".tmp";
       try {
         await mkdir(getAgentDir(), { recursive: true });
         await writeFile(temp, JSON.stringify(preferences, null, 2) + "\n", { mode: 0o600 }); await rename(temp, preferencesPath);
-      } catch (error) { context.ui.notify(`Task appearance/state changed for this runtime, but couldn't save preference: ${String(error)}`, "warning"); }
+      } catch (error) { context.ui.notify(`Task state changed for this runtime, but couldn't save preference: ${String(error)}`, "warning"); }
       finally { await rm(temp, { force: true }).catch(() => {}); }
     });
     await saves;
@@ -378,8 +365,8 @@ export default function tasks(pi: ExtensionAPI) {
     if (changes) commit(mutateBook(book, revision, { op: "task", planId: p.id, mutation: { op: "update", id: task.id, changes } }, "user"));
   }
   pi.registerCommand("tasks", {
-    description: "Work, Requests and Questions in a native panel. Named session plans: history, new <name>, use/archive/restore <planId>, add <task>, rename <name>, clear, hide, unhide, on, off. Hide only affects the dock. Workspace is independent.",
-    getArgumentCompletions: (prefix) => ["show", "requests", "questions", "view focus", "view compact", "history", "new ", "use ", "archive", "restore ", "rename ", "add ", "clear", "hide", "unhide", "on", "off"].filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
+    description: "Open plans and work. new <name>, add <task>, use/archive/restore <id>, rename, clear, hide, unhide, on, off.",
+    getArgumentCompletions: (prefix) => ["new ", "add ", "history", "use ", "archive", "restore ", "rename ", "clear", "hide", "unhide", "on", "off"].filter((s) => s.startsWith(prefix)).map((s) => ({ value: s, label: s })),
     handler: async (args, context) => {
       ctx = context; const command = args.trim();
       try {
@@ -392,19 +379,6 @@ export default function tasks(pi: ExtensionAPI) {
             : enabled ? "Tasks dock visible when a plan is open. Tracking unchanged."
             : "Tasks dock visibility restored. Tasks remain off; /tasks on enables tracking.", "info");
           return;
-        }
-        if (/^view (focus|compact)$/.test(command)) {
-          appearance = command.endsWith("focus") ? "focus" : "compact";
-          publish(); await savePreferences(context);
-          context.ui.notify(`Tasks fallback: ${appearance === "focus" ? "Focus" : "Compact"} · applies when Workspace is off · plan unchanged.`, "info"); return;
-        }
-        if (["prev", "next", "follow"].includes(command)) {
-          if (!enabled) { context.ui.notify("Tasks are off. /tasks on restores them.", "info"); return; }
-          const p = selectedPlan(book);
-          if (!p) { context.ui.notify("No current plan. /tasks history shows saved plans.", "info"); return; }
-          if (command === "follow") focus.follow(p.id, p.state);
-          else focus.move(p.id, p.state, command === "prev" ? -1 : 1);
-          appearance = "focus"; publish(); return;
         }
         if (!enabled) { context.ui.notify("Tasks are off. /tasks on restores all saved plans. Workspace is independent.", "info"); return; }
         if (command === "new" || command.startsWith("new ")) {
@@ -436,10 +410,10 @@ export default function tasks(pi: ExtensionAPI) {
           if (!fault && !book.selectedId) { context.ui.notify("No current plan to clear. /tasks history shows saved plans.", "info"); return; }
           await userChange(context, { op: "clear", planId: book.selectedId ?? "", revision: book.revision }); return;
         }
-        if (command && command !== "show" && command !== "history" && command !== "questions" && command !== "requests") { context.ui.notify("Usage: /tasks [requests|questions|prev|next|follow|view focus|view compact|history|new <name>|use <id>|archive [id]|restore <id>|rename <name>|add <task>|clear|hide|unhide|on|off]", "info"); return; }
+        if (command && command !== "history") { context.ui.notify("Usage: /tasks [history|new <name>|use <id>|archive [id]|restore <id>|rename <name>|add <task>|clear|hide|unhide|on|off]", "info"); return; }
         if (fault) { context.ui.notify(`Task history unreadable: ${fault}. /tasks clear can reset it.`, "warning"); return; }
         if (context.mode !== "tui") { context.ui.notify(command === "history" ? JSON.stringify(book.plans.map((p) => planInfo(p, book))) : bookContext(book), "info"); return; }
-        const nav: PanelNavigation = { history: command === "history", section: command === "questions" ? "questions" : command === "requests" ? "requests" : "work" };
+        const nav: PanelNavigation = { history: command === "history" };
         for (;;) {
           pi.events.emit(POSTED.interaction, { version: 1, sessionId: sessionId(), id: "pi-tasks:browser", active: true });
           let result: PanelResult;

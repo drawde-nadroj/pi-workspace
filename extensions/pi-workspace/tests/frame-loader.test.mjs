@@ -146,8 +146,8 @@ for (const warm of [false, true]) test(`Workspace's presentation API loads with 
       const panel = new TaskPanel(); panel.reset();
       const prefs = taskPanelDefaults();
       const rows = taskPanelRows(theme, 90, taskDemo("working"), prefs, { state: "working", active: false, elapsed: 0 });
-      assert.ok(rows.some(row => plain(row).includes("Tasks")));
-      assert.ok(rows.some(row => plain(row).includes("Refine task overview")));
+      assert.ok(rows.some(row => plain(row).includes("Photos for Mom")));
+      assert.ok(rows.some(row => plain(row).includes("Print 4×6 copies")));
       assert.ok(rows[0].includes("╭"), "new presentation uses fresh primitives, not the cached legacy root");
       const { chooseFooter } = await jiti.import(join(f.workspace, "footer-settings.ts"));
       const { FOOTER_DEFAULTS } = await jiti.import(join(f.workspace, "footer-state.ts"));
@@ -160,7 +160,7 @@ for (const warm of [false, true]) test(`Workspace's presentation API loads with 
       component.handleInput("\t");
       const demo = component.render(120).map(plain).join("\n");
       assert.match(demo, /Preview state/);
-      assert.match(demo, /Refine task overview/);
+      assert.match(demo, /Print 4×6 copies/);
       abort.abort(); await picker; component.dispose(); component = undefined;
     }
   } finally {

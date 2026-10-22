@@ -11,11 +11,10 @@ export interface Preferences {
   look: "composer";
   motion: Motion;
   icons: "nerd" | "plain";
-  details: boolean;
   theme: boolean;
 }
 export const DEFAULTS: Preferences = {
-  enabled: true, look: "composer", motion: "work", icons: "nerd", details: false, theme: true,
+  enabled: true, look: "composer", motion: "work", icons: "nerd", theme: true,
 };
 // Durable session key retained for existing histories, not an active Home owner.
 export const TIMING_ENTRY = "pi-home:timing-v1";
@@ -35,7 +34,6 @@ export function preferencesFrom(value: unknown): Preferences {
     look: "composer",
     motion: p.motion === "off" ? "off" : "work",
     icons: p.icons === "plain" ? "plain" : "nerd",
-    details: typeof p.details === "boolean" ? p.details : DEFAULTS.details,
     theme: typeof p.theme === "boolean" ? p.theme : DEFAULTS.theme,
   };
 }

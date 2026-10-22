@@ -92,8 +92,9 @@ export default function workspace(pi: ExtensionAPI) {
   let lastSecond = -1;
   const docks = new Map<string, DockSnapshot>();
   state.nextHint = () => {
-    const task = docks.get("pi-tasks")?.rows.find(row => row.tone === "accent" && /^\s*▸/.test(row.text));
-    return task ? task.text.replace(/^\s*▸\s*(?:\d+\s+)?/, "").trim() : "";
+    const dock = docks.get("pi-tasks");
+    if (!dock || dock.rows.length) return "";
+    return dock.overview?.activeTitle ?? "";
   };
   const themeLease = new ThemeLease();
   const sentFrames = new SentMessageFrames();
@@ -145,7 +146,10 @@ export default function workspace(pi: ExtensionAPI) {
   pi.events.on(DOCK.update, (value) => {
     if (!isSnapshot(value) || !context || value.sessionId !== context.sessionManager.getSessionId()) return;
     const accepted = installed && (docks.has(value.id) || docks.size < 6);
-    if (accepted && value.rows.length) docks.set(value.id, structuredClone(value)); else docks.delete(value.id);
+    // Tasks keeps its last snapshot while hidden so the composer can show the active-task hint;
+    // other providers release their slot as soon as they have nothing to render.
+    if (accepted && (value.rows.length || value.id === "pi-tasks")) docks.set(value.id, structuredClone(value));
+    else docks.delete(value.id);
     pi.events.emit(DOCK.ack, { version: 1, sessionId: value.sessionId, id: value.id, mounted: accepted && !!value.rows.length });
     refresh();
   });

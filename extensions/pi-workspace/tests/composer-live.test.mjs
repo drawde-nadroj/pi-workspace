@@ -341,8 +341,8 @@ test("run state moves into the composer rail below Tasks and timing across width
   const editor = new ModalEditor(tui, getEditorTheme(), kb);
   const cleanup = dressComposerEditor(editor, () => ctx, workspace, () => 5000, () => tui.terminal.rows);
   try {
-    for (const width of [24, 38, 100]) for (const rows of [22, 40]) for (const details of [false, true]) {
-      tui.terminal.rows = rows; workspace.prefs.details = details;
+    for (const width of [24, 38, 100]) for (const rows of [22, 40]) {
+      tui.terminal.rows = rows;
       for (const phase of ["ready", "thinking", "done", "error", "stopped"]) {
         clock.restore(undefined, 1000); workspace.clock.restore(undefined); workspace.phase = "thinking";
         if (phase !== "ready") { clock.begin(1000); workspace.clock.begin(1000); }
@@ -361,17 +361,17 @@ test("run state moves into the composer rail below Tasks and timing across width
   } finally { cleanup(); }
 });
 
-test("compact work summary prioritizes blocked work; details expand without changing task data", () => {
+test("the dock shows the plan title, open work and one summary without changing task data", () => {
   const workspace = state();
-  const snapshot = { id: "pi-tasks", title: "Real plan", summary: "1/3 done · 1 blocked", rows: [{ text: "Done step", tone: "muted" }, { text: "Current step", tone: "accent" }, { text: "Needs approval", tone: "warning" }] };
+  const snapshot = { id: "pi-tasks", title: "Real plan", summary: "1 of 3 done · 1 blocked",
+    rows: [{ text: "● Working · Current step", tone: "accent" }, { text: "! Needs approval · waiting for a decision", tone: "warning" }] };
   const saved = structuredClone(snapshot);
   const dockView = createDock({ terminal: { rows: 40 } }, () => ctx, workspace, new Map([["pi-tasks", snapshot]]), () => true);
-  let text = dockView.render(100).map(plain).join("\n");
-  assert.match(text, /╭ Tasks .*1\/3 done · 1 blocked/);
+  const text = dockView.render(100).map(plain).join("\n");
+  assert.match(text, /╭ Real plan .*1 of 3 done · 1 blocked/);
+  assert.match(text, /● Working · Current step/);
   assert.match(text, /Needs approval/);
-  assert.doesNotMatch(text, /Done step/);
-  workspace.prefs.details = true;
-  text = dockView.render(100).map(plain).join("\n");
-  assert.match(text, /Done step/); assert.match(text, /Current step/);
+  assert.doesNotMatch(text, /Done step|Tasks/);
+  assert.deepEqual(dockView.render(100).map(plain), text.split("\n"), "a steady dock does not reorder or rewrite rows");
   assert.deepEqual(snapshot, saved);
 });

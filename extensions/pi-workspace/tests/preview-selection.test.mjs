@@ -103,7 +103,7 @@ const previewRows = h => { const rows = rendered(h); return rows.slice(rows.find
 
 for (const [room, selected, target, scope] of [
   ["Input", "Assistant status", "Chat title", "Actual chat 界面"],
-  ["Tasks", "Border and motion", "Progress count", "3/7 done"],
+  ["Tasks", "Border and motion", "Progress", "3 of 6 done · 1 blocked"],
   ["Ask", "Question title", "Question text", "Which option suits this sample?"],
   ["Transcript", "Chat identity", "Sourced Sent time", "9:41:05 AM"],
 ]) test(`${room}: hover inspects without selection, edits or native-state mutation; keyboard restores selection`, async () => {
@@ -129,13 +129,13 @@ for (const [room, selected, target, scope] of [
 test("preview target clicks retain geometry after highlighting and property edits", async () => {
   const h = workspace({ ...FOOTER_DEFAULTS, motion: "off", selectionShimmer: "off" });
   try {
-    h.click("[Tasks]"); h.click("3/7 done");
-    assert.match(h.rows().join("\n"), /Selected: Progress count · Top right/);
+    h.click("[Tasks]"); h.click("3 of 6 done · 1 blocked");
+    assert.match(h.rows().join("\n"), /Selected: Progress · Top right/);
     h.click("Count position"); h.pick("bottomCenter");
-    const lines = h.rows(), y = lines.findIndex(row => row.startsWith("╰") && row.includes("3/7 done"));
-    h.clickAt(visibleWidth(lines[y].split("3/7 done")[0]), y);
-    assert.match(h.rows().join("\n"), /Selected: Progress count · Bottom center/);
-    assert.ok(background.test(previewRows(h).find(row => plain(row).startsWith("╰") && plain(row).includes("3/7 done"))));
+    const lines = h.rows(), y = lines.findIndex(row => row.startsWith("╰") && row.includes("3 of 6 done"));
+    h.clickAt(visibleWidth(lines[y].split("3 of 6 done · 1 blocked")[0]), y);
+    assert.match(h.rows().join("\n"), /Selected: Progress · Bottom center/);
+    assert.ok(background.test(previewRows(h).find(row => plain(row).startsWith("╰") && plain(row).includes("3 of 6 done"))));
     h.click("[Ask]"); h.click("Question frame");
     assert.match(h.rows().join("\n"), /Pi theme accent/); assert.doesNotMatch(h.rows().join("\n"), /orange/i);
     h.click("Question progress"); h.click("Progress position"); h.pick("bottomRight");
@@ -157,8 +157,14 @@ test("unavailable targets explain hidden settings, inactive states, clipping and
     assert.match(h.rows().join("\n"), /Off: sourced Sent time is hidden/);
     h.click("[Tasks]"); h.click("Demo state"); h.pick("idle"); h.click("Active task");
     assert.match(h.rows().join("\n"), /No active row in this example state/);
-    h.click("Task rows"); h.click("Visible tasks"); h.pick("5"); h.click("More-work hint");
-    assert.match(h.rows().join("\n"), /No overflow hint/);
+    h.panel.handleInput("\x1b[D"); // Keyboard path back into the element list.
+    for (let i = 0; i < 5; i++) h.panel.handleInput("\x1b[A"); // Up to the frame element.
+    h.panel.handleInput("\x1b[C");
+    h.click("Demo state"); h.pick("done");
+    h.click("Task rows"); h.click("Visible tasks"); h.pick("5"); h.click("More hint");
+    assert.match(h.rows().join("\n"), /Selected: More hint/);
+    assert.doesNotMatch(previewRows(h).map(plain).join("\n"), /\+ \d+ more/);
+    assert.match(previewRows(h).map(plain).join("\n"), /\/tasks/, "the /tasks route stays on the rail");
     h.click("[Ask]"); h.click("Question progress"); h.tui.terminal.rows = 16;
     assert.match(h.rows().join("\n"), /Not visible now/);
     assert.ok(h.panel.render(120).length <= 16);

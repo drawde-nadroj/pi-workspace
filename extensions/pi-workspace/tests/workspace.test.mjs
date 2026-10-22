@@ -310,7 +310,7 @@ test("fresh and retired Workspace preferences render only Composer, with migrati
       assert.equal(persisted.look, "composer");
       assert.equal(persisted.motion, "off");
       assert.equal(persisted.icons, "plain");
-      assert.deepEqual(Object.keys(persisted).sort(), ["details", "enabled", "icons", "look", "motion", "theme"].sort());
+      assert.deepEqual(Object.keys(persisted).sort(), ["enabled", "icons", "look", "motion", "theme"].sort());
     } finally { await h.close(); }
   }
 });

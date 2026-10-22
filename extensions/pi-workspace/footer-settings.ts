@@ -145,7 +145,7 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
         visual: patch => roomEditor.visual((candidate, next) => patch(candidate.tasks!, next)),
       state: demoState, preview: next => { demoState = next; demoRevision++; tui.requestRender(); },
       replay: () => { demoRevision++; tui.requestRender(); } });
-      const common = new Set(["Demo state", "Motion", "Border color", "Title position", "Panel title", "Title color", "Count position", "Count color", "More-work hint position", "Visible tasks", "Body text color", "Bold active task", "Active task color"]);
+      const common = new Set(["Demo state", "Motion", "Border color", "Title position", "Title color", "Count position", "Count color", "More-work hint position", "Visible tasks", "Body text color", "Bold active task", "Active task color"]);
       return [...controls.filter(control => taskControlElement(control) === taskSelected && (taskAdvanced || common.has(control.label))),
         { label: "Advanced settings", value: taskAdvanced ? "Hide…" : "Show…", help: "More motion, color, emphasis and per-state choices. Your saved settings are unchanged until Save.", element: taskSelected, activate: () => { taskAdvanced = !taskAdvanced; taskIndex = 0; } }];
     };
@@ -378,7 +378,6 @@ export async function chooseFooter(ctx: ExtensionCommandContext, initial: Footer
           else if (!view.hits.some(hit => (hit.id === id || room === "tasks" && id === "body" && hit.id === "active") && hit.y < aboveRows.length)) {
             missing = room === "transcript" && id === "chatSent" && !transcriptStyle(true)?.chat.showSent ? "Off: sourced Sent time is hidden by this setting."
               : room === "tasks" && id === "active" && !demoDock.overview?.activeId ? "No active row in this example state. Choose a working or waiting demo."
-              : room === "tasks" && id === "hint" && demoDock.overview!.rows.length <= Math.min(draft.tasks!.rows, taskBudget - 2) ? "No overflow hint: all example work fits in the overview."
               : "Not visible now: the sample is shortened or this element does not fit. Use the list or enlarge the terminal.";
           }
         }

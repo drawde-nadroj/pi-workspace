@@ -87,10 +87,9 @@ These controls style Workspace's overview, not the stored plan or standalone fal
 | Text effect | Optional label/active color motion; safety gates still win |
 | Bold title | Static label emphasis |
 | Bold active task | Static emphasis of the sourced active row |
-| Title position | Any supported rail; hover identifies actual placement |
+| Plan name | Objective: the current plan's name is the only dock title; position and color only |
 | Count position | Supported rails; exact counts stay sourced |
 | Overflow hint position | Route/count for work that does not fit |
-| Panel title | Overview display label; no plan rename |
 | Visible tasks | 1–5 rows; stored plan order does not change |
 | Motion when [state] | State override or default; global off still wins |
 | Border when [state] | State-specific perimeter color |
@@ -158,11 +157,9 @@ Removed duplicate controls remain compatible read fallbacks: density maps to Gen
 | `/composer`: Work motion | Native selector retained; wording distinguishes animation from live timing |
 | `/composer`: Header icons | Explicitly distinguishes Workspace's header/fallback icons from workspace metadata icons |
 | `/composer`: Matching palette | Reversible runtime lease; off restores preceding colors |
-| `/composer`: Work summary | Compact/expanded sourced overview; not task execution |
 | `/composer`: Activity recaps / `/recaps` | Off by default; explicit enable/disclosure of additional bounded OAuth inference. Immediate separate `pi-recaps.json` authority, cancellation on off, not workspace Save |
 | `/composer`: On/off | Explicit shell enablement; other suite owners remain independent |
 | `/composer output raw/readable` | Session-only expanded output, not persisted appearance |
-| `/tasks view focus/compact` | Completion discovery + explicit notification: standalone fallback, saved immediately, plan unchanged |
 | `/tasks hide/unhide` | Dock visibility only, persisted separately |
 | `/tasks on/off` | Tracking enablement, not cancelling agent work or deleting plans |
 | Ask `/questions` / F2 | Answer/navigation actions, not an appearance editor; semantics retained |

@@ -2,10 +2,10 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { cleanText } from "../../lib/workspace-dock.ts";
 import { taskFrame } from "../../lib/task-frame.ts";
-import type { Plan, Task } from "./state.ts";
+import type { Plan, Status, Task } from "./state.ts";
 import type { Requirement } from "./requirements.ts";
 import type { planInfo } from "./book.ts";
-import { WORK_STATUS as STATES, REQUEST_STATUS as COVERAGE } from "./typography.ts";
+import { WORK_STATUS as STATES, REQUEST_STATUS as COVERAGE, planWord } from "./typography.ts";
 
 type Tone = "text" | "muted" | "accent" | "warning" | "success";
 type Row = { text: string; tone?: Tone; bold?: boolean; indent?: number; prose?: boolean; glyph?: string; glyphTone?: Tone };
@@ -36,12 +36,11 @@ function summary(tasks: Task[], theme: Theme, updated: boolean): string {
     const label = state?.label ?? tasks[0].status;
     return theme.fg(state?.tone ?? "muted", prefix + (updated ? label.toLowerCase() : label));
   }
-  const n = (status: string) => tasks.filter(t => t.status === status).length;
-  if (tasks.length && n("done") === tasks.length) return theme.fg("success", `${prefix}${tasks.length} complete`);
-  return theme.fg("muted", prefix) + [
-    theme.fg("success", `${n("done")}`) + theme.fg("muted", `/${tasks.length} complete`),
-    ...["active", "blocked", "cancelled"].filter(s => n(s)).map(s => theme.fg(STATES[s].tone, `${n(s)} ${s}`)),
-  ].join(theme.fg("muted", " · "));
+  const count = (status: string) => tasks.filter(t => t.status === status).length;
+  const done = count("done");
+  // One count format on every surface: done out of total, then only the states that exist.
+  return theme.fg("muted", prefix) + theme.fg(done === tasks.length ? "success" : "muted", `${done} of ${tasks.length} done`) +
+    ["active", "blocked", "cancelled"].filter(s => count(s)).map(s => theme.fg(STATES[s as Status].tone, ` · ${count(s)} ${s === "active" ? "working" : s}`)).join("");
 }
 
 /** Display-only Tasks adapter. No state writes, input ownership, or new appearance authority. */
@@ -61,7 +60,7 @@ export function taskResultCard(details: TaskCardDetails, args: Args, expanded: b
       const links = r.taskIds.length ? `${r.taskIds.length} linked` : "No linked work";
       if (!common || !expanded) rows.push({ text: [!common ? s.label : "", !expanded ? links : ""].filter(Boolean).join(" · "), tone: s.tone === "warning" ? "warning" : "muted", indent: 2 });
       if (expanded) {
-        field(rows, "Criterion", r.acceptance);
+        field(rows, "Done when", r.acceptance);
         field(rows, "Original request", r.source);
         rows.push({ text: "" }, { text: `Linked work  ${r.taskIds.join(", ") || "not linked"}`, tone: "muted", indent: 2, prose: true },
           { text: `Reference  ${r.id}`, tone: "muted", indent: 2 });
@@ -69,7 +68,7 @@ export function taskResultCard(details: TaskCardDetails, args: Args, expanded: b
       }
     });
   } else if (details.plans) {
-    rows.push(...details.plans.map(p => ({ text: `${p.current ? "▸" : "·"} ${p.title} · ${p.state} · ${p.counts}`, tone: "muted" as const })));
+    rows.push(...details.plans.map(p => ({ text: `${p.title} · ${planWord(p.state, p.current)} · ${p.counts}`, tone: "muted" as const })));
   } else {
     const actions: Record<string, string> = { archive: "Archived plan", select: "Selected plan", rename: "Renamed plan" };
     if (args.op && actions[args.op]) rows.push({ text: `${actions[args.op]}: ${details.title ?? "Plan"}` });

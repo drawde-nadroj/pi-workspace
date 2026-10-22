@@ -14,21 +14,20 @@ export type DockColors = Record<Tone | "base" | "panel", string>;
 export interface DockHost { version: 1; sessionId: string; available: boolean; colors?: DockColors }
 export interface DockSnapshot {
   version: 1; sessionId: string; id: string; title: string; rows: DockRow[]; hint?: string;
-  summary?: string; more?: number; layout?: "focus"; overview?: TaskOverview;
+  summary?: string; more?: number; overview?: TaskOverview;
 }
 export interface TaskOverview {
   revision: string; planId?: string; total: number; done: number; blocked: number; cancelled: number;
-  activeId?: string; rows: DockRow[]; more: number; questions?: { blocking: number; deferred: number };
+  activeId?: string; activeTitle?: string; questions?: { blocking: number; deferred: number };
 }
 export interface DockAck { version: 1; sessionId: string; id: string; mounted: boolean }
 export function validOverview(v: TaskOverview): boolean {
   return !!v && typeof v === "object" && typeof v.revision === "string" && v.revision.length <= 200 &&
     (v.planId === undefined || typeof v.planId === "string" && /^p[1-9]\d*$/.test(v.planId)) &&
-    [v.total, v.done, v.blocked, v.cancelled, v.more].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 10000) &&
+    [v.total, v.done, v.blocked, v.cancelled].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 10000) &&
     v.done + v.blocked + v.cancelled <= v.total && (v.activeId === undefined || typeof v.activeId === "string" && /^t[1-9]\d*$/.test(v.activeId)) &&
-    (v.questions === undefined || !!v.questions && [v.questions.blocking, v.questions.deferred].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 100)) &&
-    Array.isArray(v.rows) && v.rows.length <= 12 && v.rows.every(r => r && typeof r.text === "string" && r.text.length <= 600 &&
-      (r.tone === undefined || ["text", "muted", "accent", "success", "warning", "error"].includes(r.tone)));
+    (v.activeTitle === undefined || typeof v.activeTitle === "string" && v.activeTitle.length >= 1 && v.activeTitle.length <= 200) &&
+    (v.questions === undefined || !!v.questions && [v.questions.blocking, v.questions.deferred].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 100));
 }
 export function cleanText(text: string): string {
   return text.replace(/\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))/g, "")
@@ -40,7 +39,6 @@ export function isSnapshot(value: unknown): value is DockSnapshot {
   return v.version === 1 && typeof v.sessionId === "string" && typeof v.id === "string" && /^[\w:-]{1,80}$/.test(v.id) &&
     typeof v.title === "string" && v.title.length <= 400 && (v.hint === undefined || typeof v.hint === "string" && v.hint.length <= 200) &&
     (v.summary === undefined || typeof v.summary === "string" && v.summary.length <= 100) &&
-    (v.layout === undefined || v.layout === "focus") &&
     (v.overview === undefined || validOverview(v.overview)) &&
     (v.more === undefined || Number.isSafeInteger(v.more) && v.more >= 0 && v.more <= 10000) &&
     Array.isArray(v.rows) && v.rows.length <= 12 && v.rows.every((r) => r && typeof r.text === "string" && r.text.length <= 600 &&
@@ -57,7 +55,6 @@ export function fitDock(snapshot: DockSnapshot, maxRows: number): DockRow[] {
 }
 /** Physical-line budget shared by native and Workspace hosts. Keep task order; give active text spare lines first. */
 export function layoutDock(snapshot: DockSnapshot, width: number, maxRows: number): DockRow[] {
-  if (snapshot.layout !== "focus") return fitDock(snapshot, maxRows);
   if (width <= 0 || maxRows <= 0) return [];
   const groups = snapshot.rows.map(row => wrapTextWithAnsi(cleanText(row.text), Math.max(1, width - 2)));
   const budgets = groups.map(() => 1);

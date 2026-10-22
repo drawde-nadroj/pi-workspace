@@ -17,7 +17,8 @@ const jiti = createJiti(import.meta.url, { alias: {
   "@earendil-works/pi-ai": join(root, "@earendil-works/pi-ai/dist/index.js"),
   "typebox": join(root, "typebox/build/index.mjs"),
 } });
-const { emptyPlan, mutate, restorePlan, counts, dockRows, progressLabel, contextSummary, ENTRY } = await jiti.import(join(source, "state.ts"));
+const { emptyPlan, mutate, restorePlan, progressText, taskOverview, contextSummary, ENTRY } = await jiti.import(join(source, "state.ts"));
+const { dockRows } = await jiti.import(join(source, "typography.ts"));
 const { BOOK_ENTRY, COMPLETION_MS, emptyBook, mutateBook, migratePlan, restoreBook, selectedPlan, resultPlan, bookContext, planInfo } = await jiti.import(join(source, "book.ts"));
 const { reconciliationMessage } = await jiti.import(join(source, "reconciliation.ts"));
 const { ATOMIC_GUIDANCE } = await jiti.import(join(source, "requirements.ts"));
@@ -26,7 +27,6 @@ const askFactory = await jiti.import(join(source, "../../packages/pi-ask/extensi
 const { POSTED } = await jiti.import(join(source, "../../packages/pi-ask/extensions/ask-user-question/posted-protocol.ts"));
 const workspaceFactory = await jiti.import(join(source, "../pi-workspace/index.ts"), { default: true });
 const { TaskPanel } = await jiti.import(join(source, "panel.ts"));
-const { FocusWindow } = await jiti.import(join(source, "focus.ts"));
 const { layoutDock } = await jiti.import(join(source, "../../lib/workspace-dock.ts"));
 const { createDock } = await jiti.import(join(source, "../pi-workspace/dock.ts"));
 const { taskFrame, taskFrameColor } = await jiti.import(join(source, "../../lib/task-frame.ts"));
@@ -44,42 +44,31 @@ const plain = (s) => stripVTControlCharacters(s);
 const add = (p, titles = ["Read requirements", "Implement", "Verify"]) => mutate(p, p.revision, { op: "add", items: titles.map((title) => ({ title })) }, "agent", 1000);
 const update = (p, id, changes, actor = "agent") => mutate(p, p.revision, { op: "update", id, changes }, actor, 2000);
 
-test("focus dial preserves order, freezes on browse, and never mutates plan state", () => {
-  let p = add(emptyPlan(), Array.from({ length: 8 }, (_, i) => `Task ${i + 1}`));
-  const dial = new FocusWindow();
-  const view = (id = "p1", running = true) => {
-    const snapshot = { version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", rows: [] };
-    dial.apply(snapshot, id, p, running); return snapshot;
-  };
-  assert.match(view().summary, /1–3 of 8 · Not started/);
-  p = update(p, "t4", { status: "active" });
-  assert.match(view().summary, /3–5 of 8 · Following/);
-  assert.match(view().rows[1].text, /▸ 4  Task 4/);
-  const before = structuredClone(p);
-  dial.move("p1", p, -1);
-  assert.match(view().summary, /2–4 of 8 · Now working: 4/);
-  assert.deepEqual(p, before);
-  p = update(p, "t4", { status: "done", note: "Done" });
-  assert.match(view().summary, /2–4 of 8 · Last worked on: 4/);
-  p = update(p, "t6", { status: "active" });
-  assert.match(view().summary, /2–4 of 8 · Now working: 6/);
-  assert.match(view("p1", false).summary, /Paused: 6/);
-  dial.follow("p1", p);
-  assert.match(view().summary, /5–7 of 8 · Following/);
-  p = update(p, "t1", { status: "blocked", reason: "External input" });
-  assert.match(view().summary, /5–7 of 8/);
-  for (let i = 0; i < 20; i++) dial.move("p1", p, 1);
-  assert.match(view().summary, /6–8 of 8/);
-  p = update(p, "t6", { status: "pending" });
-  assert.match(view("p2").summary, /1–3 of 8 · No active task/);
-  assert.ok(isSnapshot(view()));
+test("dock rows use one vocabulary and one order: working, blocked, then not started", () => {
+  let p = add(emptyPlan(), ["Read", "Build", "Check", "Ship"]);
+  assert.equal(progressText(p), "0 of 4 done");
+  p = update(p, "t1", { status: "done", note: "Read" });
+  p = update(p, "t2", { status: "active" });
+  p = update(p, "t3", { status: "blocked", reason: "Waiting for approval" });
+  p = update(p, "t4", { status: "cancelled" });
+  assert.equal(progressText(p), "1 of 4 done · 1 blocked · 1 cancelled");
+  assert.equal(progressText(emptyPlan()), "No tasks yet");
+  const rows = dockRows(p, true);
+  assert.deepEqual(rows.map(r => r.text), ["● Working · Build", "! Check · Waiting for approval"]);
+  assert.deepEqual(rows.map(r => r.tone), ["accent", "warning"]);
+  assert.equal(dockRows(p, false)[0].text, "● Paused · Build", "a stopped agent pauses, it does not finish");
+  const overview = taskOverview(p);
+  assert.equal(overview.activeId, "t2"); assert.equal(overview.activeTitle, "Build");
+  assert.equal(overview.total, 4); assert.equal(overview.done, 1);
+  assert.equal(isSnapshot({ version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", rows, overview }), true);
+  assert.equal(isSnapshot({ version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", rows, overview: { ...overview, activeTitle: "" } }), false);
 });
 
 test("focus dock wraps Unicode within its line budget without unused padding", () => {
-  const snapshot = { version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", layout: "focus", rows: [
-    { text: "✓ 1  Done", tone: "muted" },
-    { text: "▸ 2  Long task 界面 é needs enough space to wrap without losing its complete title", tone: "accent" },
-    { text: "○ 3  Test later", tone: "text" },
+  const snapshot = { version: 1, sessionId: "test", id: "pi-tasks", title: "Plan", rows: [
+    { text: "✓ Done", tone: "muted" },
+    { text: "● Working · Long task 界面 é needs enough space to wrap without losing its complete title", tone: "accent" },
+    { text: "○ Test later", tone: "text" },
   ] };
   for (const width of [1, 2, 8, 20, 40, 80]) for (const budget of [3, 5, 7]) {
     const lines = layoutDock(snapshot, width, budget);
@@ -126,7 +115,7 @@ test("atomic revisioned updates, stable IDs, explicit start, dependencies and ou
   assert.equal(q.tasks[1].status, "pending", "no implicit next-task start");
   q = update(q, "t2", { status: "active" });
   q = update(q, "t3", { status: "cancelled" });
-  assert.equal(counts(q), "1/3 done · 1 cancelled");
+  assert.equal(progressText(q), "1 of 3 done · 1 cancelled");
   assert.deepEqual(restorePlan(q), q);
   assert.equal(p.tasks[0].title, "Read requirements", "base snapshot not mutated");
 });
@@ -161,8 +150,8 @@ test("persisted data, bounds and terminal controls are validated; memory is boun
   p = update(p, "t91", { status: "blocked", reason: "Needs your answer" });
   assert.match(contextSummary(p), /Needs your answer/, "late blockers get priority in bounded memory");
   p = update(p, "t1", { status: "active" });
-  assert.match(dockRows(p, false)[0].text, /paused/);
-  assert.doesNotMatch(dockRows(p, true)[0].text, /paused/);
+  assert.match(dockRows(p, false)[0].text, /Paused/);
+  assert.match(dockRows(p, true)[0].text, /Working/);
 });
 
 async function harness({ workspace = false, ask = false, order = "workspace-first", mode = "tui", prefs } = {}) {
@@ -211,37 +200,77 @@ async function harness({ workspace = false, ask = false, order = "workspace-firs
   };
 }
 
-test("focus browsing stays view-only; Workspace overview remains independent and preferences persist", async () => {
+test("both dock hosts show the same plan title, work rows and summary", async () => {
   for (const workspace of [false, true]) {
     const h = await harness({ workspace });
     try {
       await h.emit("session_start");
       const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
-      let result = await h.call({ op: "create", revision: initial.revision, title: "Focus test", items: Array.from({ length: 8 }, (_, i) => ({ title: `Step ${i + 1} with a long title that must wrap across small terminals 界面` })) });
+      let result = await h.call({ op: "create", revision: initial.revision, title: "Dock parity", items: Array.from({ length: 8 }, (_, i) => ({ title: `Step ${i + 1} 界面` })) });
       result = await h.call({ op: "update", revision: JSON.parse(result.content[0].text).revision, id: "t4", changes: { status: "active" } });
       await h.emit("agent_start");
       const before = structuredClone(h.entries);
-      const render = width => [...h.widgets.values()].flatMap(widget => widget.render(width));
-      assert.match(plain(render(100).join("\n")), workspace ? /0\/8 done/ : /3–5 of 8 · Following/);
-      const overview = plain(render(100).join("\n"));
-      await h.command("tasks", "prev");
-      assert.match(plain(render(100).join("\n")), workspace ? /0\/8 done/ : /2–4 of 8 · Now working: 4/);
-      if (workspace) assert.equal(plain(render(100).join("\n")), overview, "browser paging does not hide active work in the overview");
-      await h.command("tasks", "follow");
-      assert.match(plain(render(100).join("\n")), workspace ? /0\/8 done/ : /3–5 of 8 · Following/);
-      assert.deepEqual(h.entries, before, "browsing adds no task snapshots");
+      const render = width => [...h.widgets.values()].flatMap(widget => widget.render(width)).map(plain).join("\n");
+      const shown = render(100);
+      assert.match(shown, /Dock parity/);
+      assert.match(shown, /● Working · Step 4 界面/);
+      assert.match(shown, /0 of 8 done/);
+      assert.doesNotMatch(shown, /✓|– Step/, "only open work is listed; closed work is a count");
       for (const rows of [12, 24, 40]) for (const width of [20, 40, 80]) {
         h.tui.terminal.rows = rows;
-        assert.ok(render(width).every(line => visibleWidth(line) <= width));
+        assert.ok([...h.widgets.values()].flatMap(widget => widget.render(width)).every(line => visibleWidth(line) <= width));
       }
+      await h.command("tasks", "prev");
+      assert.match(h.notices.at(-1).text, /Usage: \/tasks/);
       await h.command("tasks", "view compact");
-      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).appearance, "compact");
-      await h.emit("session_start");
-      assert.doesNotMatch(plain(render(100).join("\n")), /Tasks 3–5/);
-      await h.command("tasks", "view focus");
-      assert.equal(JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"))).appearance, "focus");
+      assert.match(h.notices.at(-1).text, /Usage: \/tasks/);
+      assert.deepEqual(h.entries, before, "retired view commands change nothing");
     } finally { await h.close(); }
   }
+});
+
+test("the dock leads with the plan, counts open work and keeps its facts when hidden", async () => {
+  for (const workspace of [false, true]) {
+    const h = await harness({ workspace, ask: true });
+    let last;
+    try {
+      await h.emit("session_start");
+      h.events.on(DOCK.update, value => last = value);
+      const initial = JSON.parse((await h.call({ op: "list" })).content[0].text);
+      const created = JSON.parse((await h.call({ op: "create", revision: initial.revision, title: "Photos for Mom", items: [{ title: "Choose cover" }, { title: "Print" }] })).content[0].text);
+      await h.call({ op: "update", revision: created.revision, id: "t2", changes: { status: "active" } });
+      await h.callQuestion({ op: "post", question: { question: "Which cover?", why: "Needed", boundary: "Print waits", urgency: "blocking", planId: "p1", taskIds: ["t1"] } });
+      await h.emit("agent_start");
+      const shown = [...h.widgets.values()].flatMap(w => w.render(80)).map(plain).join("\n");
+      assert.match(shown, /Photos for Mom/);
+      assert.match(shown, /1 waiting for you · 0 of 2 done/);
+      assert.match(shown, /● Working · Print/);
+      await h.command("tasks", "hide");
+      assert.deepEqual(last.rows, []);
+      assert.equal(last.overview.activeTitle, "Print", "the composer hint still receives the active title");
+      assert.equal(last.title, "Photos for Mom");
+      if (workspace) {
+        await h.emit("agent_settled");
+        const rail = h.editor.render(80).map(plain).join("\n");
+        assert.match(rail, /Next: Print/, "the composer hint carries the active task while the dock is hidden");
+        await h.command("tasks", "unhide");
+        assert.match([...h.widgets.values()].flatMap(w => w.render(80)).map(plain).join("\n"), /● Paused · Print/);
+        assert.doesNotMatch(h.editor.render(80).map(plain).join("\n"), /Next: Print/, "a visible dock does not duplicate the hint");
+      }
+    } finally { await h.close(); }
+  }
+});
+
+test("legacy task appearance is read without disabling Tasks and dropped on the next save", async () => {
+  const h = await harness({ prefs: { enabled: true, appearance: "compact", hidden: false } });
+  try {
+    await h.emit("session_start");
+    await h.command("tasks", "add Migrated task");
+    assert.equal(h.active.has("tasks"), true, "an old view preference never disables tracking");
+    await h.command("tasks", "hide");
+    const saved = JSON.parse(readFileSync(join(h.scratch, "pi-tasks.json"), "utf8"));
+    assert.deepEqual(Object.keys(saved).sort(), ["enabled", "hidden"]);
+  } finally { await h.close(); }
 });
 
 test("hide/unhide only controls the dock, persists, and leaves tracking and panel available", async () => {
@@ -270,7 +299,7 @@ test("hide/unhide only controls the dock, persists, and leaves tracking and pane
       let opened = false;
       const custom = h.context.ui.custom;
       h.context.ui.custom = async (...args) => { opened = true; return custom(...args); };
-      await h.command("tasks", "show");
+      await h.command("tasks", "");
       assert.equal(opened, true);
       assert.doesNotMatch(render(), /Visibility test task/);
       await h.emit("session_start");
@@ -353,7 +382,7 @@ test("Workspace and Tasks remain independent in both extension startup orders", 
       let workspace = h.widgets.get("pi-workspace:dock").render(100).map(plain).join("\n");
       assert.match(workspace, /A real task/);
       assert.match(h.editor.render(100).map(plain).join("\n"), /Current session/, "identity belongs in Composer's native editor rail");
-      assert.match(workspace, /╭ Tasks .*╮[\s\S]*╰─/);
+      assert.match(workspace, /╭ Session plan .*╮[\s\S]*╰─/);
       await h.command("tasks", "off");
       assert.equal(h.editor, editor);
       assert.equal(h.editor.getText(), "draft stays intact");
@@ -363,7 +392,7 @@ test("Workspace and Tasks remain independent in both extension startup orders", 
       await h.command("tasks", "on");
       await h.command("composer", "off");
       assert.ok(h.widgets.has("pi-tasks:fallback"));
-      assert.match(h.widgets.get("pi-tasks:fallback").render(100).map(plain).join("\n"), /^╭ Tasks .*╮[\s\S]*╰─/);
+      assert.match(h.widgets.get("pi-tasks:fallback").render(100).map(plain).join("\n"), /^╭ Session plan .*╮[\s\S]*╰─/);
       assert.ok(h.active.has("tasks"));
       assert.equal(h.widgets.has("pi-workspace:dock"), false);
       await h.command("composer", "on");
@@ -371,7 +400,7 @@ test("Workspace and Tasks remain independent in both extension startup orders", 
       assert.match(h.widgets.get("pi-workspace:dock").render(100).map(plain).join("\n"), /A real task/);
       await h.command("composer", "motion off");
       assert.match(h.widgets.get("pi-workspace:dock").render(100).map(plain).join("\n"), /A real task/);
-      await h.command("tasks", "show");
+      await h.command("tasks", "");
       assert.equal(h.notices.filter((n) => n.tone === "warning").length, 0);
     } finally { await h.close(); }
   }
@@ -384,7 +413,7 @@ test("active-branch restoration, compaction, abort and failed storage preserve t
     const branchPoint = structuredClone(h.entries);
     await h.call({ op: "update", revision: initial.revision, id: "t1", changes: { status: "active" } });
     await h.emit("agent_start"); await h.emit("agent_settled");
-    assert.match(h.widgets.get("pi-tasks:fallback").render(120).map(plain).join("\n"), /paused/);
+    assert.match(h.widgets.get("pi-tasks:fallback").render(120).map(plain).join("\n"), /● Paused · Original branch/);
     h.branch(branchPoint); await h.emit("session_tree");
     assert.deepEqual((await h.call({ op: "list" })).details.plan, initial);
     await h.command("tasks", "add Fork only");
@@ -425,7 +454,7 @@ test("non-TUI tasks work, off works, corrupt preferences fail closed and corrupt
     assert.equal(h.entries.length, 2);
   } finally { await h.close(); }
 });
-test("task panel clips Unicode, shows cancelled separately, uses committed data and handles keyboard navigation", () => {
+test("task panel clips Unicode, shows closed work only on request, uses committed data and handles keys", () => {
   let p = add(emptyPlan(), ["Unicode 界面 🪴", "Check the result", "Cancel this"]);
   p = update(p, "t1", { status: "done", note: "Reviewed", evidence: "user acceptance" }, "user");
   p = update(p, "t3", { status: "cancelled" });
@@ -434,25 +463,27 @@ test("task panel clips Unicode, shows cancelled separately, uses committed data 
     const b = migratePlan(p);
     const panel = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, (r) => result = r, { showDone: true });
     for (const width of [1, 2, 8, 20, 40, 80, 120]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
-    panel.handleInput("d");
+    assert.match(panel.render(80).map(plain).join("\n"), /✓ Unicode 界面 🪴/, "F reveals completed work");
+    panel.handleInput("\r");
     for (const width of [1, 2, 8, 20, 80]) for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width);
     panel.handleInput("\x1b");
-    panel.handleInput("\x1b[B"); panel.handleInput("e"); assert.deepEqual(result, { op: "edit", planId: "p1", revision: b.revision, id: "t2" });
+    panel.handleInput("e"); assert.deepEqual(result, { op: "edit", planId: "p1", revision: b.revision, id: "t2" });
     panel.handleInput("\x1b"); assert.equal(result, undefined);
   }
 });
-test("short checklists retain all three tasks and completed steps; longer plans have exact overflow counts", () => {
+test("open work rows keep working, blocked and not-started in one order; overflow is explicit", () => {
   let p = add(emptyPlan());
-  assert.equal(progressLabel(p), "", "no redundant 0/3 label");
+  assert.equal(progressText(p), "0 of 3 done");
   p = update(p, "t1", { status: "done", note: "Read" });
   p = update(p, "t2", { status: "active" });
   const rows = dockRows(p, false);
-  assert.deepEqual(rows.map((r) => r.text), ["✓ Read requirements", "▸ Implement · paused", "○ Verify"]);
+  assert.deepEqual(rows.map((r) => r.text), ["● Paused · Implement", "○ Verify"]);
   const snapshot = { version: 1, sessionId: "s", id: "test", title: "Plan", rows, hint: "/tasks" };
-  assert.equal(fitDock(snapshot, 3).length, 3);
-  assert.equal(progressLabel(p), "1 of 3 complete");
+  assert.equal(fitDock(snapshot, 3).length, 2);
+  assert.equal(progressText(p), "1 of 3 done");
   const big = add(emptyPlan(), Array.from({ length: 20 }, (_, i) => `Step ${i + 1}`));
-  const compact = fitDock({ ...snapshot, rows: dockRows(big, false), more: 8 }, 6);
+  const all = dockRows(big, false);
+  const compact = fitDock({ ...snapshot, rows: all.slice(0, 12), more: all.length - 12 }, 6);
   assert.equal(compact.length, 6);
   assert.equal(compact.at(-1).text, "+ 15 more · /tasks");
   assert.equal(isSnapshot({ ...snapshot, more: -1 }), false);
@@ -563,7 +594,7 @@ test("Tasks summaries use semantic theme colors without changing status text or 
   const details = { plan: { tasks } }, before = structuredClone(details);
   for (const name of ["dark", "light"]) {
     const selected = getThemeByName(name);
-    const labels = ["Complete", "Active", "Blocked", "Not started", "Cancelled"];
+    const labels = ["Done", "In progress", "Blocked", "Not started", "Cancelled"];
     const tones = ["success", "accent", "warning", "muted", "muted"];
     tasks.forEach((task, i) => {
       for (const updated of [false, true]) {
@@ -582,14 +613,13 @@ test("Tasks summaries use semantic theme colors without changing status text or 
       }
     });
     const mixed = taskResultCard(details, { op: "list" }, false, selected, 140)[0];
-    assert.ok(mixed.includes(selected.fg("success", "1")));
-    assert.ok(mixed.includes(selected.fg("muted", "/5 complete")));
-    assert.ok(mixed.includes(selected.fg("accent", "1 active")));
-    assert.ok(mixed.includes(selected.fg("warning", "1 blocked")));
-    assert.ok(mixed.includes(selected.fg("muted", "1 cancelled")));
-    assert.match(plain(mixed), /1\/5 complete · 1 active · 1 blocked · 1 cancelled/);
+    assert.ok(mixed.includes(selected.fg("muted", "1 of 5 done")));
+    assert.ok(mixed.includes(selected.fg("accent", " · 1 working")));
+    assert.ok(mixed.includes(selected.fg("warning", " · 1 blocked")));
+    assert.ok(mixed.includes(selected.fg("muted", " · 1 cancelled")));
+    assert.match(plain(mixed), /1 of 5 done · 1 working · 1 blocked · 1 cancelled/);
     const complete = { plan: { tasks: tasks.map(t => ({ ...t, status: "done" })) } };
-    assert.ok(taskResultCard(complete, { op: "list" }, false, selected, 100)[0].includes(selected.fg("success", "5 complete")));
+    assert.ok(taskResultCard(complete, { op: "list" }, false, selected, 100)[0].includes(selected.fg("success", "5 of 5 done")));
     for (const requirements of [[], [{ title: "Recorded request", state: "open", taskIds: ["t1"] }]]) {
       const rows = taskResultCard({ ...details, requirements }, { op: "requirements" }, false, selected, 100);
       assert.ok(rows[0].includes(selected.fg("muted", ` ${requirements.length ? "1 request" : "Requests"} `)));
@@ -620,7 +650,7 @@ test("completed work stays quiet and full outcome details wrap and scroll", () =
   const tui = { terminal: { rows: 40 }, requestRender() {} };
   const panel = new TaskPanel(tui, theme, () => b, () => undefined, () => {});
   assert.doesNotMatch(plain(panel.render(60).join("\n")), /Inspected task state/);
-  panel.handleInput("f"); panel.handleInput("d");
+  panel.handleInput("f"); panel.handleInput("\x1b[B"); panel.handleInput("\x1b[B"); panel.handleInput("\r");
   const lines = panel.render(60);
   assert.match(plain(lines.join("\n")), /remain visible\./);
   assert.ok(lines.every(line => visibleWidth(line) <= 60));
@@ -762,7 +792,7 @@ test("requirements preserve the small request when a larger follow-up is complet
       assert.equal(saved.plans[0].closedAt, null, "100% of tasks is not 100% of accepted requests");
       assert.equal(planInfo(saved.plans[0], saved).state, "open");
       const render = [...h.widgets.values()].flatMap(w => w.render(100)).map(plain).join("\n");
-      assert.match(render, /requirement.*review/);
+      assert.match(render, /request needs review/);
       await assert.rejects(() => h.call({ op: "archive", revision: p.revision }), /unfinished/);
       const before = structuredClone(h.entries);
       const checkpoint = (await h.emit("agent_before_settle", { outcome: "completed", context: { canContinue: false, pendingMessages: [] } })).find(r => r?.continue);
@@ -874,11 +904,13 @@ test("requirement pages and read-only panel expose full sources without task edi
       const toolLines = h.tools.get("tasks").renderResult(first, {}, th, { args: { op: "requirements" } }).render(width);
       assert.ok(toolLines.every(l => visibleWidth(l) <= width));
       const panel = new TaskPanel(h.tui, th, () => b, () => undefined, () => assert.fail("coverage must not edit"));
-      panel.render(width); panel.handleInput("q");
+      panel.render(width); panel.handleInput("v");
       const lines = panel.render(width);
       assert.ok(lines.every(l => visibleWidth(l) <= width));
+      if (width >= 40) assert.match(lines.map(plain).join("\n"), /Enter details · Esc back/, "requests are read-only: no plan actions in its bar");
+      assert.doesNotMatch(lines.map(plain).join("\n"), /A add|S make current|R restore/);
       if (width >= 80) { assert.match(lines.map(plain).join("\n"), /Outcome 0/); assert.doesNotMatch(lines.map(plain).join("\n"), /User request 0/); }
-      panel.handleInput("\r"); panel.handleInput("a");
+      panel.handleInput("\r");
       if (width >= 80) assert.match(panel.render(width).map(plain).join("\n"), /User request 0/);
       panel.handleInput("\x1b");
       for (let i = 0; i < 999; i++) { panel.handleInput("\x1b[B"); panel.render(width); }
@@ -1018,12 +1050,12 @@ test("completed plans leave both dock implementations on schedule, remain in his
     t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
     await h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "done", note: "Done" } });
     const saved = h.entries.length;
-    assert.match(snapshot(), /Plan closed/); assert.doesNotMatch(snapshot(), /✓ One task/);
+    assert.match(snapshot(), /Plan finished/); assert.doesNotMatch(snapshot(), /✓ One task/);
     t.mock.timers.tick(COMPLETION_MS + 10);
-    assert.doesNotMatch(snapshot(), /Ephemeral checklist|Plan closed/);
+    assert.doesNotMatch(snapshot(), /Ephemeral checklist|Plan finished/);
     assert.equal(h.entries.length, saved, "expiry is UI-only, not a persistent plan edit");
     assert.equal(JSON.parse((await h.call({ op: "plans" })).content[0].text).plans[0].state, "completed");
-    await h.emit("session_tree"); assert.doesNotMatch(snapshot(), /Plan closed/);
+    await h.emit("session_tree"); assert.doesNotMatch(snapshot(), /Plan finished/);
     await h.command("composer", "off"); assert.equal(h.widgets.has("pi-tasks:fallback"), false);
     const current = (await h.call({ op: "list" })).details.plan;
     await h.call({ op: "update", revision: current.revision, id: "t1", changes: { status: "pending" } });
@@ -1057,7 +1089,7 @@ test("manual new preserves earlier plans, stale dialogs cannot overwrite them, a
   } finally { await h.close(); }
 });
 
-test("raised panel history is browse-only, actions are explicit and stale rendered task edits are ignored", async () => {
+test("raised panel library opens plans read-only and stale rendered task edits are ignored", async () => {
   let b = create(emptyBook(), "First plan"); b = create(b, "Second plan");
   let result, paints = 0;
   const nav = {};
@@ -1065,18 +1097,22 @@ test("raised panel history is browse-only, actions are explicit and stale render
   const lines = panel.render(90), revision = b.revision;
   assert.match(plain(lines[0]), /╭.*Tasks.*╮/);
   for (const line of lines) { assert.equal(visibleWidth(line), 90); assert.match(line, /\x1b\[48;/, "every modal row has an explicit surface"); }
-  panel.handleInput("h"); panel.render(90); panel.handleInput("\x1b[B"); panel.handleInput("\r");
+  panel.handleInput("h"); panel.render(90);
+  assert.match(panel.render(90).map(plain).join("\n"), /╭.*Plans.*╮/);
+  for (const group of ["Current", "Open"]) assert.match(panel.render(90).map(plain).join("\n"), new RegExp(group));
+  panel.handleInput("\x1b[B"); panel.handleInput("\r");
   assert.equal(nav.viewId, "p1"); assert.equal(b.selectedId, "p2"); assert.equal(b.revision, revision);
-  assert.match(panel.render(90).map(plain).join("\n"), /History · S to make current/);
-  panel.handleInput("\r"); assert.equal(result, undefined, "historical plan cannot be edited by accidental Enter");
+  assert.match(panel.render(90).map(plain).join("\n"), /Open · 0 of 3 done/);
+  panel.handleInput("\r"); assert.equal(result, undefined, "opening a historical task shows details only");
+  panel.handleInput("\x1b");
   panel.handleInput("s"); assert.deepEqual(result, { op: "select", planId: "p1", revision, id: undefined });
   b = bookWrite(b, { op: "select", planId: "p1" }, "user"); panel.render(90); result = undefined;
-  b = taskWrite(b, "t1", { title: "Changed since last paint" }); panel.handleInput("\r");
+  b = taskWrite(b, "t1", { title: "Changed since last paint" }); panel.handleInput("e");
   assert.equal(result, undefined); assert.ok(paints > 0);
-  panel.render(90); panel.handleInput("\r"); assert.equal(result.revision, b.revision);
+  panel.render(90); panel.handleInput("e"); assert.equal(result.revision, b.revision);
   for (const rows of [8, 12, 24, 40]) for (const width of [1, 2, 8, 20, 48, 90, 140]) {
     const p = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, () => {});
-    for (const mode of ["", "d", "h"]) { if (mode) p.handleInput(mode); const rendered = p.render(width); assert.ok(rendered.length <= Math.max(4, Math.floor(rows * .85))); for (const line of rendered) assert.ok(visibleWidth(line) <= width); }
+    for (const mode of ["", "?", "h", "v"]) { if (mode) p.handleInput(mode); const rendered = p.render(width); assert.ok(rendered.length <= Math.max(4, Math.floor(rows * .85))); for (const line of rendered) assert.ok(visibleWidth(line) <= width); }
   }
 });
 
@@ -1101,6 +1137,121 @@ test("Composer dock is responsive, motion-off stays still, and shows only source
   assert.equal(isHost({ version: 1, sessionId: "test", available: true, colors: {} }), false);
 });
 
+test("panel help lists every key, F reveals completed work and the library groups and searches plans", () => {
+  let b = emptyBook();
+  b = create(b, "Archived plan", ["Old work"]); b = bookWrite(b, { op: "archive", planId: "p1" }, "user");
+  b = create(b, "Photos for Mom", ["Choose cover"]);
+  b = create(b, "Finished plan", ["Only"]); b = taskWrite(b, "t1", { status: "done", note: "Done" });
+  b = create(b, "Current plan", ["Print"]);
+  const nav = {};
+  const panel = new TaskPanel({ terminal: { rows: 24 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, nav);
+  panel.render(64);
+  panel.handleInput("?");
+  let help = panel.render(64).map(plain).join("\n");
+  assert.match(help, /N  new plan/); assert.match(help, /R  restore archived/);
+  for (let i = 0; i < 20; i++) { panel.handleInput("\x1b[B"); help = panel.render(64).map(plain).join("\n"); }
+  assert.match(help, /O      turn Tasks off/); assert.match(help, /Esc    close the panel/, "help scrolls to every key");
+  panel.handleInput("x"); // Every other key is ignored while help is open.
+  assert.match(panel.render(64).map(plain).join("\n"), /N  new plan/);
+  panel.handleInput("\x1b");
+  assert.doesNotMatch(panel.render(64).map(plain).join("\n"), /N  new plan/);
+  panel.tui.terminal.rows = 40;
+  panel.handleInput("h");
+  for (let i = 0; i < 2; i++) panel.handleInput("\x1b[B"); // Library order: Current, Open, Finished…
+  panel.handleInput("\r");
+  panel.handleInput("f");
+  assert.match(panel.render(80).map(plain).join("\n"), /\u2713 Only/, "F reveals completed work");
+  panel.handleInput("f");
+  assert.doesNotMatch(panel.render(80).map(plain).join("\n"), /\u2713 Only/);
+  panel.handleInput("h");
+  const groups = ["Current", "Open", "Finished", "Archived"];
+  const lib = panel.render(64).map(plain).join("\n");
+  for (const group of groups) assert.match(lib, new RegExp(group), `library groups include ${group}`);
+  const order = groups.map(group => lib.indexOf(group));
+  assert.deepEqual([...order].sort((a, c) => a - c), order, "library groups keep their fixed order");
+  assert.match(lib, /Photos for Mom/);
+  panel.handleInput("/");
+  for (const char of "photos") panel.handleInput(char);
+  const filtered = panel.render(64).map(plain).join("\n");
+  assert.match(filtered, /Search: photos/); assert.match(filtered, /Photos for Mom/);
+  assert.doesNotMatch(filtered, /Current plan|Finished plan|Archived plan/);
+  panel.handleInput("\r");
+  assert.doesNotMatch(panel.render(64).map(plain).join("\n"), /Search: photos/, "Enter keeps the filter and closes search");
+  panel.handleInput("/");
+  for (const char of "zzz") panel.handleInput(char);
+  assert.match(panel.render(64).map(plain).join("\n"), /No plans match "zzz" · Esc clears/);
+  panel.handleInput("\x1b");
+  assert.doesNotMatch(panel.render(64).map(plain).join("\n"), /No plans match/);
+});
+
+test("the panel action bar never clips at 64 columns; keyboard help is the only route to destructive keys", () => {
+  let b = create(emptyBook(), "Narrow plan", ["One", "Two", "Three"]);
+  const panel = new TaskPanel({ terminal: { rows: 24 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, {});
+  const lines = panel.render(64).map(plain);
+  assert.ok(lines.every(line => visibleWidth(line) <= 64), "every line fits 64 columns");
+  assert.match(lines.at(-2), /\? help\s*│$/, "the last action-bar segment is the help key");
+  for (const line of lines) assert.doesNotMatch(line, /Q requests|Tab\/|J questions|←→/);
+  const help = (() => { panel.handleInput("?"); return panel.render(64).map(plain); })();
+  assert.ok(help.every(line => visibleWidth(line) <= 64));
+  assert.equal(help.length <= Math.floor(24 * .85), true);
+});
+
+test("a default panel shows the work view, its coverage warning in the footer and the F disclosure", () => {
+  let b = create(emptyBook(), "Default view", ["Finished", ...Array.from({ length: 20 }, (_, i) => `Pending ${i + 1}`)]);
+  b = taskWrite(b, "t1", { status: "done", note: "Done" });
+  b = bookWrite(b, { op: "requirements", requirements: [{ title: "Review the wording", source: "User quote", acceptance: "Visible wording" }] });
+  const nav = {}; // The command handler opens a fresh panel with no view; it must mean work.
+  const panel = new TaskPanel({ terminal: { rows: 24 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, nav);
+  const lines = panel.render(80).map(plain);
+  assert.equal(nav.view, undefined);
+  assert.doesNotMatch(lines.join("\n"), /Requests · read-only/);
+  assert.equal(lines.filter(line => line.includes("1 request needs review")).length, 1, "the warning appears once");
+  assert.match(lines.at(-3), /! 1 request needs review · V/, "the warning is the footer line above the action bar");
+  assert.match(lines.at(-2), /\? help\s*│$/);
+  assert.match(lines.join("\n"), /▸ 1 done · F/, "the F disclosure survives a full list");
+  panel.handleInput("v");
+  assert.doesNotMatch(panel.render(80).map(plain).join("\n"), /request needs review/, "coverage belongs to the work view");
+  panel.handleInput("\x1b");
+  assert.match(panel.render(80).map(plain).join("\n"), /! 1 request needs review · V/);
+  panel.handleInput("f");
+  assert.match(panel.render(80).map(plain).join("\n"), /▾ 1 done · F/, "F flips the disclosure");
+  for (let i = 0; i < 20; i++) panel.handleInput("\x1b[B");
+  assert.match(panel.render(80).map(plain).join("\n"), /✓ Finished/);
+  // The reserved footer lines survive every supported height, not just the test's first geometry.
+  for (const rows of [12, 24, 40]) for (const width of [40, 64, 80, 120]) {
+    const sized = new TaskPanel({ terminal: { rows }, requestRender() {} }, theme, () => b, () => undefined, () => {}, {});
+    const rendered = sized.render(width).map(plain);
+    assert.ok(rendered.every(line => visibleWidth(line) <= width), `${rows}x${width}`);
+    assert.match(rendered.at(-3), /request needs review/, `${rows}x${width}: warning stays in the footer`);
+    assert.match(rendered.at(-2), /\? help\s*│$/, `${rows}x${width}: action bar stays last`);
+    assert.match(rendered.join("\n"), /▸ 1 done · F/, `${rows}x${width}: F is never clipped`);
+  }
+});
+
+test("both hosts render the same rows, title and summary for one snapshot at width 80", async () => {
+  const plan = { title: "Parity plan", tasks: [["Print 4x6 copies", "active"], ["Choose cover", "blocked"], ["Mail album", "pending"]] };
+  const facts = { title: plan.title, rows: ["● Working · Print 4x6 copies", "! Choose cover · waiting", "○ Mail album"], summary: "0 of 3 done · 1 blocked" };
+  const rendered = {};
+  for (const workspace of [false, true]) {
+    const h = await harness({ workspace });
+    try {
+      await h.emit("session_start");
+      let p = JSON.parse((await h.call({ op: "list" })).content[0].text);
+      p = JSON.parse((await h.call({ op: "create", revision: p.revision, title: plan.title, items: plan.tasks.map(([title]) => ({ title })) })).content[0].text);
+      p = JSON.parse((await h.call({ op: "update", revision: p.revision, id: "t1", changes: { status: "active" } })).content[0].text);
+      p = JSON.parse((await h.call({ op: "update", revision: p.revision, id: "t2", changes: { status: "blocked", reason: "waiting" } })).content[0].text);
+      await h.emit("agent_start");
+      const text = [...h.widgets.values()].flatMap(w => w.render(80)).map(plain).join("\n");
+      assert.match(text, /Parity plan/);
+      assert.match(text, /0 of 3 done · 1 blocked/);
+      for (const row of ["● Working · Print 4x6 copies", "! Choose cover · waiting", "○ Mail album"]) assert.ok(text.includes(row), `${workspace ? "workspace" : "fallback"}: ${row}`);
+      rendered[workspace] = text;
+    } finally { await h.close(); }
+  }
+  assert.deepEqual(facts.rows.length, 3);
+  assert.ok(rendered.false && rendered.true);
+});
+
 test("native question bridge validates links, blocks only linked agent task starts/completions and preserves independent work", async () => {
   for (const order of ["ask-first", "tasks-first"]) {
     const h = await harness({ ask: true, workspace: true, order });
@@ -1114,7 +1265,7 @@ test("native question bridge validates links, blocks only linked agent task star
       await h.call({ op: "update", revision: created.revision, id: "t2", changes: { status: "active" } });
       await assert.rejects(() => h.callQuestion({ op: "post", question: { question: "Unknown?", why: "Test", boundary: "Test", urgency: "blocking", planId: "p1", taskIds: ["t99"] } }), /unavailable/);
       const display = [...h.widgets.values()].flatMap(w => w.render(120)).map(plain).join("\n");
-      assert.match(display, /blocking|question/); assert.match(display, /0\/2/);
+      assert.match(display, /blocking|waiting for you/); assert.match(display, /0 of 2/);
       assert.equal(h.widgets.has("pi-ask:posted"), false, "Tasks owns the hosted attention hint, not duplicate Ask fallback");
       await h.command("tasks", "hide"); assert.ok(h.widgets.has("pi-ask:posted"), "hiding the dock does not hide Ask attention");
       await h.command("tasks", "unhide"); assert.equal(h.widgets.has("pi-ask:posted"), false, "visible Tasks hosts exactly one cue");
@@ -1124,22 +1275,25 @@ test("native question bridge validates links, blocks only linked agent task star
   }
 });
 
-test("session question scope, readable plan links and work gates remain inspectable across plans", () => {
+test("unresolved questions lead the work list with readable plan links", () => {
   let b = emptyBook();
   b = mutateBook(b, b.revision, { op: "create", title: "First plan", items: [{ title: "First work" }] }, "agent", 1000);
   b = mutateBook(b, b.revision, { op: "create", title: "Second plan", items: [{ title: "Second work" }] }, "agent", 2000);
   const records = () => [
     { id: "q1", revision: 1, question: "First boundary?", state: "awaiting", urgency: "blocking", boundary: "First work waits", planId: "p1", taskIds: ["t1"] },
     { id: "q2", revision: 1, question: "Second boundary?", state: "awaiting", urgency: "deferred", boundary: "Can wait", planId: "p2", taskIds: ["t1"] },
-    { id: "q3", revision: 1, question: "Standalone boundary?", state: "withdrawn", urgency: "deferred", boundary: "No links", taskIds: [] },
+    { id: "q3", revision: 1, question: "Standalone boundary?", state: "awaiting", urgency: "deferred", boundary: "No links", taskIds: [] },
   ];
-  const nav = { section: "questions", viewId: "p2" };
+  const nav = { viewId: "p2" };
   const panel = new TaskPanel({ terminal: { rows: 60 }, requestRender() {} }, theme, () => b, () => undefined, () => {}, nav, () => true,
     { available: true, records, open() {} });
   const text = () => panel.render(120).map(plain).join("\n");
-  assert.match(text(), /Session questions/); assert.match(text(), /First plan \/ First work/); assert.match(text(), /Second plan \/ Second work/); assert.match(text(), /Standalone question/); assert.match(text(), /Withdrawal or replacement is not approval/);
-  nav.section = "work"; panel.handleInput("d");
-  assert.match(text(), /Linked questions/); assert.match(text(), /Second boundary/); assert.doesNotMatch(text(), /First boundary/);
+  assert.match(text(), /Waiting for you · First plan \/ First work/);
+  assert.match(text(), /Can wait · Second plan \/ Second work/);
+  assert.match(text(), /This session/);
+  assert.ok(text().indexOf("First boundary?") < text().indexOf("○ Second work"), "questions lead the list");
+  panel.handleInput("\x1b[B"); panel.handleInput("\x1b[B"); panel.handleInput("\x1b[B"); panel.handleInput("\r");
+  assert.match(text(), /Questions/); assert.match(text(), /Second boundary/); assert.doesNotMatch(text(), /First boundary/);
 });
 
 test("Tasks keeps its selected question under an Ask overlay and stable across answer reordering", async () => {
@@ -1148,7 +1302,7 @@ test("Tasks keeps its selected question under an Ask overlay and stable across a
     await h.emit("session_start");
     await h.callQuestion({ op: "post", question: { question: "First question?", why: "First reason", boundary: "One boundary", urgency: "blocking" } });
     await h.callQuestion({ op: "post", question: { question: "Second question?", why: "Second reason", boundary: "Can wait", urgency: "deferred" } });
-    const book = emptyBook(), nav = { section: "questions" }, forms = [];
+    const book = emptyBook(), nav = {}, forms = [];
     const records = () => h.entries.filter(e => e.customType === "pi-ask:posted-v1").at(-1).data.questions.map(q => ({ id: q.id, revision: q.revision, question: q.definition.question, urgency: q.urgency, state: q.state, boundary: q.boundary, taskIds: q.taskIds }));
     h.context.ui.custom = (make, options) => new Promise(resolve => { const component = make(h.tui, theme, kb, resolve); component.focused = true; forms.push({ component, options }); });
     const panel = new TaskPanel(h.tui, theme, () => book, () => undefined, () => assert.fail("answering must not close/edit Tasks"), nav, () => true,
@@ -1158,7 +1312,7 @@ test("Tasks keeps its selected question under an Ask overlay and stable across a
     assert.equal(forms.at(-1).options.overlay, true);
     forms.at(-1).component.handleInput("Keep it local"); forms.at(-1).component.handleInput("\x1b"); forms.at(-1).component.handleInput("\x1b");
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.equal(nav.questionId, "q1"); assert.match(panel.render(100).map(plain).join("\n"), /› ! First question/);
+    assert.equal(nav.key, "q:q1"); assert.match(panel.render(100).map(plain).join("\n"), /› ! First question/);
     panel.handleInput("\r"); await new Promise(resolve => setTimeout(resolve, 0));
     assert.match(forms.at(-1).component.render(80).map(plain).join("\n"), /Keep it local/);
     forms.at(-1).component.handleInput("\r"); forms.at(-1).component.handleInput("\r"); await new Promise(resolve => setTimeout(resolve, 0));
@@ -1166,7 +1320,7 @@ test("Tasks keeps its selected question under an Ask overlay and stable across a
     await h.emit("context", { messages: h.messages });
     const q = JSON.parse((await h.callQuestion({ op: "list" })).content[0].text).questions[0];
     await h.callQuestion({ op: "apply", id: q.id, revision: q.revision, reason: "A local handoff, not publication." });
-    panel.render(100); assert.equal(nav.questionId, "q1"); assert.equal(nav.questionIndex, 1, "same question stays selected after it moves below unanswered work");
+    panel.render(100); assert.equal(nav.key, "q:q2", "an answered question leaves the list and the selection follows the remaining records");
   } finally { await h.close(); }
 });
 
@@ -1199,10 +1353,10 @@ test("request cards use progressive disclosure and attention metadata is validat
     const result = await h.call({ op: "create", revision: initial.revision, title: "Readable", requirements: [{ title: "Readable request", source: "Exact original wording", acceptance: "Observable condition" }] });
     const read = await h.call({ op: "requirements" }), tool = h.tools.get("tasks");
     const compact = tool.renderResult(read, { expanded: false }, theme, { args: { op: "requirements" } }).render(100).map(plain).join("\n");
-    assert.match(compact, /Readable request/); assert.match(compact, /Needs linked work/); assert.doesNotMatch(compact, /Exact original wording|Reference r1/);
+    assert.match(compact, /Readable request/); assert.match(compact, /No work linked/); assert.doesNotMatch(compact, /Exact original wording|Reference r1/);
     const expanded = tool.renderResult(read, { expanded: true }, theme, { args: { op: "requirements" } }).render(100).map(plain).join("\n");
     assert.match(expanded, /Reference\s+r1/); assert.match(expanded, /Exact original wording/); assert.match(expanded, /Observable condition/);
-    const base = { version: 1, sessionId: "test", id: "tasks", title: "Tasks", rows: [], overview: { revision: "r", total: 0, done: 0, blocked: 0, cancelled: 0, rows: [], more: 0 } };
+    const base = { version: 1, sessionId: "test", id: "tasks", title: "Tasks", rows: [], overview: { revision: "r", total: 0, done: 0, blocked: 0, cancelled: 0, activeId: "t1", activeTitle: "Print" } };
     assert.equal(isSnapshot({ ...base, overview: { ...base.overview, questions: { blocking: -1, deferred: 0 } } }), false);
     assert.equal(isSnapshot({ ...base, overview: { ...base.overview, questions: { blocking: 1, deferred: 2 } } }), true);
   } finally { await h.close(); }
@@ -1221,7 +1375,7 @@ test("compact typography uses semantic glyphs and neutral titles without changin
       const text = lines.map(plain).join("\n");
       assert.match(text, /✓ Complete item/); assert.match(text, /● Active item/); assert.match(text, /! Blocked item/);
       assert.match(text, /○ Pending item/); assert.match(text, /– Cancelled item · cancelled/);
-      assert.match(text, /Blocked: Waiting for permission/); assert.match(text, /1 active/);
+      assert.match(text, /Blocked: Waiting for permission/); assert.match(text, /1 working/);
       assert.doesNotMatch(text, /Task ·|Task done:|Task active:|verified complete/i);
       const complete = lines.find(line => plain(line).includes("Complete item"));
       assert.ok(complete.includes(th.fg("success", "✓ ")));
@@ -1252,12 +1406,12 @@ test("expanded requests group readable exact content with bounded prose and trut
       const lines = tool.renderResult(read, { expanded: true }, th, { args: { op: "requirements" } }).render(200);
       const body = lines.map(plain).slice(1, -1).map(line => line.slice(1, -1).trimEnd());
       const text = body.join("\n");
-      assert.match(text, /Reported complete/); assert.match(text, /Needs linked work/);
-      assert.match(text, /Criterion/); assert.match(text, /Original request/); assert.match(text, /Linked work\s+t1, t2/); assert.match(text, /Reference\s+r1/);
+      assert.match(text, /Reported done/); assert.match(text, /No work linked/);
+      assert.match(text, /Done when/); assert.match(text, /Original request/); assert.match(text, /Linked work\s+t1, t2/); assert.match(text, /Reference\s+r1/);
       assert.doesNotMatch(text, /What satisfaction looks like|Original wording:|Completion reported ·|verified complete/i);
       const heading = lines.find(line => plain(line).includes("Prepare the implementation plan"));
       assert.ok(heading.includes(th.style("Prepare the implementation plan", { fg: "text", bold: true })));
-      const start = body.findIndex(line => line.trim() === "Criterion");
+      const start = body.findIndex(line => line.trim() === "Done when");
       const end = body.findIndex(line => line.trim() === "Original request");
       const criterion = body.slice(start + 1, end).filter(line => line.trim());
       assert.ok(criterion.length > 1, "wide windows still use a reading column");
@@ -1287,7 +1441,7 @@ test("coverage qualifications survive narrow uncolored cards and all widths rema
       if (width >= 8) {
         const text = tool.renderResult(read, { expanded }, th, { args: { op: "requirements" } }).render(width).map(plain);
         const body = width < 12 ? text : text.slice(1, -1).map(line => line.slice(1, -1).trimEnd());
-        assert.ok(body.join("").replace(/\s/g, "").includes("Reportedcomplete"), "qualification is in the body, not a possibly clipped rail");
+        assert.ok(body.join("").replace(/\s/g, "").includes("Reporteddone"), "qualification is in the body, not a possibly clipped rail");
       }
     }
   } finally { await h.close(); }
@@ -1303,7 +1457,7 @@ test("native Tasks shares neutral status typography, short grouped details and d
   for (const th of [getThemeByName("dark"), getThemeByName("light")]) {
     const nav = { showDone: true }, panel = new TaskPanel({ terminal: { rows: 60 }, requestRender() {} }, th, () => b, () => undefined, () => {}, nav, () => true);
     const work = panel.render(150), text = work.map(plain).join("\n");
-    assert.match(text, /› ✓ Completed item/); assert.match(text, /● Active item/); assert.match(text, /! Blocked item/);
+    assert.match(text, /› ● Active item/); assert.match(text, /✓ Completed item/); assert.match(text, /! Blocked item/);
     assert.match(text, /Blocked · Explicit permission is required/); assert.match(text, /Working/);
     assert.doesNotMatch(text, /Completion reported|Task · done|Current plan/);
     const complete = work.find(line => plain(line).includes("Completed item"));
@@ -1311,18 +1465,18 @@ test("native Tasks shares neutral status typography, short grouped details and d
     assert.ok(complete.includes(th.style("Completed item", { fg: th.colors.text, bold: false })));
     const active = work.find(line => plain(line).includes("Active item"));
     assert.ok(active.includes(th.style("Active item", { fg: th.colors.text, bold: true })), "active title stands out independently of selection");
-    assert.doesNotMatch(plain(active), /›/, "selected completed task does not steal active-task emphasis");
     assert.match(active, /\x1b\[48;/, "active task has a steady surface");
     const pausedPanel = new TaskPanel({ terminal: { rows: 60 }, requestRender() {} }, th, () => b, () => undefined, () => {}, { showDone: true }, () => false);
     assert.match(pausedPanel.render(150).map(plain).join("\n"), /Paused/);
     assert.doesNotMatch(pausedPanel.render(150).map(plain).join("\n"), /Working/);
     assert.ok(work.some(line => line.includes(th.style("Typography fixture", { fg: th.colors.text, bold: true }))));
-    panel.handleInput("q"); const requests = panel.render(150).map(plain).join("\n");
-    assert.match(requests, /Reported complete · 1 linked/); assert.doesNotMatch(requests, /linked task/);
+    panel.handleInput("v"); const requests = panel.render(150).map(plain).join("\n");
+    assert.match(requests, /Reported done · 1 linked/); assert.doesNotMatch(requests, /linked task/);
     panel.handleInput("\r"); const details = panel.render(150).map(plain).join("\n");
-    assert.match(details, /Criterion/); assert.match(details, /Original request/); assert.match(details, /Exact original request/);
+    assert.match(details, /Done when/); assert.match(details, /Original request/); assert.match(details, /Exact original request/);
     assert.doesNotMatch(details, /What satisfaction looks like|Original wording/);
-    panel.handleInput("\x1b"); panel.handleInput("w"); panel.handleInput("\r");
+    panel.handleInput("\x1b"); panel.handleInput("v");
+    panel.handleInput("\x1b[B"); panel.handleInput("\x1b[B"); panel.handleInput("\x1b[B"); panel.handleInput("\r");
     const outcome = panel.render(150).map(plain).join("\n"); assert.match(outcome, /Outcome · agent report/); assert.match(outcome, /Synthetic outcome only/);
     for (const width of [1, 2, 8, 12, 30, 80, 150]) {
       const rendered = panel.render(width); assert.ok(rendered.every(line => visibleWidth(line) <= width));

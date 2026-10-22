@@ -19,7 +19,7 @@ Use `pi.events`:
 | `pi-home:dock:v1:update` | `{ version: 1, sessionId, id, title, rows, hint?, summary?, more?, layout? }` |
 | `pi-home:dock:v1:ack` | `{ version: 1, sessionId, id, mounted }` |
 
-`rows` contains `{ text, tone? }`; tone is `text`, `muted`, `accent`, `success`, `warning`, or `error`. An empty rows array withdraws the provider's panel. The optional color map includes those six roles plus `base` and `panel`, as concrete six-digit hex colors.
+`rows` contains `{ text, tone? }`; tone is `text`, `muted`, `accent`, `success`, `warning`, or `error`. An empty rows array withdraws the provider's panel; the host may keep the most recent Tasks snapshot (for the composer active-task hint) while `mounted` stays false, so nothing is drawn. The optional color map includes those six roles plus `base` and `panel`, as concrete six-digit hex colors.
 
 Register handlers during factory loading; publish only with an active session context. Probe on session start, and republish on an available-host announcement. Workspace also announces when enabled/disabled or its look changes. This handles either extension startup order. Use a stable namespaced provider ID and the current `ctx.sessionManager.getSessionId()`; reject other sessions and unknown protocol versions.
 
@@ -29,7 +29,7 @@ After an acknowledgement, suppress your own fallback while `mounted` is true. On
 
 - The host accepts at most six provider IDs, in insertion order.
 - A snapshot has at most twelve bounded text rows. Optional `more` is the number of additional records not included in those rows; optional `summary` is a short, quiet right-aligned header label.
-- Optional `layout: "focus"` requests a wrapped, height-bounded three-task window. `summary` becomes its range/follow-status heading. `layoutDock` allocates a physical-line budget, gives active text spare lines first, marks clipped text with an ellipsis and omits unused padding rows. Composer's condensed-details setting does not collapse this explicitly requested view. Missing `layout` retains the original compact behavior.
+- Every snapshot uses one wrapping rule. `layoutDock` allocates a physical-line budget per row, gives accent (active) text spare lines first, marks clipped text with an ellipsis and omits unused padding rows. There is no provider-selected focus or compact layout: `title`, `summary`, `rows`, `hint` and `more` are shown as sent.
 - `fitDock` reserves a `+ N more · <hint>` row only when necessary, including both host-hidden and provider-omitted rows in the count. Do not send an overflow message as a data row as well.
 - The normal workspace fits five items plus an overflow row for a long list. Three-item plans remain fully visible in small panes; a shared height budget applies across multiple providers. Providers supply a command hint for full details.
 - `mounted` means the host accepted ownership of the display, **not** a guarantee that every row is visible at every terminal size.
