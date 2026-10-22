@@ -1,4 +1,5 @@
 import type { TaskPanel } from "./task-presentation.ts";
+import type { DictationController } from "./dictation.ts";
 import type { FooterPrefs } from "./footer-state.ts";
 import type { AppearanceState, AppearancePreview, AppearanceHit } from "./appearance.ts";
 import type { FooterData } from "./footer-view.ts";
@@ -123,6 +124,9 @@ export class RunClock {
 
 export interface WorkspaceState {
   taskPanel?: TaskPanel;
+  dictation?: DictationController;
+  /** True only where the host dispatches pointer clicks (viewport TUI). */
+  mouseReporting?: () => boolean;
   footerManaged?: boolean;
   activityRows?: (width: number) => string[];
   statusRows?: (width: number) => string[];

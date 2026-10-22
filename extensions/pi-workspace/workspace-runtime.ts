@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { EditorComponent, TUI } from "@earendil-works/pi-tui";
+import { isViewportTUI, type EditorComponent, type TUI } from "@earendil-works/pi-tui";
+import { DictationController, createLocalDictation } from "./dictation.ts";
 import { installPaintGuard } from "./paint-guard.ts";
 import { installCopyFlashFrame } from "./copy-flash.ts";
 import { installFrameAwareCopy } from "./copy-selection.ts";
@@ -42,6 +43,7 @@ export default function workspace(pi: ExtensionAPI) {
     [...state.tools.values()].some(name => name === "ask_user_question" || name === "ask_questions");
   let tui: TUI | undefined;
   let editor: ComposerEditor | undefined;
+  let dictation: DictationController | undefined;
   let dressedEditor: (EditorComponent & { focused?: boolean }) | undefined;
   let undressEditor: (() => void) | undefined;
   const activeEditor = () => dressedEditor ?? editor;
@@ -168,7 +170,9 @@ export default function workspace(pi: ExtensionAPI) {
     const taskAnimated = state.taskPanel?.tick(state, now, focused) ?? false;
     const animated = shouldAnimate(state, now, focused) || taskAnimated;
     const second = Math.floor(now / 1000);
-    if (state.promptDepth === 0 && (animated || (state.clock.timing && second !== lastSecond))) refresh();
+    // Recording and transcription own the second-by-second readout, not just run state.
+    const dictating = state.dictation?.busy() ?? false;
+    if (state.promptDepth === 0 && (animated || ((state.clock.timing || dictating) && second !== lastSecond))) refresh();
     lastSecond = second;
     const transition = state.clock.transitionAt > 0 && now - state.clock.transitionAt < 800;
     const delay = taskAnimated || animated && transition ? 40 : animated || themeLease.awaitingReload ? 100 : 1000;
@@ -203,6 +207,19 @@ export default function workspace(pi: ExtensionAPI) {
 
   function install(ctx: ExtensionContext) {
     context = ctx;
+    // Recreated after teardown; the viewport check is the same one the rail uses
+    // to decide whether a click can exist at all.
+    dictation ??= new DictationController({
+      ...createLocalDictation({ platform: process.platform, env: process.env }),
+      platform: process.platform,
+      confirm: (title, message) => ctx.ui.confirm(title, message),
+      notify: (message, type) => context?.ui.notify(message, type),
+      refresh: () => wake(),
+      editor: () => activeEditor(),
+      now: Date.now,
+    });
+    state.dictation = dictation;
+    state.mouseReporting = () => !!tui && isViewportTUI(tui);
     if (installed || ctx.mode !== "tui") return;
     syncTheme(ctx);
     const scope = surfaces = new SurfaceScope();
@@ -249,6 +266,8 @@ export default function workspace(pi: ExtensionAPI) {
     copySelectionCleanup?.(); copySelectionCleanup = undefined;
     state.taskPanel?.reset();
     stopTimer();
+    // A live capture must not outlive the surface that can stop it.
+    dictation?.dispose(); dictation = undefined; state.dictation = undefined;
     if (!installed) { themeLease.restore(ctx); return; }
     installed = false;
     paintCleanup?.(); paintCleanup = undefined;
@@ -312,6 +331,7 @@ export default function workspace(pi: ExtensionAPI) {
     // A settings preview can decorate native input even while Composer is off.
     // Dispose it synchronously; don't wait for an aborted dialog's async finally.
     for (const dispose of [...previews]) dispose();
+    dictation?.dispose(); dictation = undefined; state.dictation = undefined;
     if (context) uninstall(context, true);
     else { surfaces?.dispose(); surfaces = undefined; stopTimer(); }
     // Context is invalidated only after owned mounts and native adapters are detached.
@@ -375,6 +395,8 @@ export default function workspace(pi: ExtensionAPI) {
   });
   pi.on("ui_prompt_start", (event, ctx) => {
     if (ctx.mode !== "tui") return;
+    // A dialog owns the screen; the model confirmation itself is exempt.
+    dictation?.cancel("prompt");
     const pauses = state.promptBlocksWork!(event.kind);
     promptPauses.push(pauses);
     if (pauses) { state.clock.pause(Date.now()); state.blockingPromptDepth = (state.blockingPromptDepth ?? 0) + 1; }
@@ -417,6 +439,17 @@ export default function workspace(pi: ExtensionAPI) {
   });
 
   const recaps = registerRecaps(pi, () => state.prefs.enabled);
+
+  pi.registerCommand("dictate", {
+    description: "Toggle microphone dictation; in fullscreen the Composer bottom-rail mic does the same.",
+    handler: async (_args, ctx) => {
+      if (ctx.mode !== "tui") { ctx.ui.notify("Dictation is available only in terminal UI mode.", "info"); return; }
+      context = ctx;
+      if (state.promptDepth > 0) { ctx.ui.notify("Close the current dialog before dictating.", "warning"); return; }
+      if (!state.dictation) { ctx.ui.notify("Dictation requires Composer to be enabled.", "info"); return; }
+      await state.dictation.toggle();
+    },
+  });
 
   registerComposerControls(pi, {
     state, setContext: ctx => { context = ctx; }, isCurrent: ctx => context === ctx,

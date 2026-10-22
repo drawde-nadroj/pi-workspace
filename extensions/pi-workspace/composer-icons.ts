@@ -7,5 +7,6 @@ export const COMPOSER_ICONS = {
   directory: "\u{f0256}",  // md-folder_outline
   model: "\u{f061a}",      // md-chip
   git: "\u{f062c}",        // md-source_branch
+  mic: "\u{f036c}",        // md-microphone
   context: "",             // The rail already communicates context; no extra chart.
 } as const;

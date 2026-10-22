@@ -2,6 +2,7 @@ import { stripVTControlCharacters } from "node:util";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isKeyRelease, sliceByColumn, truncateToWidth, visibleWidth, type EditorComponent, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { composerBottomRail, composerFrame, composerThinkingBorder, composerMessageRail, composerPadding, composerSurface } from "./composer-style.ts";
+import { dictationSpan } from "./dictation.ts";
 import type { WorkspaceState } from "./state.ts";
 
 export function isEditorComponent(value: unknown): value is EditorComponent & { focused?: boolean } {
@@ -20,10 +21,13 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
   const canFrame = oldPadding !== undefined && typeof padded.setPaddingX === "function";
   let appliedPadding = oldPadding;
   let active = true, framed = false, verticalPad = 0, nativeBottom = 0;
+  // Clicks are resolved against the rail row this wrapper actually painted.
+  let bottomRail = "", bottomRailWidth = -1;
   const render = function(width: number): string[] {
     // A queued paint may retain this wrapper after cleanup. Use native rendering, not stale session state.
     if (!active) return original.render.call(editor, width);
     verticalPad = 0;
+    bottomRailWidth = -1;
     framed = canFrame && (workspace.footerPickerOpen || workspace.prefs.enabled) && width >= 8;
     if (canFrame) {
       const nativeWidth = framed ? width - 2 : Math.max(3, width);
@@ -67,7 +71,9 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
       result.push(composerSurface(theme, edge + composerSurface(theme, safe, inner, true) + edge, width));
     }
     if (verticalPad) result.push(blank);
-    result.push(composerBottomRail(theme, width, workspace, ctx(), mode, bottomHint));
+    bottomRail = composerBottomRail(theme, width, workspace, ctx(), mode, bottomHint);
+    bottomRailWidth = width;
+    result.push(bottomRail);
     for (const line of lines.slice(bottom + 1)) result.push(composerSurface(theme, " " + line + " ", width, true));
     return composerFrame(theme, result, width, workspace, now(), bottom + 2 * verticalPad);
   };
@@ -78,6 +84,18 @@ export function dressComposerEditor(editor: EditorComponent, ctx: () => Extensio
   const handleMouse = function(event: TuiMouseEvent) {
     if (!active || !framed) return original.handleMouse?.call(editor, event);
     const bottom = nativeBottom + 2 * verticalPad;
+    if (event.type === "click" && event.y === bottom) {
+      const dictation = workspace.dictation;
+      if (dictation && bottomRailWidth === event.width && workspace.mouseReporting?.() !== false && !workspace.layout?.appearance) {
+        const icons = workspace.layout?.icons === "plain" ? "plain" : "nerd";
+        const span = dictationSpan(bottomRail, dictation.label(icons), icons);
+        if (span && event.x >= span.start && event.x < span.end) {
+          // The mic is operational: clicking it must not move keyboard focus.
+          void dictation.toggle();
+          return { handled: true };
+        }
+      }
+    }
     if (verticalPad && (event.y === 1 || event.y === bottom - 1) && event.type === "click") return { handled: true, focus: true };
     return original.handleMouse?.call(editor, { ...event, x: Math.max(0, event.x - 1),
       y: event.y > bottom ? event.y - 2 * verticalPad : Math.max(0, event.y - verticalPad),

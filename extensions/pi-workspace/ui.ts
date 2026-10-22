@@ -7,6 +7,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import type { WorkspaceState } from "./state.ts";
+import { dictationSpan } from "./dictation.ts";
 import { composerBottomRail, composerFrame, composerThinkingBorder, composerMessageRail, composerPadding, composerSurface } from "./composer-style.ts";
 
 const BOTTOM = "\0pi-workspace:bottom\0"; // Internal layout sentinel; replaced before render returns.
@@ -40,6 +41,8 @@ export class ComposerEditor extends CustomEditor {
   private hiddenAbove = 0;
   private hiddenBelow = 0;
   private lastRenderWidth = 0;
+  private bottomRail = "";
+  private railWidth = -1;
 
   constructor(tui: TUI, theme: EditorTheme, kb: KeybindingsManager,
     private ctx: () => ExtensionContext,
@@ -103,13 +106,29 @@ export class ComposerEditor extends CustomEditor {
       result.push(composerSurface(theme, edge + composerSurface(theme, safe, inner, true) + edge, width));
     }
     if (this.verticalPad) result.push(blank);
-    result.push(this.rail(width, false, bottomRight));
+    // Clicks are resolved against the row that was actually painted.
+    const bottomRail = this.rail(width, false, bottomRight);
+    this.bottomRail = bottomRail;
+    this.railWidth = width;
+    result.push(bottomRail);
     for (const line of lines.slice(this.baseBottom + 1)) result.push(composerSurface(theme, " " + line + " ", width, true));
     return composerFrame(theme, result, width, this.homeState, now, this.baseBottom + 2 * this.verticalPad);
   }
   override handleMouse(event: TuiMouseEvent) {
     if (!this.framed || this.lastRenderWidth < 8) return super.handleMouse(event);
     const bottom = this.baseBottom + 2 * this.verticalPad;
+    if (event.type === "click" && event.y === bottom) {
+      const dictation = this.homeState.dictation;
+      if (dictation && this.railWidth === event.width && this.homeState.mouseReporting?.() !== false && !this.homeState.layout?.appearance) {
+        const icons = this.homeState.layout?.icons === "plain" ? "plain" : "nerd";
+        const span = dictationSpan(this.bottomRail, dictation.label(icons), icons);
+        if (span && event.x >= span.start && event.x < span.end) {
+          // The rail control is operational: it never takes keyboard focus from the draft.
+          void dictation.toggle();
+          return { handled: true };
+        }
+      }
+    }
     const paddingRow = this.verticalPad && (event.y === 1 || event.y === bottom - 1);
     if (paddingRow && event.type === "click") return { handled: true, focus: true };
     return super.handleMouse({

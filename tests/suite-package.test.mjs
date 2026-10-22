@@ -68,7 +68,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     const response = rpc.find(record => record.id === "suite-commands");
     assert.equal(response?.success, true, "the real Pi process loads the packed suite");
     const packageCommands = response.data.commands.filter(entry => entry.source === "extension" && entry.sourceInfo?.origin === "package");
-    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer", "questions", "recaps", "tasks", "workspace"]);
+    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer", "dictate", "questions", "recaps", "tasks", "workspace"]);
     assert.ok(packageCommands.every(entry => entry.sourceInfo.baseDir === suite), "commands come from one packed suite");
 
     const previous = process.env.PI_CODING_AGENT_DIR;

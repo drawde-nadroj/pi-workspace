@@ -99,20 +99,31 @@ export function composerBottomRail(theme: Theme, width: number, workspace: Works
   workspace.appearanceMode = mode;
   if (workspace.layout?.appearance) return composerSurface(theme, appearanceRow(theme, width, workspace, "bottom", Date.now(), nativeHint), width);
   const border = appearanceBorder(theme, workspace);
+  // Only a viewport TUI dispatches pointer clicks, and the widest state must
+  // survive a centered Vim label; narrower or clickless terminals use /dictate.
+  const dictation = (workspace.mouseReporting?.() ?? true) && width >= 40 ? workspace.dictation : undefined;
+  const icons = workspace.layout?.icons === "plain" ? "plain" : "nerd";
+  const mic = dictation?.label(icons) ?? "";
+  const phase = dictation?.phase();
+  const micText = mic ? theme.style(mic, {
+    fg: phase === "recording" ? theme.colors.warning : phase === "unavailable" ? theme.colors.error : border,
+    bold: phase === "recording",
+  }) : "";
   const meta = workspace.layout?.railDetails !== "off";
   const left = meta && workspace.layout?.directory !== "off"
-    ? quietFrameLabel(theme, ` ${workspace.layout?.icons === "plain" ? "" : `${COMPOSER_ICONS.directory} `}${homePath(context.cwd || "")} `, border) : "";
+    ? quietFrameLabel(theme, ` ${icons === "plain" ? "" : `${COMPOSER_ICONS.directory} `}${homePath(context.cwd || "")} `, border) : "";
   const model = meta && workspace.layout?.model !== "off" ? clean(context.model?.name || context.model?.id || "no model") : "";
   const thinking = workspace.layout?.thinking !== "off" ? clean(workspace.thinkingLevel?.() ?? "") : "";
   // Reserve the right half around a centered Vim label. Shorten the model first
   // so the level is not silently clipped when a provider has a long model name.
   const level = thinking;
-  const available = Math.max(0, Math.floor(width / 2) - Math.ceil(visibleWidth(mode ? ` ${clean(mode)} ` : "") / 2) - 2);
+  const available = Math.max(0, Math.floor(width / 2) - Math.ceil(visibleWidth(mode ? ` ${clean(mode)} ` : "") / 2) - 2 - visibleWidth(micText));
   const modelName = model ? truncateToWidth(model, Math.max(0, available - visibleWidth(level) - (level ? 5 : 2)), "…") : "";
   const detail = [modelName, level].filter(Boolean).join(" · ");
-  const right = nativeHint || (detail ? modelName
+  // The mic leads the right slot, so tail truncation can never hide the control.
+  const right = micText + (nativeHint || (detail ? modelName
     ? theme.style(` ${modelName} `, { fg: border }) + (level ? quietFrameLabel(theme, `· ${level} `, border) : "")
-    : quietFrameLabel(theme, ` ${level} `, border) : "");
+    : quietFrameLabel(theme, ` ${level} `, border) : ""));
   const center = mode ? theme.style(` ${clean(mode)} `, { fg: border, bold: true }) : "";
   return composerRail(theme, width, left, right, false, border, center);
 }
