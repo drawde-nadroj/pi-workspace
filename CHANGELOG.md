@@ -6,6 +6,8 @@ This file records source-workspace increments. It is not a published-release ann
 
 ### Current pending source work
 
+- Replaced Composer's single comet with the five-scene living ember the contract documents: figure-eight for thinking, a four-lane conveyor for writing, twin counter-orbits for tools, corner collapse for compaction and a serpentine trail for generic working. One `dot()` writer snaps to the ten-by-four braille grid, drops off-canvas points and records per-cell heat, so rendering stays deterministic from elapsed run time with no timer, randomness or state write; static marks right-align inside the same five cells so moving and static labels share one column.
+
 - Made the dictation suite portable after a Windows report and recorded the rule in `AGENTS.md`: `npm test` runs on the three-OS CI matrix, so tests must not hardcode an existing POSIX path (`/bin/sh` → `process.execPath`), a separator-bearing expectation (`join` in both the value and the expected string), or a bare path passed to native `import()` (`pathToFileURL`). The reported two failures hid three more, because the `/bin/sh` assertion aborted its test before later assertions ran; the guidance now names that masking and keeps independent platform-sensitive assertions separable.
 
 - Added a project-local `/update` command in `.pi/prompts/update.md`: it records a baseline, updates the Pi host, reads the changelog and declaration diff against the previous release, reviews every host import and guarded native internal, refreshes the lockfile host and recorded version baseline, then runs the full pipeline plus an isolated cold load. Only `.pi/prompts/` and `.pi/README.md` are un-ignored; other `.pi` state stays out of Git.

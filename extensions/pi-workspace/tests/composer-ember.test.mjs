@@ -15,7 +15,7 @@ test('ember is bounded, deterministic, expressive, and unchanged by ordinary typ
   for (const appearance of ['dark', 'light']) {
     initTheme(appearance, false);
     const s = state(); s.clock.begin(1000);
-    for (const phase of ['thinking', 'tools', 'responding', 'compacting']) {
+    for (const phase of ['thinking', 'tools', 'responding', 'compacting', 'working']) {
       const frames = Array.from({ length: 20 }, (_, i) => emberMarker(theme, phase, s, 1000 + i * 100, theme.colors.accent));
       assert.ok(frames.every(f => visibleWidth(f) === 5));
       assert.ok(new Set(frames.map(plain)).size > 8, 'shape changes, not only brightness');
@@ -40,6 +40,56 @@ test('ember is bounded, deterministic, expressive, and unchanged by ordinary typ
     for (let budget = 0; budget < 40; budget++) assert.ok(visibleWidth(emberStatus(theme, 'Thinking · 12s', 'thinking', s, 1400, budget, theme.colors.accent)) <= budget);
   }
   initTheme('dark', false);
+});
+
+test('each working state has a distinct, deterministic grid choreography', () => {
+  initTheme('dark', false);
+  const s = state(); s.clock.begin(1000);
+  const phases = ['thinking', 'responding', 'tools', 'compacting', 'working'];
+  const signatures = phases.map(phase => Array.from({ length: 20 }, (_, i) =>
+    plain(emberMarker(theme, phase, s, 1000 + i * 100, theme.colors.accent))).join('\n'));
+  assert.equal(new Set(signatures).size, phases.length, 'every state has its own scene');
+  for (const phase of phases) {
+    const first = emberMarker(theme, phase, s, 2345, theme.colors.accent);
+    assert.equal(emberMarker(theme, phase, s, 2345, theme.colors.accent), first, 'rendering is deterministic');
+    assert.equal(visibleWidth(first), 5);
+    assert.match(plain(first), /[\u2801-\u28ff]/u);
+  }
+});
+
+test('real tool activity changes visible dots in every moving scene', () => {
+  initTheme('dark', false);
+  for (const phase of ['thinking', 'responding', 'tools', 'compacting', 'working']) {
+    const s = state(); s.clock.begin(1000);
+    const normal = emberMarker(theme, phase, s, 1400, theme.colors.accent);
+    s.activityEventAt = 1100;
+    assert.notEqual(plain(emberMarker(theme, phase, s, 1400, theme.colors.accent)), plain(normal), phase);
+  }
+});
+
+test('scenes stay bounded and visible after a long run', () => {
+  initTheme('dark', false);
+  for (const phase of ['thinking', 'responding', 'tools', 'compacting', 'working']) {
+    const s = state(); s.clock.begin(0);
+    const frame = emberMarker(theme, phase, s, 86_400_000, theme.colors.accent);
+    assert.equal(visibleWidth(frame), 5);
+    assert.match(plain(frame), /[\u2801-\u28ff]/u);
+  }
+});
+
+test('static marks sit against the label inside the same five cells', () => {
+  initTheme('dark', false);
+  const s = state(); s.clock.begin(1000); s.clock.settle(11000, 'done');
+  for (const phase of ['done', 'error', 'stopped', 'interrupted', 'waiting', 'idle', 'thinking']) {
+    const marker = plain(emberMarker(theme, phase, s, 12000, theme.colors.accent));
+    assert.equal(visibleWidth(marker), 5, phase);
+    assert.match(marker, /^ {4}\S$/u, `${phase} must hug the label`);
+  }
+  const status = plain(emberStatus(theme, 'your turn', 'done', s, 12000, 40, theme.colors.accent));
+  assert.equal(status, '    ✓ your turn');
+  s.clock.begin(12000);
+  assert.equal(plain(emberStatus(theme, 'Thinking', 'thinking', s, 12100, 40, theme.colors.accent)).indexOf('Thinking'), 6,
+    'moving and static labels begin in the same column');
 });
 
 test('live appearance keeps text and hit geometry steady beside the ember and prioritizes state over tool details', () => {
