@@ -7,8 +7,13 @@ dist/
 *.tsbuildinfo
 *.tmp
 
-# Pi runtime state and secrets must never enter this source repository
+# Pi runtime state and secrets must never enter this source repository.
+# Project-local prompts and their note are shared tooling, not personal state.
 .pi/
+!.pi/
+.pi/*
+!.pi/prompts/
+!.pi/README.md
 .env
 .env.*
 auth.json
