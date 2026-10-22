@@ -4,6 +4,7 @@ import { CURSOR_MARKER, TuiMainScreen, getKeybindings, visibleWidth } from "@ear
 import { stripVTControlCharacters } from "node:util";
 import { TabbedQuestions } from "../extensions/ask-user-question/batch-ui.ts";
 import { frameQuestion, questionViewport } from "../extensions/ask-user-question/question-surface.ts";
+import { WrappedChoiceList, createQuestionEditor } from "../extensions/ask-user-question/tui-primitives.ts";
 import { askMultiChoice, askSingleChoice, askText } from "../extensions/ask-user-question/standalone-ui.ts";
 import { sanitizeDisplayText } from "../extensions/ask-user-question/tui-primitives.ts";
 import { savedAskAppearance } from "../extensions/ask-user-question/appearance.ts";
@@ -363,6 +364,39 @@ test("a real Pi screen writes the compact bar without leaking input markers", ()
 		assert.match(stripVTControlCharacters(writes.join("")), /Why this one\?/, "the panel reopens through the real writer");
 		ensurePinned(shell, 80);
 	} finally { tui.stop(); }
+});
+
+test("a cramped option window shows options and can still reach every one", () => {
+	const plain = { fg: (_role: string, text: string) => text, bg: (_role: string, text: string) => text, bold: (text: string) => text };
+	const tui = { terminal: { rows: 40 }, requestRender() {} };
+	const editor = createQuestionEditor(tui, plain);
+	editor.focused = true;
+	editor.setText("one");
+	const options = many.options;
+	for (const budget of [1, 2, 3, 4]) {
+		const list = new WrappedChoiceList(options, "Something else…", options.length + 1, getKeybindings(), plain);
+		// The tail is the Other row plus the editor's own frame; budget is what is left.
+		const availableLines = 1 + editor.render(60).length + budget;
+		const seen = new Set<string>();
+		let markers = 0;
+		for (let offset = 0; offset < options.length; offset++) {
+			list.resetOptionScroll();
+			for (let step = 0; step < offset; step++) list.scrollOptions(1);
+			const rows = list.render(60, { inlineOtherEditor: editor, availableLines }).slice(0, budget);
+			const visible = rows.map(row => sanitizeDisplayText(row).replace(/^→\s*/, "").trim());
+			const labels = visible.filter(row => /\d\. /.test(row) && !row.includes("Something else"));
+			const shown = visible.filter(row => row.includes("more · Alt")).length;
+			assert.ok(labels.length >= 1, `budget ${budget} offset ${offset} keeps a readable option (${JSON.stringify(visible)})`);
+			// Markers never outbid the content: at least one row must stay an option.
+			assert.ok(shown <= Math.max(0, budget - 1), `budget ${budget} offset ${offset} spends ${shown} rows on markers`);
+			markers += shown;
+			for (const label of labels) seen.add(label);
+		}
+		assert.equal(seen.size, options.length, `budget ${budget} reaches every option, saw ${[...seen].join(", ")}`);
+		// Three rows have space for both markers and content; fewer rows spend everything on options.
+		if (budget >= 3) assert.ok(markers > 0, `budget ${budget} still advertises the clipped window`);
+		if (budget === 1) assert.equal(markers, 0, "a single row can never be a marker");
+	}
 });
 
 /** Editor content rows are the only rows carrying a box edge in a form render. */

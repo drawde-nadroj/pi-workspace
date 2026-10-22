@@ -557,11 +557,14 @@ export class WrappedChoiceList {
 			const maxOffset = Math.max(0, optionLines.length - budget);
 			this.optionScroll = Math.max(0, Math.min(this.optionScroll, maxOffset));
 			const window = optionLines.slice(this.optionScroll, this.optionScroll + budget);
-			if (window.length > 0 && this.optionScroll > 0) {
-				window[0] = truncateToWidth(this.theme.fg("dim", "  ↑ more · Alt+↑"), width);
-			}
-			if (window.length > 0 && this.optionScroll + window.length < optionLines.length) {
-				window[window.length - 1] = truncateToWidth(this.theme.fg("dim", "  ↓ more · Alt+↓"), width);
+			const clippedAbove = this.optionScroll > 0;
+			const clippedBelow = this.optionScroll + window.length < optionLines.length;
+			// A marker may never consume the last readable option: at one or two rows the
+			// window shows content instead, and the action bar still names Alt+↑/↓.
+			const markerRows = (clippedAbove ? 1 : 0) + (clippedBelow ? 1 : 0);
+			if (markerRows <= window.length - 1) {
+				if (clippedAbove) window[0] = truncateToWidth(this.theme.fg("dim", "  ↑ more · Alt+↑"), width);
+				if (clippedBelow) window[window.length - 1] = truncateToWidth(this.theme.fg("dim", "  ↓ more · Alt+↓"), width);
 			}
 			return [...window, ...tail];
 		}
