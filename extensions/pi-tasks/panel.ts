@@ -2,7 +2,7 @@ import type { Theme } from '@earendil-works/pi-coding-agent';
 import { matchesKey, mixColors, parseColor, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Component, type TUI } from '@earendil-works/pi-tui';
 import { cleanText, type DockColors, type Tone } from 'pi-agent-contracts/dock';
 import { progressText } from './state.ts';
-import { WORK_STATUS, REQUEST_STATUS, planWord, workWord } from './typography.ts';
+import { WORK_STATUS, REQUEST_STATUS, planWord, workWord, waitingText, questionAttention } from './typography.ts';
 import { planInfo, selectedPlan, type PlanBook, type SavedPlan } from './book.ts';
 import { requirementCoverage, coverageGaps } from './requirements.ts';
 import { unresolved, type QuestionProjection } from 'pi-agent-contracts/posted';
@@ -66,13 +66,13 @@ export class TaskPanel implements Component {
     // Session questions lead the list even before a named plan exists.
     const entries: Entry[] = this.unresolvedQuestions().map(q => ({ key: `q:${q.id}`, kind: 'question' as const, id: q.id,
       title: q.question, glyph: q.urgency === 'blocking' ? '!' : '?', glyphTone: q.urgency === 'blocking' ? 'warning' as Tone : 'muted' as Tone,
-      sub: `${q.urgency === 'blocking' ? 'Waiting for you' : 'Can wait'} · ${this.questionLink(q)}`,
+      sub: `${questionAttention(q)} · ${this.questionLink(q)}\n    ${q.boundary}`,
       subTone: q.urgency === 'blocking' ? 'warning' as Tone : 'muted' as Tone }));
     if (!p) return entries;
     const work = this.openTasks(p).map(t => ({ key: `t:${t.id}`, kind: 'task' as const, id: t.id, title: t.title,
       glyph: WORK_STATUS[t.status].glyph, glyphTone: WORK_STATUS[t.status].tone, active: t.status === 'active',
       ...(t.status === 'active' ? { sub: workWord(t.status, this.isCurrent(p) && this.running()), subTone: 'accent' as Tone }
-        : t.status === 'blocked' ? { sub: `Blocked · ${t.reason}`, subTone: 'warning' as Tone } : {}) }));
+        : waitingText(t, p.state) ? { sub: waitingText(t, p.state), subTone: t.status === 'blocked' ? 'warning' as Tone : 'muted' as Tone } : {}) }));
     const closed = this.nav.showDone ? p.state.tasks.filter(t => t.status === 'done' || t.status === 'cancelled') : [];
     const done = closed.map(t => ({ key: `t:${t.id}`, kind: 'task' as const, id: t.id, title: t.title,
       glyph: WORK_STATUS[t.status].glyph, glyphTone: WORK_STATUS[t.status].tone, sub: WORK_STATUS[t.status].label, subTone: 'muted' as Tone }));
@@ -308,13 +308,17 @@ export class TaskPanel implements Component {
         const mark = WORK_STATUS[task.status];
         content.push({ text: task.title, bold: true },
           { text: workWord(task.status, current && this.running()), tone: 'muted', glyph: mark.glyph, glyphTone: mark.tone });
-        if (task.reason && task.status === 'blocked') field('Waiting on', [task.reason]);
+        if (task.reason && task.status === 'blocked') {
+          field('Waiting for', [task.reason]);
+          field('Who moves this forward', [task.blockerOwner === 'user' ? 'You provide input; the agent applies it and reassesses.' : task.blockerOwner === 'agent' ? 'Agent to resolve during authorized work.' : task.blockerOwner === 'external' ? 'An external prerequisite must change; agent to check when appropriate.' : 'Not recorded yet; the agent should clarify responsibility.']);
+          field('To continue', [task.unblockWhen ?? 'Release condition not recorded yet.']);
+        }
         if (task.doneWhen) field('Done when', [task.doneWhen]);
         if (task.note) field(task.noteBy === 'user' ? 'Outcome · your note' : 'Outcome · agent report', [task.note]);
         if (task.evidence) field('Evidence', [task.evidence]);
         if (task.dependsOn.length) field('Depends on', task.dependsOn.map(id => `${p?.state.tasks.find(t => t.id === id)?.title ?? id} · ${id}`));
         const gates = this.unresolvedQuestions().filter(q => q.planId === p?.id && q.taskIds.includes(task.id));
-        if (gates.length) field('Questions', gates.map(q => `${q.question} · ${q.id}`));
+        if (gates.length) field('Questions', gates.map(q => `${questionAttention(q)} · ${q.question}\n${q.boundary} · ${q.id}`));
         content.push({ text: '' }, { text: `Reference  ${task.id}`, tone: 'muted' });
         if (task.evidence) content.push({ text: 'Reported, not independently verified.', tone: 'muted' });
       } else content.push({ text: 'No selected record.' });
@@ -329,15 +333,16 @@ export class TaskPanel implements Component {
     const warnings: string[] = [];
     const gaps = p ? coverageGaps(p.requirements, p.state).length : 0;
     if (gaps && this.view() === 'work') warnings.push(`! ${gaps} request${gaps === 1 ? ' needs' : 's need'} review · V`);
-    const mark = (entry: Entry, index: number) => ({ marker: index === chosen ? '›' : ' ', glyph: entry.glyph, tone: entry.glyphTone });
+    const mark = (entry: Entry, index: number) => ({ marker: index === chosen ? '›' : ' ', glyph: entry.kind === 'task' ? `${entries.slice(index+1).some(e=>e.kind === 'task') ? '├─' : '└─'} ${entry.glyph}` : entry.glyph, tone: entry.glyphTone });
     const wrapped: Array<{ text: string; tone: Tone; index: number; bold?: boolean; mark?: { marker?: string; glyph?: string; tone: Tone } }> = [];
     const starts: number[] = [], ends: number[] = [];
     for (const [index, entry] of entries.entries()) {
-      if (index === 1 && entries[0]?.kind === 'question' && entry.kind === 'task') wrapped.push({ text: '', tone: 'muted', index: -1 });
+      if (index > 0 && entries[index-1]?.kind === 'question' && entry.kind === 'task') wrapped.push({ text: '', tone: 'muted', index: -1 });
       starts.push(wrapped.length);
-      wrapped.push(...wrapTextWithAnsi(cleanText(entry.title), Math.max(1, Math.min(80, contentWidth - 4))).map((text, n) => ({
-        text: n ? '    ' + text : text, tone: 'text' as const, index, bold: entry.active || entry.kind === 'request', mark: n ? undefined : mark(entry, index) })));
-      if (entry.sub) wrapped.push({ text: `    ${entry.sub}`, tone: entry.subTone ?? 'muted', index });
+      const indent = entry.kind === 'task' ? 7 : 4;
+      wrapped.push(...wrapTextWithAnsi(cleanText(entry.title), Math.max(1, Math.min(80, contentWidth - indent))).map((text, n) => ({
+        text: n ? ' '.repeat(indent) + text : text, tone: 'text' as const, index, bold: entry.active || entry.kind === 'request', mark: n ? undefined : mark(entry, index) })));
+      if (entry.sub) wrapped.push(...entry.sub.split('\n').flatMap(s=>wrapTextWithAnsi(cleanText(s.trim()), Math.max(1,Math.min(80,contentWidth-indent)))).map(text=>({text:`${' '.repeat(indent)}${text}`, tone:entry.subTone ?? 'muted', index})));
       ends.push(wrapped.length);
     }
     const doneCount = p?.state.tasks.filter(t => t.status === 'done').length ?? 0;

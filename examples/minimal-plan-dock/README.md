@@ -3,7 +3,7 @@
 A copyable dock **provider** showing the whole contract: one tool
 (`example_plan`), one session entry (`example-plan:v1`), one
 `pi.registerToolRenderer` renderer, and a validated `DockSnapshot` published on
-`DOCK.update` after every mutation. Loaded next to Workspace its rows appear in
+`DOCK.update` after every mutation. Loaded next to Egregore its rows appear in
 the dock; with no host it still works and simply renders nothing.
 
 | File | Role |
@@ -27,7 +27,7 @@ package), then in a scratch directory:
 PI_CODING_AGENT_DIR=$(mktemp -d) pi install ./examples/minimal-plan-dock
 ```
 
-Ask the agent to call `example_plan` and, with Workspace loaded, watch the dock
+Ask the agent to call `example_plan` and, with Egregore loaded, watch the dock
 row appear. Run the assertions with `npm run test:examples`.
 
 ## What it deliberately omits
@@ -36,5 +36,5 @@ No plan history, requirements ledger, Ask integration, native fallback widget or
 `/commands` — [Tasks](../../extensions/pi-tasks/README.md) is the full version. It
 is also **not** a host: answering `DOCK.probe` with `available: true` while
 rendering nothing would make every other provider suppress its native fallback.
-Workspace owns that side; see the [contracts](../../packages/pi-agent-contracts/README.md)
+Egregore owns that side; see the [contracts](../../packages/pi-agent-contracts/README.md)
 package and the [primitive contracts](../../docs/PRIMITIVES.md).

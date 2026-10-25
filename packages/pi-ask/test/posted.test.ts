@@ -103,6 +103,34 @@ function harness(mode = 'tui') {
   return { pi, ctx, entries, messages, forms, notices, widgets, emit, call, commands, branch(b: any[]) { branch = b; }, fail() { fail = true; } };
 }
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+test('inbox to normal choice form to Review submits one-based choices and preserves notes',async()=>{
+  const h=harness();await h.emit('session_start');
+  await h.call({op:'post',question:{...input,options:[{label:'Local'},{label:'Hosted'}]}});
+  const opening=h.commands.get('questions').handler('',h.ctx);await tick();
+  const inbox=h.forms.at(-1).component;
+  assert.match(sanitizeDisplayText(inbox.render(90).join('\n')),/Question inbox/);
+  inbox.handleInput('\r');await tick();
+  const form=h.forms.at(-1).component;assert.notEqual(form,inbox);
+  form.handleInput('\x1b[B');form.handleInput('\r');form.handleInput('+');form.handleInput('Only after review');form.handleInput('\r');
+  form.handleInput('\r');assert.match(sanitizeDisplayText(form.render(90).join('\n')),/Review/);
+  form.handleInput('\r');await opening;
+  assert.deepEqual(h.notices,[]);assert.equal(h.messages.length,1);
+  const q=h.entries.filter(e=>e.customType===POSTED_ENTRY).at(-1).data.questions[0];
+  assert.equal(q.state,'submitted');assert.equal(q.response.answers[0].answer.index,2);assert.equal(q.response.answers[0].answer.label,'Hosted');
+  assert.equal(q.response.answers[0].note,'Only after review');
+  assert.equal(restorePostedBook(h.entries.filter(e=>e.customType===POSTED_ENTRY).at(-1).data).questions[0].state,'submitted');
+});
+
+test('posted choice validation uses the normal Ask one-based choice identity',()=>{
+  const b=postQuestion(emptyPostedBook(),{...input,options:[{label:'First'},{label:'Second'}]});
+  for(const index of [1,2]) {
+    const option=b.questions[0].definition.options[index-1];
+    const submitted=change(b,{op:'submit',response:{status:'answered',answers:[{questionIndex:0,answer:{type:'option',label:option.label,value:option.value,index}}]}});
+    assert.equal(restorePostedBook(submitted).questions[0].response!.answers[0].questionIndex,0);
+  }
+  assert.throws(()=>change(b,{op:'submit',response:{status:'answered',answers:[{questionIndex:0,answer:{type:'option',label:'First',value:'First',index:0}}]}}),/original choice/);
+});
+
 test('urgency-only changes preserve open text/notes, refresh linked context and retain stale-session protection', async () => {
   const h = harness(); await h.emit('session_start');
   h.pi.events.emit(POSTED.catalogue, { version: 1, sessionId: 'posted-test', available: true, attentionHosted: false,

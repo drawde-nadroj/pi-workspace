@@ -85,7 +85,7 @@ function validateResponse(response: PostedResponse, q: PostedQuestion) {
   for (const value of values) {
     if (typeof value === 'string') { if (q.definition.mode !== 'text' || !value.trim()) throw new Error('Invalid free-text answer'); }
     else if (!value || !['option', 'other', 'text'].includes(value.type) || typeof value.label !== 'string' || typeof value.value !== 'string' || !value.value.trim()) throw new Error('Invalid answer');
-    else if (value.type === 'option' && !q.definition.options.some((o, i) => i === value.index && o.label === value.label && o.value === value.value)) throw new Error('Answer does not match the original choice');
+    else if (value.type === 'option' && !q.definition.options.some((o, i) => i + 1 === value.index && o.label === value.label && o.value === value.value)) throw new Error('Answer does not match the original choice');
   }
 }
 export function postQuestion(book: PostedBook, input: PostedInput, now = Date.now()): PostedBook {

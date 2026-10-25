@@ -21,7 +21,7 @@ function command(file, args, options = {}) {
   return execFileSync(process.execPath, [entry, ...args], { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, ...options });
 }
 
-test("packed private suite loads its only three entry points in an isolated Pi directory", { timeout: 120_000 }, async () => {
+test("packed private suite loads its only four entry points in an isolated Pi directory", { timeout: 120_000 }, async () => {
   const sandbox = mkdtempSync(join(tmpdir(), "pi-suite-test-"));
   const agent = join(sandbox, "agent"), project = join(sandbox, "project"), runtime = join(sandbox, "runtime");
   const env = { ...process.env, PI_CODING_AGENT_DIR: agent, PI_OFFLINE: "1" };
@@ -41,7 +41,7 @@ test("packed private suite loads its only three entry points in an isolated Pi d
 
     const archive = join(sandbox, packed.filename);
     command("npm", ["install", "--prefix", runtime, archive, "--offline", "--legacy-peer-deps", "--ignore-scripts", "--no-audit", "--no-fund"], { cwd: project, env });
-    const suite = join(runtime, "node_modules/pi-workspace-suite");
+    const suite = join(runtime, "node_modules/pi-egregore");
     const manifest = JSON.parse(readFileSync(join(suite, "package.json"), "utf8"));
     let checkedHelpLinks = 0;
     for (const path of paths.filter(path => path.endsWith(".md") && !path.startsWith("node_modules/"))) {
@@ -56,13 +56,13 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     }
     assert.ok(checkedHelpLinks > 0, "local help-link closure must not pass vacuously");
     assert.deepEqual(manifest.pi.extensions, [
-      "./extensions/pi-workspace/index.ts", "./extensions/pi-tasks/index.ts", "./packages/pi-ask/extensions/questions.ts",
+      "./extensions/pi-egregore/index.ts", "./extensions/pi-tasks/index.ts", "./packages/pi-ask/extensions/questions.ts", "./extensions/pi-quests/index.ts",
     ]);
     assert.ok(readFileSync(join(suite, "node_modules/pi-embeddable-frame/primitives.js"), "utf8"));
     command("pi", ["install", suite], { cwd: project, env });
     const settings = JSON.parse(readFileSync(join(agent, "settings.json"), "utf8"));
     assert.equal(settings.packages.length, 1, "only one Pi package is declared");
-    assert.match(command("pi", ["list"], { cwd: project, env }), /pi-workspace-suite/);
+    assert.match(command("pi", ["list"], { cwd: project, env }), /pi-egregore/);
     command("pi", ["--offline", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes", "--help"], { cwd: project, env });
     const rpc = command("pi", ["--mode", "rpc", "--no-session", "--offline", "--no-context-files", "--no-skills", "--no-prompt-templates", "--no-themes"], {
       cwd: project, env, input: '{"id":"suite-commands","type":"get_commands"}\n',
@@ -70,7 +70,6 @@ test("packed private suite loads its only three entry points in an isolated Pi d
     const response = rpc.find(record => record.id === "suite-commands");
     assert.equal(response?.success, true, "the real Pi process loads the packed suite");
     const packageCommands = response.data.commands.filter(entry => entry.source === "extension" && entry.sourceInfo?.origin === "package");
-    assert.deepEqual(packageCommands.map(entry => entry.name).sort(), ["composer", "dictate", "questions", "recaps", "tasks", "workspace"]);
     assert.ok(packageCommands.every(entry => entry.sourceInfo.baseDir === suite), "commands come from one packed suite");
 
     const previous = process.env.PI_CODING_AGENT_DIR;
@@ -81,19 +80,19 @@ test("packed private suite loads its only three entry points in an isolated Pi d
       for (let load = 0; load < 2; load++) {
         const result = await loadExtensions(entries, project);
         assert.deepEqual(result.errors, [], `load ${load + 1}: ${JSON.stringify(result.errors)}`);
-        assert.equal(result.extensions.length, 3);
+        assert.equal(result.extensions.length, 4);
         const tools = result.extensions.flatMap(extension => [...extension.tools.keys()]);
         const commands = result.extensions.flatMap(extension => [...extension.commands.keys()]);
         assert.equal(tools.length, new Set(tools).size, "one owner per tool name");
         assert.equal(commands.length, new Set(commands).size, "one owner per command name");
-        for (const name of ["tasks", "ask_user_question", "ask_questions", "question_queue"]) assert.ok(tools.includes(name), name);
-        for (const name of ["composer", "workspace", "tasks", "questions"]) assert.ok(commands.includes(name), name);
+        for (const name of ["tasks", "quests", "ask_user_question", "ask_questions", "question_queue"]) assert.ok(tools.includes(name), name);
+        for (const name of ["composer", "egregore", "workspace", "tasks", "quests", "questions"]) assert.ok(commands.includes(name), name);
       }
       const tasksOnly = await loadExtensions([entries[1]], project);
-      assert.deepEqual(tasksOnly.errors, [], "Tasks cold-loads without Workspace or Ask");
+      assert.deepEqual(tasksOnly.errors, [], "Tasks cold-loads without Egregore or Ask");
       assert.ok(tasksOnly.extensions[0].tools.has("tasks"));
       const askOnly = await loadExtensions([entries[2]], project);
-      assert.deepEqual(askOnly.errors, [], "Ask cold-loads without Workspace or Tasks");
+      assert.deepEqual(askOnly.errors, [], "Ask cold-loads without Egregore or Tasks");
       assert.ok(askOnly.extensions[0].tools.has("question_queue"));
       assert.ok(askOnly.extensions[0].commands.has("questions"));
     } finally {

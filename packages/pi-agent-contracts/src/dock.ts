@@ -1,6 +1,6 @@
 import { wrapTextWithAnsi, truncateToWidth } from "@earendil-works/pi-tui";
 
-/** Workspace-owned, data-only UI bridge. Neither extension imports the other's implementation.
+/** Egregore-owned, data-only UI bridge. Neither extension imports the other's implementation.
  * The established pi-home:dock:v1 wire IDs remain stable for independently loaded providers;
  * Home is no longer an extension owner or entry point.
  */
@@ -53,7 +53,7 @@ export function fitDock(snapshot: DockSnapshot, maxRows: number): DockRow[] {
   if (hidden && maxRows > 0) rows.push({ text: `+ ${hidden} more${snapshot.hint ? " · " + cleanText(snapshot.hint) : ""}`, tone: "muted" });
   return rows;
 }
-/** Physical-line budget shared by native and Workspace hosts. Keep task order; give active text spare lines first. */
+/** Physical-line budget shared by native and Egregore hosts. Keep task order; give active text spare lines first. */
 export function layoutDock(snapshot: DockSnapshot, width: number, maxRows: number): DockRow[] {
   if (width <= 0 || maxRows <= 0) return [];
   const groups = snapshot.rows.map(row => wrapTextWithAnsi(cleanText(row.text), Math.max(1, width - 2)));

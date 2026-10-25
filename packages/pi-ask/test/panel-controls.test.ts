@@ -334,7 +334,7 @@ for (const [mode, ask] of [["text", askText], ["single-select", askSingleChoice]
 	});
 }
 
-const many: QuestionDef = { question: "Pick a workspace", label: "Workspace", mode: "single-select",
+const many: QuestionDef = { question: "Pick a workspace", label: "Egregore", mode: "single-select",
 	options: ["First option", "Second option", "Third option", "Fourth option", "Fifth option", "Sixth option"].map(label => ({ label, value: label.toLowerCase() })) };
 
 test("a real Pi screen writes the compact bar without leaking input markers", () => {

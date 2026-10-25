@@ -24,19 +24,19 @@ test("Ask appearance is versioned, bounded and migrates the legacy label setting
   assert.deepEqual(bad, askAppearanceDefaults());
 });
 
-test("standalone Ask reads persisted visual preferences without Workspace and safely falls back", async () => {
+test("standalone Ask reads persisted visual preferences without Egregore and safely falls back", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pi-ask-style-")), previous = process.env.PI_CODING_AGENT_DIR;
   try {
     process.env.PI_CODING_AGENT_DIR = dir;
     writeFileSync(join(dir, "pi-footer.json"), JSON.stringify({ questionLabels: "hierarchy", ask: { version: 1, title: "Ask me", progressPosition: "bottomRight" } }));
     assert.equal(savedAskAppearance().title, "Ask me");
     assert.equal(savedAskAppearance().progressPosition, "bottomRight");
-    writeFileSync(join(dir, "pi-workspace.json"), JSON.stringify({ version: 1, density: "compact", ask: { version: 1, title: "Workspace questions" } }));
-    assert.equal(savedAskAppearance().title, "Workspace questions");
+    writeFileSync(join(dir, "pi-egregore.json"), JSON.stringify({ version: 1, density: "compact", ask: { version: 1, title: "Egregore questions" } }));
+    assert.equal(savedAskAppearance().title, "Egregore questions");
     assert.equal(savedWorkspaceVisuals().density, "compact");
-    writeFileSync(join(dir, "pi-workspace.json"), '{"version":2}');
+    writeFileSync(join(dir, "pi-egregore.json"), '{"version":2}');
     assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
-    await rm(join(dir, "pi-workspace.json"), { force: true });
+    await rm(join(dir, "pi-egregore.json"), { force: true });
     writeFileSync(join(dir, "pi-footer.json"), "not json");
     assert.deepEqual(savedAskAppearance(), askAppearanceDefaults());
   } finally {

@@ -1,0 +1,60 @@
+{
+  "upstream": "React Bits Sound Lab by David Haz",
+  "copyright": "Copyright (c) 2026 David Haz",
+  "license": "MIT + Commons Clause License Condition v1.0; full upstream text in LICENSE.txt",
+  "usage": "These audio exports are embedded in pi-workspace as application notification cues. They must not be redistributed as standalone sounds or a sound pack.",
+  "website": "https://reactbits.dev/tools/sound-lab",
+  "repository": "https://github.com/DavidHDev/react-bits",
+  "revision": "e12c22192ac7b4b452c5e2feb9b586d74765d696",
+  "renderer": {
+    "source": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/sounds/js/react-bits-sound.js",
+    "sha256": "5b65c4315d4b92454066bd2665ed43fbd894d14e51097640380ef1b2414388cf",
+    "wavEncoder": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/tools/sound-lab/export/wav.js",
+    "wavEncoderSha256": "8ec70d85cc82baa26dac9201761762d03850ea924ab2d0ae59c0dc3ce7ef8159",
+    "implementation": "Google Chrome 155.0.8059.85 OfflineAudioContext",
+    "method": "Executed the original renderer from const TAU through renderSound, excluding only the React import and unused interactive playback/hook code; executed the original encodeWav function without its module export keyword. No synthesis or audio processing logic was rewritten.",
+    "renderOptions": {
+      "sampleRate": 48000,
+      "channels": 2,
+      "variant": 0
+    },
+    "tune": {},
+    "tuneMeaning": "All original defaults: pitch 0, tone 0, length 1, space 0, punch 0, volume 0 dB, variation 0, no additional effects. Recipe-defined synthesis, reverb, trimming, fades and loudness normalization are retained.",
+    "wavOptions": {
+      "bitDepth": 24,
+      "channels": 2
+    },
+    "postProcessing": "None. The WAVs are original renderSound output encoded by upstream encodeWav."
+  },
+  "sounds": [
+    {
+      "file": "react-bits-pluck.wav",
+      "frames": 22233,
+      "duration": 0.4631875,
+      "bytes": 133442,
+      "sha256": "551042fe1650365bfa1435499f83770307bf01a048eb6c3f10b68f64cf64ff75",
+      "kind": "done",
+      "preset": "SoundPluck-JS",
+      "description": "A soft string pluck for picking from a list.",
+      "registry": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/public/r/SoundPluck-JS.json",
+      "recipe": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/sounds/js/pluck.js",
+      "recipeLoudnessDb": -19,
+      "playbackGain": 1
+    },
+    {
+      "file": "react-bits-hint.wav",
+      "frames": 38380,
+      "duration": 0.7995833333333333,
+      "bytes": 230324,
+      "sha256": "200f766beb8833c89e0861f83d1ffac40c3aca3ae820f3c93aecd1d94c74c343",
+      "kind": "question",
+      "preset": "SoundHint-JS",
+      "description": "A neutral, airy tone for tips and info.",
+      "registry": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/public/r/SoundHint-JS.json",
+      "recipe": "https://raw.githubusercontent.com/DavidHDev/react-bits/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/sounds/js/hint.js",
+      "recipeLoudnessDb": -19,
+      "playbackGain": 0.6
+    }
+  ],
+  "playback": "macOS /usr/bin/afplay -v <playbackGain> <asset>. Pluck is unattenuated. Hint is played at 0.6 amplitude (approximately -4.44 dB relative to its original); the bundled asset itself is unchanged."
+}

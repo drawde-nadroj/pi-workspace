@@ -1,4 +1,4 @@
-// Workspace deliberately reads a small number of host-internal symbols and keeps a
+// Egregore deliberately reads a small number of host-internal symbols and keeps a
 // graceful fallback for each. Without this canary a host upgrade would silently
 // degrade rendering instead of failing one named test.
 import assert from "node:assert/strict";
@@ -35,7 +35,7 @@ const SHAPES = [
   { symbol: "AssistantMessageComponent.prototype.render", host: "agent", file: "native-message-adapter.ts", fallback: "native message layout" },
 ];
 
-const hint = shape => `host shape changed: ${shape.symbol} — update extensions/pi-workspace/${shape.file} (docs/PRIMITIVES.md#host-internals). Fallback today: ${shape.fallback}`;
+const hint = shape => `host shape changed: ${shape.symbol} — update extensions/pi-egregore/${shape.file} (docs/PRIMITIVES.md#host-internals). Fallback today: ${shape.fallback}`;
 
 for (const shape of SHAPES) test(`host shape: ${shape.symbol}`, () => {
   const [className, member] = shape.symbol.split(".prototype.");
@@ -44,16 +44,16 @@ for (const shape of SHAPES) test(`host shape: ${shape.symbol}`, () => {
   assert.equal(typeof constructor.prototype[member], "function", hint(shape));
 });
 
-/** Native renderer identity is how Workspace distinguishes a built-in tool from a
+/** Native renderer identity is how Egregore distinguishes a built-in tool from a
  * third-party override; without the factories every card falls back to native. */
 test("host shape: native tool renderer factories", () => {
   for (const name of ["createReadToolDefinition", "createEditToolDefinition", "createWriteToolDefinition",
     "createGrepToolDefinition", "createFindToolDefinition", "createLsToolDefinition"]) {
     const create = hosts.agent[name];
     assert.equal(typeof create, "function",
-      `host shape changed: ${name} — update extensions/pi-workspace/activity-blocks.ts (docs/PRIMITIVES.md#host-internals). Fallback today: every tool card stays native`);
+      `host shape changed: ${name} — update extensions/pi-egregore/activity-blocks.ts (docs/PRIMITIVES.md#host-internals). Fallback today: every tool card stays native`);
     const definition = create("");
     assert.ok(definition && "renderCall" in definition && "renderResult" in definition,
-      `host shape changed: ${name}().renderCall/renderResult — update extensions/pi-workspace/activity-blocks.ts (docs/PRIMITIVES.md#host-internals)`);
+      `host shape changed: ${name}().renderCall/renderResult — update extensions/pi-egregore/activity-blocks.ts (docs/PRIMITIVES.md#host-internals)`);
   }
 });

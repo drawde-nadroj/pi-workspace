@@ -21,7 +21,7 @@ A primitive is a Pi extension that:
 - works with the other components absent, falling back to its own UI.
 
 Owning components: Tasks owns `tasks` and `/tasks`; Ask owns the question tools
-and `/questions`; Workspace owns the editor, footer, transcript and the dock
+and `/questions`; Egregore owns the editor, footer, transcript and the dock
 that renders provider rows; Frame owns drawing primitives only.
 
 ## Ask contract
@@ -149,7 +149,7 @@ Requirement coverage `state` is computed, not stored:
 Helpers: `isSnapshot`, `isHost`, `validOverview`, `cleanText`, `layoutDock`, `fitDock`.
 
 The wire IDs keep the historical `pi-home:dock:v1` prefix; the owner is now
-Workspace. A provider that receives no `DOCK.host` must render its own fallback —
+Egregore. A provider that receives no `DOCK.host` must render its own fallback —
 `mounted` starts `false` and only a host `DockAck` sets it.
 
 ## Compatibility rules
@@ -173,9 +173,9 @@ Workspace. A provider that receives no `DOCK.host` must render its own fallback 
 
 ## Host internals
 
-Workspace reads these private symbols and degrades gracefully when one is
+Egregore reads these private symbols and degrades gracefully when one is
 missing. `tests/host-shapes.test.mjs` asserts every one of them, naming the file
-to update. Nothing outside Workspace's adapters may read them.
+to update. Nothing outside Egregore's adapters may read them.
 
 A plugin author should reach for `pi.registerToolRenderer` first: it is the
 supported seam for replacing how a tool call is drawn, it needs no private

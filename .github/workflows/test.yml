@@ -43,6 +43,6 @@ jobs:
         shell: bash
         run: |
           node --input-type=module -e 'import { ensureTool } from "./node_modules/@earendil-works/pi-coding-agent/dist/utils/tools-manager.js"; if (!await ensureTool("fd", s => console.log(s.message))) process.exit(1);'
-      - name: Full pipeline (typecheck, Frame, Ask, Workspace, Tasks, harness, packed suite)
+      - name: Full pipeline (typecheck, Frame, Ask, Egregore, Tasks, harness, packed suite)
         run: npm test
       - run: npm run pack:check

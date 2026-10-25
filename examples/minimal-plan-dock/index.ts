@@ -3,7 +3,7 @@
  * snapshot: it shows the whole contract without copying the suite.
  *
  * It is deliberately a *provider*, not a host. A host answers `DOCK.probe` and
- * acknowledges `DOCK.update`; Workspace does that. An extension that answered
+ * acknowledges `DOCK.update`; Egregore does that. An extension that answered
  * probes with `available: true` while rendering nothing would make every other
  * provider suppress its native fallback.
  */

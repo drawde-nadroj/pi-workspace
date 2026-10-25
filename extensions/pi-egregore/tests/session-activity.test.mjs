@@ -1,0 +1,33 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createJiti} from 'jiti';
+import {stripVTControlCharacters} from 'node:util';
+const jiti=createJiti(import.meta.url);
+const {registerSessionActivity,activityLines}=await jiti.import('../session-activity.ts');
+const {footerPrefs,FOOTER_DEFAULTS}=await jiti.import('../footer-state.ts');
+const {preferenceControls}=await jiti.import('../workspace-preference-rooms.ts');
+const {ACTIVITY_EVENT,ACTIVITY_ENTRY}=await jiti.import('../../../lib/session-activity.ts');
+const theme={appearance:'dark',fg:(_c,s)=>s,style:s=>s};
+const event={version:1,session:'s',key:'q:1',at:'2026-10-25T10:00:00Z',kind:'quest',title:'Path offered: A direction',summary:'A reason',sourceId:'q'};
+test('activity persists once, follows current branch, ignores other sessions and never sends a message',()=>{
+ const handlers=new Map(),entries=[],commands=new Map();let ctx={sessionManager:{getSessionId:()=> 's',getBranch:()=>entries}};let redraws=0;
+ const feed=registerSessionActivity({events:{on:(n,f)=>handlers.set(n,f)},appendEntry:(customType,data)=>entries.push({type:'custom',customType,data}),registerCommand:(n,c)=>commands.set(n,c)},()=>ctx,()=>redraws++);
+ handlers.get(ACTIVITY_EVENT)({...event,session:'other'});assert.equal(entries.length,0);
+ handlers.get(ACTIVITY_EVENT)(event);handlers.get(ACTIVITY_EVENT)(event);assert.equal(entries.length,1);assert.equal(entries[0].customType,ACTIVITY_ENTRY);assert.equal(redraws,1);
+ assert.match(feed.render(FOOTER_DEFAULTS,theme,100).join('\n'),/Path offered/);
+ feed.clear();assert.deepEqual(feed.render(FOOTER_DEFAULTS,theme,100),[]);feed.restore(ctx);assert.match(feed.render(FOOTER_DEFAULTS,theme,100).join('\n'),/1 updates/);
+ ctx={sessionManager:{getSessionId:()=> 'new',getBranch:()=>entries}};feed.restore(ctx);assert.deepEqual(feed.render(FOOTER_DEFAULTS,theme,100),[]);
+ assert.ok(commands.has('activity'));
+});
+test('Egregore settings own activity visibility/colors and use the normal change and audition callbacks',()=>{
+ let prefs=footerPrefs({sessionActivity:'expanded',activityColor:'theme'}),choose,changes=0,preview=0;
+ const editor={get:()=>prefs,change:f=>{changes++;f()},choose:(...args)=>choose=args,visual:patch=>({show:v=>{preview++;patch(prefs,v)}}),text:()=>{},message:()=>{}};
+ const controls=preferenceControls(editor,'general',false,()=>{});
+ controls.find(c=>c.label==='Session updates').activate();choose[3]('off');assert.equal(prefs.sessionActivity,'off');assert.equal(changes,1);choose[4].show('compact');assert.equal(preview,1);
+ assert.equal(footerPrefs({sessionActivity:'invalid'}).sessionActivity,'compact');
+ assert.deepEqual(activityLines([event],{...prefs,sessionActivity:'off'},theme,80),[]);
+ const entries=[1,2,3,4].map(i=>({...event,key:String(i),title:`Update ${i}`}));
+ assert.equal(activityLines(entries,{...prefs,sessionActivity:'expanded'},theme,80).length,4);
+ assert.equal(activityLines(entries,{...prefs,sessionActivity:'compact'},theme,80).length,2);
+ for(const row of activityLines(entries,prefs,theme,20))assert.ok(stripVTControlCharacters(row).length<=20);
+});

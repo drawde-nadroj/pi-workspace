@@ -9,8 +9,8 @@ Extensions execute in Pi's process with its OS access. Review source before inst
 1. Clone to a stable directory outside your Pi agent directory. Use your repository access method; this example uses the repository's HTTPS address:
 
    ```sh
-   git clone https://github.com/drawde-nadroj/pi-workspace.git ~/code/pi-workspace
-   cd ~/code/pi-workspace
+   git clone https://github.com/drawde-nadroj/pi-workspace.git ~/code/pi-egregore
+   cd ~/code/pi-egregore
    npm ci
    npm test
    ```
@@ -26,9 +26,9 @@ Extensions execute in Pi's process with its OS access. Review source before inst
 
    These commands change the configured Pi agent directory's package declarations. The default is `~/.pi/agent`; `PI_CODING_AGENT_DIR` selects another directory. For a disposable check rather than a personal install, follow [isolated review](ACCEPTANCE.md#repeatable-isolated-review).
 
-   Do not separately register `packages/pi-ask` or Frame alongside the suite. Do not load old personal Workspace/Tasks copies as well. Equivalent local declarations may be deduplicated by Pi, but separate component entries can still duplicate registration. Review any legacy resource exclusions before starting.
+   Do not separately register `packages/pi-ask` or Frame alongside the suite. Do not load old personal Egregore/Tasks copies as well. Equivalent local declarations may be deduplicated by Pi, but separate component entries can still duplicate registration. Review any legacy resource exclusions before starting.
 
-3. Start a fresh Pi process. Run `/workspace` and `/tasks` in Pi, not in the shell. `pi list` should identify the root checkout; each command should open its corresponding surface. The Ask agent tools are `ask_user_question`, `ask_questions` and `question_queue`; `/questions` is the user-facing inbox.
+3. Start a fresh Pi process. Run `/egregore` and `/tasks` in Pi, not in the shell. `pi list` should identify the root checkout; each command should open its corresponding surface. The Ask agent tools are `ask_user_question`, `ask_questions` and `question_queue`; `/questions` is the user-facing inbox.
 
 Pi loads a local package from its resolved checkout path. It does **not** copy its files or install its dependency tree. Keep the directory and installed dependencies in place. CLI input paths resolve from the command's working directory; relative paths already recorded in settings resolve from that settings file. Using `"$PWD"` avoids that distinction during registration.
 
@@ -59,7 +59,7 @@ Use a normal, non-elevated Git Bash session. The suite does not require Administ
 
    Run this preparation before `npm test` on that fresh host. It downloads a tool into the configured agent directory, not into Git, and needs no administrator access.
 
-   All six stages must complete: Frame, Ask, Workspace, Tasks, harness and suite. Exactly one filesystem test is explicitly skipped on native Windows because Windows forbids newline filenames; portable Git integration and synthetic NUL-delimited newline parsing still run. Capture tests print unique output paths beneath the OS temporary directory. The packed-suite test invokes npm and the selected Pi JavaScript entry points directly, avoiding Windows `.cmd` execution assumptions.
+   All six stages must complete: Frame, Ask, Egregore, Tasks, harness and suite. Exactly one filesystem test is explicitly skipped on native Windows because Windows forbids newline filenames; portable Git integration and synthetic NUL-delimited newline parsing still run. Capture tests print unique output paths beneath the OS temporary directory. The packed-suite test invokes npm and the selected Pi JavaScript entry points directly, avoiding Windows `.cmd` execution assumptions.
 
 3. Only after tests pass, register the suite in your personal Pi configuration:
 
@@ -71,7 +71,7 @@ Use a normal, non-elevated Git Bash session. The suite does not require Administ
    `pwd -W` is Git Bash's Windows-form absolute checkout path. Register only the root, not Ask and Frame separately. This registration is an intentional personal configuration change; the tests use isolated temporary configuration instead.
 
 4. Start a fresh `pi` in Windows Terminal with Git Bash. For the first pass, use the native editor without optional Vim. Test regular mode and then fullscreen mode through Pi's own settings:
-   - Open `/workspace`; Tab through Input, Tasks, Ask and Transcript. Change one appearance value, use Undo, then Discard. Resize narrow/wide and check that keyboard navigation and the input cursor remain usable.
+   - Open `/egregore`; Tab through Input, Tasks, Ask and Transcript. Change one appearance value, use Undo, then Discard. Resize narrow/wide and check that keyboard navigation and the input cursor remain usable.
    - Open `/tasks`; verify the empty state or existing plan, browse with the keyboard and close without editing it.
    - Open `/questions`; verify the empty inbox or existing questions and close without submitting an answer.
    - Type an unsent draft containing `hello 界面`. Use the app's keyboard paths to open and close a panel while preserving that draft; verify typing, cursor movement and native undo afterward. Do not send the draft merely to test styling.
@@ -81,7 +81,7 @@ Opening an empty inbox tests registration/navigation, not question answering. Fo
 
 ### Optional pi-vim 0.14.2 on Windows
 
-Vim is **not required** for Workspace. Version 0.14.2 internally sends `Ctrl+-` for normal-mode `u`, while Pi 1.3.0 defaults to `Ctrl+Z` on Windows (`Alt+Z` on WSL). Without a matching alias, undo is a no-op even without Workspace; the history has not been erased.
+Vim is **not required** for Egregore. Version 0.14.2 internally sends `Ctrl+-` for normal-mode `u`, while Pi 1.3.0 defaults to `Ctrl+Z` on Windows (`Alt+Z` on WSL). Without a matching alias, undo is a no-op even without Egregore; the history has not been erased.
 
 If using this Vim version, merge the following action into your existing `<agent-dir>/keybindings.json`, preserving other actions and any additional undo keys you need:
 
@@ -91,11 +91,11 @@ If using this Vim version, merge the following action into your existing `<agent
 }
 ```
 
-On WSL retain `alt+z` instead of `ctrl+z`, which is reserved for suspend there. If another action uses `ctrl+-`, resolve that conflict before enabling this compatibility alias. Restart Pi or `/reload`. Workspace does not rewrite your keybindings, patch pi-vim internals or replace its editor. This is a supported configuration workaround for the upstream Vim limitation, not an upstream code fix.
+On WSL retain `alt+z` instead of `ctrl+z`, which is reserved for suspend there. If another action uses `ctrl+-`, resolve that conflict before enabling this compatibility alias. Restart Pi or `/reload`. Egregore does not rewrite your keybindings, patch pi-vim internals or replace its editor. This is a supported configuration workaround for the upstream Vim limitation, not an upstream code fix.
 
-The integration tests use the same alias while retaining the five original undo-preservation assertions. A separate test reproduces the Windows default-key failure without Workspace and then verifies the alias restores undo from the existing history.
+The integration tests use the same alias while retaining the five original undo-preservation assertions. A separate test reproduces the Windows default-key failure without Egregore and then verifies the alias restores undo from the existing history.
 
-With Vim enabled, type `one two 界面`, press Escape, `0`, `x`, then `u`; the entire original text must return. Repeat across opening/closing `/workspace` and after `/reload`. If it fails, check `/hotkeys` and the undo action before attributing the failure to decoration.
+With Vim enabled, type `one two 界面`, press Escape, `0`, `x`, then `u`; the entire original text must return. Repeat across opening/closing `/egregore` and after `/reload`. If it fails, check `/hotkeys` and the undo action before attributing the failure to decoration.
 
 CI checks automated behavior, not Windows Terminal rendering, IME positioning or actual human interaction. Keep the interactive smoke-test result separate from a green CI run.
 
@@ -104,7 +104,7 @@ CI checks automated behavior, not Windows Terminal rendering, IME positioning or
 Before updating, preserve your own changes with your normal Git workflow; do not discard them to follow this guide.
 
 ```sh
-cd ~/code/pi-workspace
+cd ~/code/pi-egregore
 git status --short
 git pull
 npm ci
@@ -115,12 +115,12 @@ Stop if Git reports a conflict or tests fail. Start a fresh Pi process after a s
 
 ## Disable a component or remove the suite
 
-- `/composer off` restores the native editor/header/theme without disabling Tasks or Ask; Workspace's configurable footer remains available.
+- `/composer off` restores the native editor/header/theme without disabling Tasks or Ask; Egregore's configurable footer remains available.
 - `/tasks off` disables Tasks behavior while preserving its plans. `/tasks hide` hides only the dock and leaves tracking/panel access available.
 - To remove the whole local suite, use `pi remove` with the source shown by `pi list`, then start fresh. For a checkout registered as above:
 
   ```sh
-  pi remove "$HOME/code/pi-workspace"
+  pi remove "$HOME/code/pi-egregore"
   ```
 
   Adjust the path if your checkout is elsewhere. Do not delete the directory while it is still registered. Removal of the package declaration is not deletion of preferences or session history, and does not undo commands or external effects performed earlier.
@@ -131,10 +131,10 @@ A Git clone does not copy Pi itself, `settings.json`, `auth.json`, `mcp.json`, p
 
 - Reauthenticate providers/MCP services privately. Never put credentials or whole agent directories in Git.
 - If restoring package declarations, replace old absolute checkout paths and remove duplicate component entries. Do not both restore a declaration and install a second copy.
-- Transfer wanted `pi-workspace.json`, `pi-composer.json` and `pi-tasks.json` individually. Existing `pi-home.json` is a read-only Composer fallback when `pi-composer.json` is absent. `pi-footer.json` is read-only legacy fallback when workspace settings are absent. Optional recap consent has its own `pi-recaps.json`; do not infer consent from unrelated appearance files.
+- Transfer wanted `pi-egregore.json`, `pi-composer.json` and `pi-tasks.json` individually. Existing `pi-home.json` is a read-only Composer fallback when `pi-composer.json` is absent. `pi-workspace.json`, then `pi-footer.json`, are read-only fallbacks when Egregore settings are absent. Optional recap consent has its own `pi-recaps.json`; do not infer consent from unrelated appearance files.
 - Session history contains conversations and branch-local plans/questions. Transfer it privately only if needed.
 
-The maintainer's other packages are **optional**, not suite prerequisites: `npm:pi-observational-memory`, `npm:pi-web-access`, and a separate `drawde-nadroj/pi-vim` checkout on `feat/search-motions`. Install those only if you intend to reproduce that environment; they are not needed for `/workspace` or `/tasks`:
+The maintainer's other packages are **optional**, not suite prerequisites: `npm:pi-observational-memory`, `npm:pi-web-access`, and a separate `drawde-nadroj/pi-vim` checkout on `feat/search-motions`. Install those only if you intend to reproduce that environment; they are not needed for `/egregore` or `/tasks`:
 
 ```sh
 pi install npm:pi-observational-memory
@@ -148,6 +148,6 @@ git clone --branch feat/search-motions git@github.com:drawde-nadroj/pi-vim.git ~
 pi install "$HOME/.pi/workspaces/pi-vim"
 ```
 
-This requires access to that repository and changes personal package declarations. Workspace can operate without Vim; root integration tests use the checkout's pinned development dependency instead. The optional commands above are source-documented transfer paths, not a fresh remote-install test.
+This requires access to that repository and changes personal package declarations. Egregore can operate without Vim; root integration tests use the checkout's pinned development dependency instead. The optional commands above are source-documented transfer paths, not a fresh remote-install test.
 
 For the current maintainer installation and historical backup limitations, see [migration](MIGRATION.md). Do not execute its historical rollback unchanged.

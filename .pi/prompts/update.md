@@ -4,7 +4,7 @@ argument-hint: "[check|all]"
 ---
 Update the Pi host and make this checkout work on it.
 
-Work only in the current checkout (the `pi-workspace-suite` source). Do not commit, push, publish, or change live Pi settings, trust decisions or personal preferences.
+Work only in the current checkout (the `pi-egregore` source). Do not commit, push, publish, or change live Pi settings, trust decisions or personal preferences.
 
 Mode from the user: `${1:-self}`
 
@@ -90,8 +90,8 @@ When the host was already upgraded before this command ran, the baseline failure
 ## 4. Map this repository onto the changed surface
 
 - Find every host import: `grep -rn "@earendil-works/" extensions packages lib tests eval --include=*.ts --include=*.mjs`.
-- Revalidate the guarded native internals that no public API covers: `native-message-adapter.ts`, `paint-guard.ts`, `grouped-tools.ts`, `activity-blocks.ts`, `sent-messages.ts`, `copy-selection.ts`, `recaps.ts`, `packages/pi-ask/extensions/ask-user-question/{appearance,posted,tui-primitives}.ts`, and the alias targets in `extensions/pi-workspace/tests/host.mjs`. Keep these behind their existing single documented boundary; do not add a second private-field cast path.
-- Check the contracts the suite versions itself: `pi-workspace.json` settings keys and validation, the `pi-footer.json`/`pi-home.json` fallbacks, `pi-tasks.json`, extension event names, slash-command registration, footer and editor slots, theme JSON shape, and keybindings.
+- Revalidate the guarded native internals that no public API covers: `native-message-adapter.ts`, `paint-guard.ts`, `grouped-tools.ts`, `activity-blocks.ts`, `sent-messages.ts`, `copy-selection.ts`, `recaps.ts`, `packages/pi-ask/extensions/ask-user-question/{appearance,posted,tui-primitives}.ts`, and the alias targets in `extensions/pi-egregore/tests/host.mjs`. Keep these behind their existing single documented boundary; do not add a second private-field cast path.
+- Check the contracts the suite versions itself: `pi-egregore.json` settings keys and validation, the `pi-footer.json`/`pi-home.json` fallbacks, `pi-tasks.json`, extension event names, slash-command registration, footer and editor slots, theme JSON shape, and keybindings.
 - Check Ask's renderer-owned fake-cursor protocol and hardware-cursor suppression if the TUI diff touches cursors.
 - If a public API changed, migrate every callsite. Do not leave a shim that keeps the old shape alive.
 
@@ -108,7 +108,7 @@ When the host was already upgraded before this command ran, the baseline failure
   ```
 
   The lock must resolve the new version while `package.json` gains no Pi dependency and its peers stay `*`. If npm insists on adding one, stop and report the conflict rather than changing the package contract.
-- Update every place that states the verified-host baseline, using the **recorded baseline** version (not the new one) as the search term: `grep -rn "<recorded baseline version>" --exclude-dir=node_modules --exclude-dir=.git .` covers `README.md`, `docs/INSTALL.md`, `docs/ARCHITECTURE.md`, `docs/MIGRATION.md`, `docs/TRY-PREVIEW.md`, `extensions/pi-workspace/README.md`, `extensions/pi-workspace/FOOTER.md`, `extensions/pi-tasks/README.md` and the `Select locked … host` step in `.github/workflows/test.yml`. Add a short compatibility section to `docs/MIGRATION.md` in the style of the existing one, and an `Unreleased` bullet in `CHANGELOG.md`. Leave historical changelog entries and lockfile integrity hashes alone.
+- Update every place that states the verified-host baseline, using the **recorded baseline** version (not the new one) as the search term: `grep -rn "<recorded baseline version>" --exclude-dir=node_modules --exclude-dir=.git .` covers `README.md`, `docs/INSTALL.md`, `docs/ARCHITECTURE.md`, `docs/MIGRATION.md`, `docs/TRY-PREVIEW.md`, `extensions/pi-egregore/README.md`, `extensions/pi-egregore/FOOTER.md`, `extensions/pi-tasks/README.md` and the `Select locked … host` step in `.github/workflows/test.yml`. Add a short compatibility section to `docs/MIGRATION.md` in the style of the existing one, and an `Unreleased` bullet in `CHANGELOG.md`. Leave historical changelog entries and lockfile integrity hashes alone.
 - Re-read the new Node engine range and the optional pi-vim note. Change the Node/npm baseline or the Vim guidance only if the new host actually changes them.
 
 ## 6. Verify on the new host
@@ -123,7 +123,7 @@ npm run pack:check
 
 Reconcile the phase 0 ledger against this run. Every entry must be fixed, or explicitly reclassified with evidence that it is a separate pre-existing fault outside this upgrade — for example a missing `fd` binary, or a failure reproducible on the recorded baseline with the same error. A ledger entry that merely stopped failing because a test was weakened does not count as fixed. Green tests with an unreconciled ledger is not a completed update; report the gap.
 
-Then cold-load the real surface in a throwaway agent directory following `docs/ACCEPTANCE.md` → "Repeatable isolated review", and exercise `/workspace`, `/tasks`, `/composer` and `/questions`. Start a fresh Pi process for this: `/reload` is not proof after a host upgrade.
+Then cold-load the real surface in a throwaway agent directory following `docs/ACCEPTANCE.md` → "Repeatable isolated review", and exercise `/egregore`, `/tasks`, `/composer` and `/questions`. Start a fresh Pi process for this: `/reload` is not proof after a host upgrade.
 
 ## Report
 

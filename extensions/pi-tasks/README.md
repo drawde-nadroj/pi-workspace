@@ -1,6 +1,6 @@
 # pi-tasks
 
-An **independent, optional named-plan library** for Pi 1.3.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Workspace/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
+An **independent, optional named-plan library** for Pi 1.3.0. Keep separate plans for different requests within one session, browse earlier work, and let finished checklists leave the workspace. Egregore/Composer is an optional visual host, not the owner of state. Tasks may request one coverage/reconciliation continuation for an agent-edited plan; there is no unbounded execution loop, network request, database, or new runtime package.
 
 ## Start
 
@@ -15,7 +15,24 @@ The agent is instructed and equipped to create a concise named plan for a **new 
 3. Open a task's details with Enter. Read its status, done-when condition, outcome and evidence; these are recorded reports, not independent verification.
 4. Escape returns through details, requests, and the library to the panel, or closes it. Do not press **S make current** or **R restore** if you only intend to inspect.
 
-Inspection does not switch plans, start work or complete tasks. Use the [command table](#commands) for an intentional switch; appearance settings for Workspace's overview belong to `/workspace`, not this panel.
+Inspection does not switch plans, start work or complete tasks. Use the [command table](#commands) for an intentional switch; appearance settings for Egregore's overview belong to `/egregore`, not this panel.
+
+## Responsibility and returning to work
+
+A blocked task can record three facts: `reason` (what is missing), `blockerOwner` (`user`, `agent`, or `external`) and `unblockWhen` (the observable condition that allows progress). The owner and release condition are optional for compatibility with older records; the agent guidance asks for them on new blockers. Old records without them remain explicitly unspecified rather than guessing who must act. These fields describe the blocker, not authorization or a new task status. Leaving blocked state clears them.
+
+- **Needs your input:** information or a decision belongs to you. The agent should ask a specific question and link the affected work.
+- **Agent to resolve:** the agent owns the next investigation or repair. Work it can actively perform within scope should generally be active, not left blocked.
+- **Waiting externally:** an external prerequisite must change. The agent records what would allow progress; there is no automatic polling loop.
+- **Waiting on work:** unfinished `dependsOn` tasks explain a prerequisite. Not-started work is not labelled ready merely because it is next in the list.
+
+Questions lead the work list with their affected plan/task and stated boundary. **Needs your input**, **Your perspective · can wait**, **Response saved · delivery pending**, and **Agent to apply answer** distinguish who can move the interaction forward. A delivered skipped/clarification response needs agent follow-up, not an invented approval. After applying an answer, the agent is instructed to reassess remaining prerequisites, update stale blockers and continue authorized work. Applying an answer does not automatically mutate or complete tasks.
+
+The compact Composer dock now groups attention separately from the expanded work list. An actual unanswered blocking question comes first, with its ID, affected-task count and `/questions qN` answer route. Delivered answers and pending delivery have their own agent/delivery labels. Agent activity, external waiting, agent-owned obstacles and not-started work are separate compact rows. Long blocker prose stays in `/tasks`; the dock uses one concise recorded release condition or reason per group. User-owned blocked tasks already represented by a linked unresolved question are counted there rather than repeated as dense rows. Additional questions/groups remain accessible through `/questions` and `/tasks`; these are grouped summaries, not a full checklist. Other-plan questions are labelled explicitly. The standalone fallback and Egregore settings preview follow the same vocabulary.
+
+The expanded work list uses compact tree branches under the plan; completed work remains behind its counted F disclosure. Details retain full reasons, responsibility, release conditions, evidence and linked questions. This is a display of recorded state, not an independent monitor of real-world readiness.
+
+The completion handoff labels depth **Deepen** and breadth **Connect**, with a concise **From** origin for each. When Quests' `present` operation is available, guidance asks for one shared handoff there; standalone Tasks retains the same structure in prose. This changes presentation guidance, not the checkpoint's eligibility or continuation budget.
 
 ## Commands
 
@@ -38,13 +55,13 @@ Inspection does not switch plans, start work or complete tasks. Use the [command
 
 Plan IDs (`p1`, `p2`, …) appear in history. Task IDs (`t1`, `t2`, …) are local to each plan. You do not need IDs for ordinary panel navigation.
 
-**To hide visuals without changing work, use `/tasks hide`.** This removes the Tasks dock from Workspace and the native fallback. It does not hide transcript tool cards, disable tracking, change plans, or prevent `/tasks` from opening the panel. The preference survives reload and off/on; `/tasks unhide` restores normal dock behavior. Hiding Tasks does not silently hide Ask: unresolved questions use Ask's standalone attention cue. Link availability and attention hosting are separate protocol facts.
+**To hide visuals without changing work, use `/tasks hide`.** This removes the Tasks dock from Egregore and the native fallback. It does not hide transcript tool cards, disable tracking, change plans, or prevent `/tasks` from opening the panel. The preference survives reload and off/on; `/tasks unhide` restores normal dock behavior. Hiding Tasks does not silently hide Ask: unresolved questions use Ask's standalone attention cue. Link availability and attention hosting are separate protocol facts.
 
 **Archive is the normal way to dismiss work**, not Clear. Archive is reversible and retains the readable checklist, notes and evidence. Clear empties a plan after confirmation; older raw session entries remain, but its previous task contents are not a separate item in the plan library. No automatic deletion or pruning is performed.
 
 ## Completed plans get out of the way
 
-The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Workspace's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **✓ Plan finished · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
+The visible Tasks dock now uses the same active Pi accent (purple in the Composer palette) and border-matched title as assistant messages, both above Egregore's composer and in its independent native fallback. The `tasks` tool's call and result each have a matching purple frame; task bodies retain readable text and separate warning/error colors. Tiny terminals use unframed rows. Framing does not make the dock permanent after closure: when every task is done or cancelled **and** every recorded requirement is either linked entirely to done tasks or explicitly superseded, it shows a brief **✓ Plan finished · … · saved in /tasks** acknowledgment; after approximately **four seconds**, the entire plan dock disappears and the editor reclaims its space. The plan and its outcomes remain available through `/tasks` and `/tasks history`.
 
 - Counts distinguish completed tasks from cancellations; an all-cancelled plan is not reported as successfully completed.
 - Resume/reload does not replay an old completion acknowledgment. A recent one uses its original expiry rather than restarting four seconds.
@@ -55,7 +72,7 @@ The visible Tasks dock now uses the same active Pi accent (purple in the Compose
 
 ## Panel controls
 
-The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Workspace is absent. It is one priority-ordered list: unresolved questions first, then active, blocked and not-started work. The plan title is the header and counts are `${done} of ${total} done` plus blockers or cancellations only when they exist. The active task has a bold title and a separate, softer background tint even when another row is selected; its sourced **Working** or **Paused** label remains explicit. Blockers keep a warning mark and reason. Selection uses `›`.
+The modal has an **opaque raised surface, accent perimeter and contrasting selection fill**, including when Egregore is absent. It is one priority-ordered list: unresolved questions first, then active, blocked and not-started work. The plan title is the header and counts are `${done} of ${total} done` plus blockers or cancellations only when they exist. The active task has a bold title and a separate, softer background tint even when another row is selected; its sourced **Working** or **Paused** label remains explicit. Blockers keep a warning mark and reason. Selection uses `›`.
 
 Completed and cancelled work is a count, not a row: press **F** to reveal it. **V** shows the read-only request/coverage screen, and coverage gaps also appear as one warning line in the work view. Full details use a short field list and an up-to-80-cell reading column. The footer is at most one warning line plus one action bar; segments drop from the end on narrow terminals, but the final help/back key always remains.
 
@@ -76,9 +93,9 @@ Destructive keys are discoverable through **?**, not hidden in the list footer. 
 
 ### Questions and coherent presentation
 
-Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. Unresolved posted questions from the whole session lead the work list, including other plans and unlinked questions, because they are the one thing that blocks the user. Selection follows the question key, so a question arriving above it does not move it. Rows name their link (`This session`, `<plan> / <task titles>`, or `<plan> / plan boundary`) and say **Waiting for you** or **Can wait**; work details expose their question gates. Enter opens a focused Ask overlay. Escape first handles nested review/note/custom/clarification modes; outer Escape keeps the draft and returns to the same row. Urgency-only changes retain input and refresh the displayed boundary. Answer, skip and clarification kinds remain distinct from delivery stage. `/questions` remains available without Tasks or Workspace, and existing synchronous Ask tools are unchanged.
+Ask owns questions, drafts, answers and their revisions. Tasks displays read-only versioned projections through a process-local data protocol; it never fabricates an answer or changes Ask state itself. Unresolved posted questions from the whole session lead the work list, including other plans and unlinked questions, because they are the one thing that blocks the user. Selection follows the question key, so a question arriving above it does not move it. Rows name their link (`This session`, `<plan> / <task titles>`, or `<plan> / plan boundary`) and say **Waiting for you** or **Can wait**; work details expose their question gates. Enter opens a focused Ask overlay. Escape first handles nested review/note/custom/clarification modes; outer Escape keeps the draft and returns to the same row. Urgency-only changes retain input and refresh the displayed boundary. Answer, skip and clarification kinds remain distinct from delivery stage. `/questions` remains available without Tasks or Egregore, and existing synchronous Ask tools are unchanged.
 
-Blocking and deferred questions are distinct. The dock summary leads with `N waiting for you` or `N can wait`; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
+Blocking and deferred questions are distinct. The dock summary distinguishes `N needs you`, `N can wait`, `N delivery pending` and `N agent follow-up`; task completion counts do not imply question resolution. Deferred linked questions become blocking when the agent reaches their task boundary; submitted answers retain their delivery identity during this transition. Unresolved questions with valid task links prevent **agent** starts/completions of those tasks, while unrelated work may continue. Agent archival also waits on unresolved linked questions. Explicit user task edits retain precedence. This does not intercept arbitrary bash calls or external side effects; do not treat it as universal approval enforcement. Withdrawal/replacement is not approval, does not change task status, and requires scope reconciliation before resuming changed work. Application is an agent report, not verification, and does not automatically complete Tasks.
 
 Request tool cards lead with neutral bold titles and plain-language coverage. Expand for **Done when**, **Original request**, **Linked work**, **Reference**, and any supersession **Disposition**. Full values remain available; prose wraps at up to 80 cells plus indentation even in a wide terminal. Field spacing and stronger gaps between records separate inspection from audit. Shared coverage is stated once in the card body (for example **Reported done**), never only on a rail that can be clipped. Mixed states keep individual labels. Reported completion is structural coverage, not independent verification.
 
@@ -86,7 +103,7 @@ Compact work cards replace repeated `Task · done:` prefixes with the shared voc
 
 **Enter opens panel details; E edits. V switches to requests; H opens the library; F reveals completed work.**
 
-`/workspace` → Tasks still owns the persistent **Workspace overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/workspace` → Ask's existing shell settings. Eligible Workspace transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
+`/egregore` → Tasks still owns the persistent **Egregore overview** appearance, not arbitrary modal layout. The native browser keeps theme/raised-surface behavior; Ask overlays use `/egregore` → Ask's existing shell settings. Eligible Egregore transcript controls retain their scope; Tasks and Ask self-rendering cards keep their own result semantics. No duplicate preferences were added.
 
 ### Plan library
 
@@ -102,11 +119,11 @@ Transcript tool cards show the operation and committed task titles with explicit
 
 ## Independent controls
 
-**`/tasks off` does not change Workspace's editor, identity, appearance or timing.** `~/.pi/agent/pi-tasks.json` (or the configured agent directory) stores only `enabled` and `hidden`; it is written separately from Workspace. A legacy `appearance` key is read without error and dropped on the next save. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
+**`/tasks off` does not change Egregore's editor, identity, appearance or timing.** `~/.pi/agent/pi-tasks.json` (or the configured agent directory) stores only `enabled` and `hidden`; it is written separately from Egregore. A legacy `appearance` key is read without error and dropped on the next save. Atomic preference saves use mode 0600. Corrupt preferences fail closed instead of silently re-enabling Tasks.
 
-Workspace off/removal does not disable Tasks. Tasks uses its own compact native widget and theme-aware raised panel. Turning Tasks off is not the same as cancelling the agent's ordinary work: it blocks task mutations immediately, but cannot erase information already sent in an in-flight request or historical transcript messages.
+Egregore off/removal does not disable Tasks. Tasks uses its own compact native widget and theme-aware raised panel. Turning Tasks off is not the same as cancelling the agent's ordinary work: it blocks task mutations immediately, but cannot erase information already sent in an in-flight request or historical transcript messages.
 
-For this checkout-loaded suite, use **`/tasks off`** to disable Tasks alone while retaining Workspace and Ask. Moving the old personal extension directory does not disable the suite entry. To remove the whole local suite, use Pi's package removal with the registered checkout path, then start fresh; see the root installation/migration guide. Only a legacy auto-discovered standalone installation is removed by moving its `~/.pi/agent/extensions/pi-tasks` directory. Saved task entries remain metadata; no session deletion is required.
+For this checkout-loaded suite, use **`/tasks off`** to disable Tasks alone while retaining Egregore and Ask. Moving the old personal extension directory does not disable the suite entry. To remove the whole local suite, use Pi's package removal with the registered checkout path, then start fresh; see the root installation/migration guide. Only a legacy auto-discovered standalone installation is removed by moving its `~/.pi/agent/extensions/pi-tasks` directory. Saved task entries remain metadata; no session deletion is required.
 
 ## State, scope and honesty
 
@@ -145,7 +162,9 @@ Use existing `doneWhen` and requirement `acceptance` fields to define observable
 
 The existing one-shot checkpoint still compares original requests and follow-ups against both records and actual work, even for apparently closed plans. It now distinguishes missing requested work, record-only updates supported by existing evidence, unresolved evidence/blockers, and optional improvements outside authorization. Record-only reconciliation should not trigger repeated checks or a second completion announcement without material new information. Guards, state transitions, and schemas are unchanged: this is model guidance, not an independent completion verifier.
 
-The hidden checkpoint uses descriptive Markdown sections, bounded plan data, numbered review steps, and explicit stop conditions. Its pure message builder lives in `reconciliation.ts`; eligibility and the one-pass guard remain in `index.ts`. Response guidance asks for a result-first summary, useful headers and lists for substantial replies, and no empty sections or repeated completion announcement for record-only updates. Short answers stay short, and the user's requested format takes precedence. These are model instructions, not a new visible panel or a guarantee of response formatting.
+The hidden checkpoint uses descriptive Markdown sections, bounded plan data, numbered review steps, and explicit stop conditions. Its pure message builder lives in `reconciliation.ts`; eligibility and the one-pass guard remain in `index.ts`. Response guidance directs the next reply to lead with **Where next?** and useful depth and breadth quests. The user's requested format and suggestion preferences take precedence. These are model instructions, not a new visible panel or a guarantee of response formatting.
+
+After reviewing completion, the checkpoint directs the next user-facing reply to **Where next?**: a **depth quest** explores the same problem further, while a **breadth quest** applies the result to another problem, domain, or creative project. Each suggestion should name the quest, explain why the completed work makes it useful now, and offer a concrete first move. The reply leads directly with both directions, or one when only that direction has substance. Actual results, evidence, and known limitations provide the starting point; newly discovered material gaps are accounted for where they affect a proposed direction. Suggestions should be fresh and concise. They are invitations, not accepted requirements: no plans, tasks, work, or blocking choice question are started for them. Undertaking a quest requires explicit user authorization. This is prompt guidance within the existing continuation, not an additional model call or a guarantee of suggestion quality.
 
 The offline comparison workflow is in `eval/harness/README.md` at the suite root. No model-performance improvement is claimed by the deterministic tests.
 
@@ -178,25 +197,25 @@ List/history pages default to 20 and are capped at 20. Mutation responses includ
 
 Only the user controls enable/disable, restores archived plans and clears lists. Archive is not deletion. Creating/selecting a plan never authorizes additional work beyond the user's request.
 
-## Workspace dock
+## Egregore dock
 
-The Workspace host consumes the same snapshot as the native fallback: plan title, summary, open-work rows ordered active → blocked → pending, and machine counts (done/blocked/cancelled plus the active identity) for progress feedback. The machine facts never reorder the stored plan or change a task status. Completed work stays in the counts and the full `/tasks` list rather than occupying the dock.
+The Egregore host consumes the same snapshot as the native fallback: plan title, summary, open-work rows ordered active → blocked → pending, and machine counts (done/blocked/cancelled plus the active identity) for progress feedback. The machine facts never reorder the stored plan or change a task status. Completed work stays in the counts and the full `/tasks` list rather than occupying the dock.
 
-Customize this surface through **`/workspace` → Tasks**. Workspace uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
+Customize this surface through **`/egregore` → Tasks**. Egregore uses the reusable `pi-embeddable-frame` presentation rules and its existing clock. Default motion is a soft travelling highlight during actual active work, with a bounded sweep on progress changes; waiting, typing, dialogs, hidden/narrow frames and motion-off stay still. Demo states in settings never create tasks or start a run.
 
 `/tasks hide`, `off`, closure expiry and history remain unchanged. The shared `tasks` tool-call/result frame styling is unchanged; result wording and requirement coverage are described above.
 
-## Optional Workspace integration
+## Optional Egregore integration
 
-The `pi-agent-contracts` package defines the small, versioned event protocol (`pi-agent-contracts/dock`). `lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Workspace and Tasks do not import each other's implementations.
+The `pi-agent-contracts` package defines the small, versioned event protocol (`pi-agent-contracts/dock`). `lib/task-frame.ts` defines the shared visual frame using the active theme's Pi accent. Egregore and Tasks do not import each other's implementations.
 
-- Workspace advertises availability and optional semantic colors.
+- Egregore advertises availability and optional semantic colors.
 - Tasks publishes only the current plan's bounded display snapshot—or an empty snapshot once hidden/archived/off.
-- Workspace acknowledges mounting; otherwise Tasks keeps a native fallback, without duplicate widgets.
+- Egregore acknowledges mounting; otherwise Tasks keeps a native fallback, without duplicate widgets.
 - Timers and subscriptions are session-scoped. Expiry is cancelled on shutdown/off, and is absent in non-TUI modes.
-- Only Workspace owns the editor/header/footer. Tasks never replaces them.
+- Only Egregore owns the editor/header/footer. Tasks never replaces them.
 
-This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-workspace/DOCK.md` for the production protocol. Earlier design research remains in Git history, not in the current interface.
+This is an interoperability convention among trusted extensions, not a security boundary. See `../pi-egregore/DOCK.md` for the production protocol. Earlier design research remains in Git history, not in the current interface.
 
 ## Validation
 
@@ -205,6 +224,6 @@ This is an interoperability convention among trusted extensions, not a security 
 npm run test:tasks && npm run test:workspace
 ```
 
-Tests use installed pi packages rather than duplicate dependencies. Coverage includes v1 migration, plan isolation, archive protections, library-wide revisions, history pagination, bounded settle reconciliation and no-loop/abort/off/selection guards, completion expiry, failed storage, branch/compaction restoration, user precedence, off/on and headless behavior, browse-only navigation, stale dialogs, explicit modal backgrounds, Unicode/narrow layouts and Workspace integration. Strict TypeScript checks cover both extensions and the bridge.
+Tests use installed pi packages rather than duplicate dependencies. Coverage includes v1 migration, plan isolation, archive protections, library-wide revisions, history pagination, bounded settle reconciliation and no-loop/abort/off/selection guards, completion expiry, failed storage, branch/compaction restoration, user precedence, off/on and headless behavior, browse-only navigation, stale dialogs, explicit modal backgrounds, Unicode/narrow layouts and Egregore integration. Strict TypeScript checks cover both extensions and the bridge.
 
-Offline fullscreen/regular PTY tests execute actual plan-creation/task tool calls, verify dock auto-hide and retained history, exercise New/Add dialogs, browse/select/archive/restore, independent toggles, reload, no-Workspace rendering, panel contrast, details, resize and saved settings. Real terminal captures were reviewed at 110×40 and 64×24. Fixtures are under `/tmp/pi-home-research/`, not installed in normal sessions. No paid model evaluation was run.
+Offline fullscreen/regular PTY tests execute actual plan-creation/task tool calls, verify dock auto-hide and retained history, exercise New/Add dialogs, browse/select/archive/restore, independent toggles, reload, no-Egregore rendering, panel contrast, details, resize and saved settings. Real terminal captures were reviewed at 110×40 and 64×24. Fixtures are under `/tmp/pi-home-research/`, not installed in normal sessions. No paid model evaluation was run.

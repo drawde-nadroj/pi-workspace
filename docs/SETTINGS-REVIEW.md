@@ -1,6 +1,6 @@
 # Settings review: intent, demonstration and scope
 
-Reference for the **current suite-owned settings**, their preview behavior and persistence scope. Use it to look up a control; for steps, read [workspace controls](../extensions/pi-workspace/FOOTER.md), and for an exercise, [try a reversible preview](TRY-PREVIEW.md). It does not replace Pi's native settings, third-party editors or tool-owned self-renderers.
+Reference for the **current suite-owned settings**, their preview behavior and persistence scope. Use it to look up a control; for steps, read [workspace controls](../extensions/pi-egregore/FOOTER.md), and for an exercise, [try a reversible preview](TRY-PREVIEW.md). It does not replace Pi's native settings, third-party editors or tool-owned self-renderers.
 
 ## Preference authorities
 
@@ -8,14 +8,14 @@ Files live in the configured Pi agent directory (default `~/.pi/agent`), not in 
 
 | Authority | Owns | When it changes |
 | --- | --- | --- |
-| `pi-workspace.json` | Input/footer, Tasks overview, Ask shell, eligible Transcript visuals, General name/density | One workspace Save; Undo/Discard/audition do not write it |
+| `pi-egregore.json` | Input/footer, Tasks overview, Ask shell, eligible Transcript visuals, General name/density | One workspace Save; Undo/Discard/audition do not write it |
 | `pi-footer.json` | Legacy visual fallback only when workspace settings are absent | Read-only fallback; first workspace Save writes the new file |
 | `pi-composer.json` | Composer enablement, work motion, header icons, runtime palette and work-summary preferences; read-only `pi-home.json` fallback if absent | `/composer` controls save immediately, separately |
 | `pi-tasks.json` | Tasks enablement/hidden state and independent fallback appearance | Tasks companion controls save separately |
-| `pi-recaps.json` | Explicit recap enablement | `/recaps` or Workspace's owner-native recap picker saves immediately; not workspace Save |
+| `pi-recaps.json` | Explicit recap enablement | `/recaps` or Egregore's owner-native recap picker saves immediately; not workspace Save |
 | Active session branch entries | Plans, accepted requests, posted questions/responses and recorded run facts | Owner-controlled domain mutations; appearance previews do not write these facts |
 
-An atomic workspace Save is not an atomic transaction across these authorities. Unreadable/unsupported visual settings fail closed; see [saving and compatibility](../extensions/pi-workspace/FOOTER.md#saving-and-compatibility).
+An atomic workspace Save is not an atomic transaction across these authorities. Unreadable/unsupported visual settings fail closed; see [saving and compatibility](../extensions/pi-egregore/FOOTER.md#saving-and-compatibility).
 
 ## Decisions
 
@@ -66,7 +66,7 @@ An atomic workspace Save is not an atomic transaction across these authorities. 
 
 ## Tasks: every control
 
-These controls style Workspace's overview, not the stored plan or standalone fallback. Advanced controls remain filtered to the selected part.
+These controls style Egregore's overview, not the stored plan or standalone fallback. Advanced controls remain filtered to the selected part.
 
 | Control | Intention / safe demonstration |
 | --- | --- |
@@ -155,7 +155,7 @@ Removed duplicate controls remain compatible read fallbacks: density maps to Gen
 | General: Your name | Sample user frame shows the edited name, without changing an account or sending a message |
 | General: Spacing | Hover representative compact/spaced sample messages; affects supported integrated whitespace, not Task row counts |
 | `/composer`: Work motion | Native selector retained; wording distinguishes animation from live timing |
-| `/composer`: Header icons | Explicitly distinguishes Workspace's header/fallback icons from workspace metadata icons |
+| `/composer`: Header icons | Explicitly distinguishes Egregore's header/fallback icons from workspace metadata icons |
 | `/composer`: Matching palette | Reversible runtime lease; off restores preceding colors |
 | `/composer`: Activity recaps / `/recaps` | Off by default; explicit enable/disclosure of additional bounded OAuth inference. Immediate separate `pi-recaps.json` authority, cancellation on off, not workspace Save |
 | `/composer`: On/off | Explicit shell enablement; other suite owners remain independent |
@@ -165,7 +165,7 @@ Removed duplicate controls remain compatible read fallbacks: density maps to Gen
 | Ask `/questions` / F2 | Answer/navigation actions, not an appearance editor; semantics retained |
 | Pi native / third-party settings | Retain owner-native controls; no interception or claim of a shared Save/hover contract |
 
-`/workspace` shares one Save/Undo/Discard transaction for `pi-workspace.json`; companion Workspace and Tasks preferences save separately and immediately. This is not an atomic Save across files. Unknown Tasks section/presentation versions now fail before normalization, avoiding a silent downgrade; unknown Ask/Transcript values retain their existing read-only/Save-blocking behavior. The broad Transcript catalogue remains proposed.
+`/egregore` shares one Save/Undo/Discard transaction for `pi-egregore.json`; companion Egregore and Tasks preferences save separately and immediately. This is not an atomic Save across files. Unknown Tasks section/presentation versions now fail before normalization, avoiding a silent downgrade; unknown Ask/Transcript values retain their existing read-only/Save-blocking behavior. The broad Transcript catalogue remains proposed.
 
 ## Narrow navigation and collaboration contracts
 

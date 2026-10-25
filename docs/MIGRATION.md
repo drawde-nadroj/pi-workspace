@@ -1,6 +1,16 @@
 # Migration record and rollback
 
-**Current state:** `~/.pi/agent/settings.json` loads `/Users/jordan/code/pi-workspace`. The old personal `~/.pi/agent/extensions/pi-home/` was deleted at the user's request and its exclusion removed; the old personal Tasks directory and its exclusion remain. No new backup was made for this cleanup. The migration steps below describe the **2026-10-09 historical switch**, not current settings or an executable rollback. Start a fresh Pi process after settings changes; do not load both generations concurrently.
+**Current state (2026-10-25):** `~/.pi/agent/settings.json` loads `/Users/jordan/code/pi-egregore`. The old personal `~/.pi/agent/extensions/pi-home/` was deleted at the user's request and its exclusion removed; the old personal Tasks directory and its exclusion remain. No new backup was made for this cleanup. The migration steps below describe the **2026-10-09 historical switch**, not current settings or an executable rollback. Start a fresh Pi process after settings changes; do not load both generations concurrently.
+
+## Pi Egregore rename — 2026-10-25
+
+The canonical local checkout is now `~/code/pi-egregore`, the package name is `pi-egregore`, and the UI entry is `extensions/pi-egregore/index.ts`. Local compatibility symlinks at the former checkout and extension paths keep existing sessions and external references from immediately breaking; the manifest loads only the new entry. These local aliases are not a second installation.
+
+`/egregore` is the primary settings command; `/workspace` remains an alias. Settings load in order: `pi-egregore.json`, `pi-workspace.json`, `pi-footer.json`. Save writes only the new primary. Malformed or future-version primaries fail closed rather than falling back silently. Ask uses the same lookup order. Historical event IDs, session records, archives, trust records and the hosted Git remote are unchanged.
+
+For this machine, the existing appearance file was copied byte-for-byte to `~/.pi/agent/pi-egregore.json`; the original remains intact. The package paths in `settings.json` and active paths in `~/.pi/AGENTS.md` were updated. A settings backup is at `~/.pi/agent/settings.before-egregore-20261025.json.bak`. The configured `packages/chronomancer` directory was already absent before the move; only its parent reference was renamed, with no attempt to recreate it.
+
+Restart Pi to use the new paths and setting authority. Existing trust decisions were not transferred or fabricated; a new-path approval may be requested by the host. To reverse the local naming change, close active processes and inspect changes made since migration before restoring settings or moving paths; the old appearance file is a snapshot, not an automatically synchronized backup of subsequent edits. The historical sections below retain the names and conditions from their dates.
 
 ## Pi 1.3.0 and Windows compatibility
 

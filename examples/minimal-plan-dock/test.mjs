@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { jiti, visibleWidth } from "../../extensions/pi-workspace/tests/host.mjs";
+import { jiti, visibleWidth } from "../../extensions/pi-egregore/tests/host.mjs";
 
 const directory = fileURLToPath(new URL(".", import.meta.url));
 const { DOCK, isHost, isSnapshot, validOverview } = await jiti.import("pi-agent-contracts/dock");
@@ -81,7 +81,7 @@ test("a mutation persists first, then publishes one snapshot that validates", as
 });
 
 test("the host side of the contract is a valid DockHost plus DockAck", async () => {
-  // Workspace performs this role. Asserted here so a reader sees both directions.
+  // Egregore performs this role. Asserted here so a reader sees both directions.
   assert.ok(isHost({ version: 1, sessionId: "s1", available: true }));
   assert.ok(!isHost({ version: 1, sessionId: "s1" }), "available is required");
   const ack = { version: 1, sessionId: "s1", id: "example-plan", mounted: false };

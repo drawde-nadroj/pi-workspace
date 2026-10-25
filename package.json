@@ -1,9 +1,9 @@
 {
-  "name": "pi-workspace-suite",
+  "name": "pi-egregore",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Private Pi suite for Workspace, Tasks, Ask, and embeddable frames",
+  "description": "Pi Egregore: a thinking environment shaped by what you pursue. Develop ideas, make decisions, and carry understanding forward with an agent.",
   "license": "MIT",
   "engines": {
     "node": ">=22.23.2"
@@ -14,8 +14,11 @@
   },
   "workspaces": ["packages/pi-frame", "packages/pi-ask", "packages/pi-agent-contracts"],
   "files": [
-    "extensions/pi-workspace/*.ts",
+    "extensions/pi-egregore/*.ts",
+    "extensions/pi-egregore/assets/sounds/*",
     "extensions/pi-tasks/*.ts",
+    "extensions/pi-quests/*.ts",
+    "extensions/pi-quests/README.md",
     "lib/*.ts",
     "packages/pi-ask/extensions/**/*.ts",
     "packages/pi-ask/README.md",
@@ -25,10 +28,10 @@
     "docs/PRIMITIVES.md",
     "packages/pi-frame/README.md",
     "packages/pi-frame/FEATURE-GUIDE.md",
-    "extensions/pi-workspace/README.md",
-    "extensions/pi-workspace/FOOTER.md",
-    "extensions/pi-workspace/ACTIVITY-BLOCKS.md",
-    "extensions/pi-workspace/DOCK.md",
+    "extensions/pi-egregore/README.md",
+    "extensions/pi-egregore/FOOTER.md",
+    "extensions/pi-egregore/ACTIVITY-BLOCKS.md",
+    "extensions/pi-egregore/DOCK.md",
     "packages/pi-ask/CONTRIBUTING.md",
     "packages/pi-ask/LICENSE",
     "eval/harness/README.md",
@@ -49,9 +52,10 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/pi-workspace/index.ts",
+      "./extensions/pi-egregore/index.ts",
       "./extensions/pi-tasks/index.ts",
-      "./packages/pi-ask/extensions/questions.ts"
+      "./packages/pi-ask/extensions/questions.ts",
+      "./extensions/pi-quests/index.ts"
     ]
   },
   "dependencies": {
@@ -75,12 +79,13 @@
     "typescript": "7.0.2"
   },
   "scripts": {
-    "test": "npm run typecheck && npm run test:frame && npm run test:ask && npm run test:workspace && npm run test:tasks && npm run test:examples && npm run test:shapes && npm run test:harness && npm run test:suite",
+    "test": "npm run typecheck && npm run test:frame && npm run test:ask && npm run test:workspace && npm run test:tasks && npm run test:quests && npm run test:examples && npm run test:shapes && npm run test:harness && npm run test:suite",
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspace=pi-ask",
     "test:frame": "node --test packages/pi-frame/test/*.test.mjs",
     "test:ask": "node --test packages/pi-ask/test/host.test.mjs",
-    "test:workspace": "node --test extensions/pi-workspace/tests/*.test.mjs",
+    "test:workspace": "node --test extensions/pi-egregore/tests/*.test.mjs",
     "test:tasks": "node --test extensions/pi-tasks/tests/*.test.mjs",
+    "test:quests": "node --test extensions/pi-quests/tests/*.test.mjs",
     "test:examples": "node --test examples/minimal-plan-dock/test.mjs",
     "test:shapes": "node --test tests/host-shapes.test.mjs",
     "test:suite": "node --test tests/suite-package.test.mjs",

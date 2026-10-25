@@ -20,7 +20,7 @@ const lines = frameRows({
 });
 ```
 
-All six rail positions (`topLeft`, `topCenter`, `topRight`, `bottomLeft`, `bottomCenter`, `bottomRight`) are optional. Center labels stay centered in terminal cells; side labels truncate before the center on narrow rails. For essential side labels, omit optional hints at small widths in the embedding extension. The frame's interior is the caller's content. Labels can already contain independent ANSI styling; `textColor` is a single fallback for unstyled labels. A `surface(text, width)` callback can preserve a host's background and text-color contract. Lines respect visible terminal cell widths and narrow frames fall back to unframed rows. `frameRail` builds one rail for editors that already own their content rows; `paintFramePerimeter` animates existing rails without touching input content. Generated rails retain bounded drawing masks so labels containing border-shaped glyphs keep their foreground, weight and links. Unknown or ambiguous rails use only unambiguous physical edge cells; Frame does not guess horizontal ownership from glyph shape.
+All six rail positions (`topLeft`, `topCenter`, `topRight`, `bottomLeft`, `bottomCenter`, `bottomRight`) are optional. Center labels stay centered in terminal cells; side labels truncate before the center on narrow rails. For essential side labels, omit optional hints at small widths in the embedding extension. The frame's interior is the caller's content. Labels can already contain independent ANSI styling; `textColor` is a single fallback for unstyled labels. A `surface(text, width)` callback can preserve a host's background and text-color contract. Lines respect visible terminal cell widths and narrow frames fall back to unframed rows. `frameRail` builds one rail for editors that already own their content rows; `paintFramePerimeter` animates existing rails without touching input content. Motion travels the two horizontal rails only: side rails keep the base colour, so an animated frame rewrites two lines per tick instead of every row that carries a rail. Generated rails retain bounded drawing masks so labels containing border-shaped glyphs keep their foreground, weight and links. Unknown or ambiguous rails use only unambiguous physical edge cells; Frame does not guess horizontal ownership from glyph shape.
 
 ## Entry points and upgrades
 
@@ -28,7 +28,7 @@ Use **`pi-embeddable-frame/primitives`** for `frameRail`, `frameRows`, `paintFra
 
 A long-running Pi process can retain **both** an older JavaScript root namespace and an older package export map across `/reload`. The first can silently discard center labels; the second can reject a new entry with `Package subpath './primitives' is not defined by "exports"` and stop the integrating extension from loading. Dedicated entries alone do **not** solve both cases.
 
-The local Workspace/Tasks integration uses `lib/frame.ts`; pi-ask has a self-contained `extensions/ask-user-question/frame.ts` bootstrap. They resolve the established root entry with `createRequire(import.meta.url).resolve("pi-embeddable-frame")` without evaluating its old namespace, then import the sibling `primitives.js` and, where needed, `presentation.js` by file URL. This uses the one package-owned implementation, not a copied renderer, and does not clear global caches or change user settings. The implementation files must be updated together with the integration. Public subpath imports remain the normal API for updated installations and for types; the bootstrap handles this local in-process migration.
+The local Egregore/Tasks integration uses `lib/frame.ts`; pi-ask has a self-contained `extensions/ask-user-question/frame.ts` bootstrap. They resolve the established root entry with `createRequire(import.meta.url).resolve("pi-embeddable-frame")` without evaluating its old namespace, then import the sibling `primitives.js` and, where needed, `presentation.js` by file URL. This uses the one package-owned implementation, not a copied renderer, and does not clear global caches or change user settings. The implementation files must be updated together with the integration. Public subpath imports remain the normal API for updated installations and for types; the bootstrap handles this local in-process migration.
 
 Start a fresh Pi process after package/export or imported-module changes; `/reload` can refresh ordinary extension code but may retain cached dependencies. Regression coverage must include an old export table as well as old code, and real reload failure/recovery—not only fresh startup. This does not promise that Pi reloads every arbitrary future native dependency change.
 
@@ -57,7 +57,7 @@ These are suggestions, not automatic package policies. Choose the border's *mean
 
 ## Optional tool-status preset
 
-`statusPreset({ state, appearance, attention, markers, colors, labels })` returns a `{ marker, color, label }` presentation for `preparing`, `running`, `returned`, `failed`, `cancelled`, or `observed`. The default markers and light/dark colors match Workspace's tool cards; each can be overridden independently. For example:
+`statusPreset({ state, appearance, attention, markers, colors, labels })` returns a `{ marker, color, label }` presentation for `preparing`, `running`, `returned`, `failed`, `cancelled`, or `observed`. The default markers and light/dark colors match Egregore's tool cards; each can be overridden independently. For example:
 
 ```ts
 const status = statusPreset({ state: toolState, appearance: theme.appearance });
@@ -68,7 +68,7 @@ This preset does **not** inspect Pi tool metadata, change execution state, or sc
 
 ## State-driven presentation
 
-The public entry is **`pi-embeddable-frame/presentation`**. The root still re-exports it for compatibility. Presentation imports its passive primitives directly, not through the root barrel. Workspace's Tasks adapter and settings demo use the reload bootstrap described above so an old cached package export map cannot reject this newer entry.
+The public entry is **`pi-embeddable-frame/presentation`**. The root still re-exports it for compatibility. Presentation imports its passive primitives directly, not through the root barrel. Egregore's Tasks adapter and settings demo use the reload bootstrap described above so an old cached package export map cannot reject this newer entry.
 
 `framePresentationDefaults()` creates fresh version-1, serializable settings. `readFramePresentation(value)` validates colors, enums, positions and state rules, bounds period to 1.2–12 seconds and intensity to 0–1, and ignores unknown fields. Unsupported versions return fresh defaults; this parser does not authorize a persistence owner to overwrite an unknown saved version. Validate the stored version before saving.
 
@@ -81,28 +81,28 @@ The public entry is **`pi-embeddable-frame/presentation`**. The root still re-ex
 
 `createFrameController()` is external-clock by default and creates **no timer**. `update(facts, settings, now)` consumes semantic state, a revision token, and `suspended`, `reducedMotion`, `visible` facts. `sample(now)` advances the effect; `.active` reports whether frames are needed. The first revision establishes a baseline, not a replay. `reset()` clears history; `dispose()` is terminal and idempotent.
 
-With `{ automatic: true, requestRender }`, it owns one timer, capped at 30 Hz. Timers stop on safety gates, completion of a one-shot, reset and disposal. Integrations with a scheduler—such as Workspace—use external-clock mode instead. No timer starts merely by importing the package or creating a controller.
+With `{ automatic: true, requestRender }`, it owns one timer, capped at 30 Hz. Timers stop on safety gates, completion of a one-shot, reset and disposal. Integrations with a scheduler—such as Egregore—use external-clock mode instead. No timer starts merely by importing the package or creating a controller.
 
 `presentationRows({ theme, width, rows, title, summary, hint, presentation, frame })` uses the active state rule and renders optional semantic rows (`text`, `active`, `muted`, `warning`, `error`). Pass native input through the passive primitives instead until the integration has verified its cursor, IME, hit targets and selection contract. This release does not globally apply effects to editors or transcript tools.
 
-## First integration: persistent Workspace Tasks
+## First integration: persistent Egregore Tasks
 
-`/workspace` → **Tasks** offers live display-only state demonstrations, colors, motion, text emphasis/effects, rail positions, title and row count, plus per-state overrides. It shares the existing Save/Discard/Undo transaction and `pi-workspace.json` settings authority. `pi-footer.json` is a read-only legacy fallback until the first Save. No task, message or run clock is changed by the demo.
+`/egregore` → **Tasks** offers live display-only state demonstrations, colors, motion, text emphasis/effects, rail positions, title and row count, plus per-state overrides. It shares the existing Save/Discard/Undo transaction and `pi-egregore.json` settings authority. `pi-footer.json` is a read-only legacy fallback until the first Save. No task, message or run clock is changed by the demo.
 
-Workspace supplies sourced task counts and open-work rows through the dock bridge. The overview is independent of the legacy `/tasks` focus browser: active tasks come first, then blockers and pending work; completed work is counted rather than consuming rows. The independent no-Workspace Tasks fallback retains its existing appearance and browsing behavior. Historical tool acknowledgements are not animated by this integration.
+Egregore supplies sourced task counts and open-work rows through the dock bridge. The overview is independent of the legacy `/tasks` focus browser: active tasks come first, then blockers and pending work; completed work is counted rather than consuming rows. The independent no-Egregore Tasks fallback retains its existing appearance and browsing behavior. Historical tool acknowledgements are not animated by this integration.
 
-Workspace's Tasks defaults give the summary and overflow hint the same accent color as its title; saved metadata-color customizations remain valid. Default motion is a quiet accent border with a near-white travelling highlight while an actual run and active task are present. Progress changes can sweep once. Waiting, typing, lost editor focus, blocking prompts, hidden/narrow frames, settings interactions and motion-off stop live motion. Explicit settings demos have their own disposable controller; reduced-motion settings still apply.
+Egregore's Tasks defaults give the summary and overflow hint the same accent color as its title; saved metadata-color customizations remain valid. Default motion is a quiet accent border with a near-white travelling highlight while an actual run and active task are present. Progress changes can sweep once. Waiting, typing, lost editor focus, blocking prompts, hidden/narrow frames, settings interactions and motion-off stop live motion. Explicit settings demos have their own disposable controller; reduced-motion settings still apply.
 
 ## Historical verification for the first Tasks integration
 
 The figures below describe that earlier increment, not the current integrated suite. In the monorepo, see `docs/ACCEPTANCE.md` for the isolated Pi 1.0 terminal review and outstanding human checks.
 
-- Frame + Workspace + Tasks suite: **217/217 passed**, `/tmp/pi-frame-final-tests.log`.
-- Scoped strict TypeScript (new presentation/settings/workspace code, footer and Tasks integration): passed, `/tmp/pi-frame-scoped-tsc.log`.
-- Full Workspace strict check still reports four diagnostics in the untouched `sent-messages.ts` native metadata accesses, `/tmp/pi-frame-tsc.log`. That historical increment did not fix them; the later guarded compatibility adapter supersedes this limit. See the suite acceptance record for current checks.
+- Frame + Egregore + Tasks suite: **217/217 passed**, `/tmp/pi-frame-final-tests.log`.
+- Scoped strict TypeScript (new presentation/settings/egregore code, footer and Tasks integration): passed, `/tmp/pi-frame-scoped-tsc.log`.
+- Full Egregore strict check still reports four diagnostics in the untouched `sent-messages.ts` native metadata accesses, `/tmp/pi-frame-tsc.log`. That historical increment did not fix them; the later guarded compatibility adapter supersedes this limit. See the suite acceptance record for current checks.
 - Package dry-run includes runtime, declarations and both guides: `/tmp/pi-frame-pack.log`.
 - Text/ANSI captures cover 24/40/90/140 columns, light/dark and working/waiting/blocked/done: `/tmp/pi-task-presentation-captures.{txt,ansi}`. Text captures were inspected; controller tests verify changing colors without changing geometry/content, finite sweeps, safety gates and timer cleanup.
-- No automatic reload or live terminal/font animation verification was performed. For the current suite, start fresh and use `/workspace` → Tasks for the explicit preview.
+- No automatic reload or live terminal/font animation verification was performed. For the current suite, start fresh and use `/egregore` → Tasks for the explicit preview.
 
 ## Install and develop
 
@@ -123,6 +123,6 @@ npm run test:frame
 npm run pack:check --workspace=pi-embeddable-frame
 ```
 
-See [contributor setup](../../CONTRIBUTING.md#test-environment) for `PI_FRAME_HOST_MODULES` and legacy Workspace/Ask host overrides. The optional live Tasks integration is covered by the suite's Workspace/Tasks tests, not by registering this passive library alone.
+See [contributor setup](../../CONTRIBUTING.md#test-environment) for `PI_FRAME_HOST_MODULES` and legacy Egregore/Ask host overrides. The optional live Tasks integration is covered by the suite's Egregore/Tasks tests, not by registering this passive library alone.
 
 No part of this package records messages or changes tool execution. Passive primitives never schedule rendering. The optional controller can request host redraws through its supplied callback; integrations provide lifecycle/safety facts and dispose it. State-to-appearance decisions live in the package's configurable rules, not duplicated in each extension.

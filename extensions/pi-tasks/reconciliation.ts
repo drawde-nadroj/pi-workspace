@@ -38,11 +38,13 @@ export function reconciliationMessage(plan: SavedPlan): string {
     ].join("\n"),
     "## User-facing response",
     [
-      "- Lead with the concrete result. Keep short answers short and follow the user's requested format.",
-      "- For substantial replies, use descriptive headers and bullets for related facts; use ordered lists for procedures or priorities, not unordered facts.",
-      "- Useful sections are Result, Verification, Unresolved, and Next action. Omit empty or unnecessary sections; this is not a mandatory template.",
-      "- Distinguish observed results from assumptions and unperformed checks. Account for remaining items and why you stopped in the final reply.",
-      "- If reconciliation only changes records, avoid a second completion announcement that adds no material information.",
+      "- After the completion review, make the next user-facing reply about quests. Open with 'Where next?' and lead directly with a depth quest (Deepen) and a breadth quest (Connect) grounded in the work just performed.",
+      "- Treat the work's actual results, available evidence, and known limitations as the starting point for useful next projects. Account for any newly discovered material gap where it affects the proposed direction.",
+      "- Depth quest — go deeper into the same problem: richer understanding, a meaningful experiment, or a stronger capability. Breadth quest — branch outward by applying what was learned or built to another problem, domain, or creative project.",
+      "- Give each quest a short name, why the work makes it useful now, one concrete first move, and a concise From line naming the actual observation, conversation or supplied material that inspired it. Investigations and creative projects count, not just implementation. Present worthwhile directions; when only one direction has substance, offer that one.",
+      "- When quests present is available, call it directly for one shared Where next? handoff using existing path IDs or unsaved inline paths. Its Deepen/Connect presentation is the invitation; add a conversational bridge only when it adds substance. Presentation alone saves no paths and starts no work. Without that operation, use the same labelled structure in prose.",
+      "- Keep quests grounded in observed work, distinct from each other, fresh, and concise. Follow the user's requested format and preferences for suggestions.",
+      "- Quests are invitations, not accepted requirements: do not create tasks or plans, start work, or ask a blocking question to make the user choose. Wait for explicit user authorization before undertaking a quest.",
     ].join("\n"),
   ].join("\n\n");
 }

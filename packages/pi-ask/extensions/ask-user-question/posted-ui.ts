@@ -1,5 +1,5 @@
 import type { ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { matchesKey, Text, wrapTextWithAnsi, truncateToWidth } from '@earendil-works/pi-tui';
+import { matchesKey, Text, SelectList, wrapTextWithAnsi, truncateToWidth } from '@earendil-works/pi-tui';
 import { frameRows } from './frame.ts';
 import { questionAccent } from './question-surface.ts';
 import { TabbedQuestions, type BatchUIResult, type QuestionDraft } from './batch-ui.ts';
@@ -8,6 +8,36 @@ import { savedAskAppearance } from './appearance.ts';
 import { sanitizeDisplayText } from './tui-primitives.ts';
 import { questionStatus } from 'pi-agent-contracts/posted';
 import type { PostedQuestion } from './posted-state.ts';
+
+/** The inbox shares Ask's frame, appearance and native selection instead of Pi's generic dialog. */
+export async function postedInboxUI(ctx: ExtensionContext, questions: () => PostedQuestion[], bindClose: (close?: () => void) => void): Promise<string | undefined> {
+  return ctx.ui.custom<string | undefined>((tui, theme, _kb, done) => {
+    const palette=questionTheme(theme,savedAskAppearance());
+    let list: SelectList | undefined, signature="", selected: string | undefined;
+    const refresh=()=> {
+      const rows=questions();
+      const height=Math.max(1,questionViewport(tui).terminal.rows-4);
+      const next=JSON.stringify([height,rows.map(q=>[q.id,q.revision,q.definition.question,q.state,q.urgency])]);
+      if (next===signature && list) return list;
+      selected=list?.getSelectedItem()?.value ?? selected;
+      signature=next;
+      list=new SelectList(rows.map(q=>({value:q.id,label:`${q.id} · ${q.state==='awaiting' ? q.urgency==='blocking' ? 'Needs your input' : 'Can wait' : questionStatus(q)} · ${sanitizeDisplayText(q.definition.question)}`})),height,{
+        selectedPrefix:s=>palette.fg('accent',s),selectedText:s=>palette.fg('accent',s),description:s=>palette.fg('muted',s),scrollInfo:s=>palette.fg('dim',s),noMatch:s=>palette.fg('muted',s),
+      });
+      list.setSelectedIndex(Math.max(0,rows.findIndex(q=>q.id===selected)));
+      list.onSelect=item=>done(item.value);list.onCancel=()=>done(undefined);
+      return list;
+    };
+    bindClose(()=>done(undefined));
+    const component={
+      render(width:number) {return [truncateToWidth(palette.fg('muted','Choose a question to answer or inspect'),width),...refresh().render(width),truncateToWidth(palette.fg('muted','↑↓ choose · Enter open · Esc close'),width)];},
+      handleInput(data:string) {refresh().handleInput(data);tui.requestRender();},
+      handleMouse(event:any) {const result=refresh().handleMouse({...event,y:event.y-1});if(result)tui.requestRender();return result;},
+      invalidate() {signature="";},getHeaderLabel(){return 'Question inbox';},getMoreActions(){return [{label:'Close inbox',run:()=>done(undefined)}];},
+    };
+    return frameQuestion(component,palette,tui,undefined,true);
+  },{overlay:true,overlayOptions:{width:'90%',maxHeight:'85%',anchor:'bottom-center'}}).finally(()=>bindClose(undefined));
+}
 
 /** Reuse Ask's editors/choice/review machinery. Only the temporary overlay/back contract differs. */
 export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion, current: () => boolean,

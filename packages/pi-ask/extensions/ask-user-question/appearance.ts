@@ -30,13 +30,13 @@ export function readAskAppearance(value: unknown, legacy?: unknown): AskAppearan
 }
 /** Read once per interaction. Missing, malformed or future-version settings retain safe defaults. */
 export function savedWorkspaceVisuals(): { appearance: AskAppearance; density: "spaced" | "compact" } {
-  for (const name of ["pi-workspace.json", "pi-footer.json"]) {
+  for (const name of ["pi-egregore.json", "pi-workspace.json", "pi-footer.json"]) {
     let text: string;
     try { text = readFileSync(join(getAgentDir(), name), "utf8"); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; break; }
     try {
       const raw = JSON.parse(text);
-      if (name === "pi-workspace.json" && raw?.version !== 1) break;
+      if (name !== "pi-footer.json" && raw?.version !== 1) break;
       return { appearance: readAskAppearance(raw?.ask, raw?.questionLabels) ?? askAppearanceDefaults(),
         density: raw?.density === "compact" ? "compact" : "spaced" };
     } catch { break; } // A broken primary file must not silently defer to old preferences.

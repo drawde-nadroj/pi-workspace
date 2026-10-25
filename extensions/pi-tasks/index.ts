@@ -9,13 +9,15 @@ import { DOCK, isHost, cleanText, layoutDock, type DockAck, type DockColors, typ
 import { taskFrame } from "../../lib/task-frame.ts";
 import { taskResultCard, type TaskCardDetails } from "./transcript.ts";
 import { ENTRY, STATUSES, progressText, taskOverview, type Plan, type Change, type Mutation } from "./state.ts";
-import { dockRows } from "./typography.ts";
+import { dockRows, questionAttentionSummary } from "./typography.ts";
 import { BOOK_ENTRY, COMPLETION_MS, emptyBook, migratePlan, restoreBook, mutateBook, selectedPlan, resultPlan, planInfo, bookContext, isPlanClosed,
   type PlanBook, type BookMutation } from "./book.ts";
 import { TaskPanel, type PanelResult, type PanelNavigation } from "./panel.ts";
 
 import { reconciliationMessage } from "./reconciliation.ts";
+import { ACTIVITY_EVENT } from "../../lib/session-activity.ts";
 import { POSTED, isQuestionSnapshot, unresolved, type QuestionSnapshot } from "pi-agent-contracts/posted";
+import { attentionDockRows } from "./attention-dock.ts";
 import { ATOMIC_GUIDANCE, coverageGaps, requirementCoverage, type Requirement } from "./requirements.ts";
 
 const TOOL = "tasks", WIDGET = "pi-tasks:fallback", MEMORY = "pi-tasks:context-v1";
@@ -43,6 +45,8 @@ const Params = Type.Object({
   changes: Type.Optional(Type.Object({ title: Type.Optional(Type.String({ maxLength: 200 })), status: Type.Optional(StringEnum(STATUSES)),
     phase: Type.Optional(Type.String({ maxLength: 80 })), doneWhen: Type.Optional(Type.String({ maxLength: 400 })),
     dependsOn: Type.Optional(Type.Array(Type.String(), { maxItems: 20 })), reason: Type.Optional(Type.String({ maxLength: 800 })),
+    blockerOwner: Type.Optional(StringEnum(["user", "agent", "external"] as const)),
+    unblockWhen: Type.Optional(Type.String({minLength:1, maxLength:800, description:"Observable prerequisite that lets blocked work continue; not a completion claim."})),
     note: Type.Optional(Type.String({ maxLength: 1200 })), evidence: Type.Optional(Type.String({ maxLength: 1200 })) })),
 });
 
@@ -73,13 +77,14 @@ export default function tasks(pi: ExtensionAPI) {
     if (openQuestions.length) s.overview.questions = { blocking, deferred: openQuestions.length - blocking };
     if (hidden) return s; // Facts stay available to the composer hint; the dock itself stays hidden.
     const count = progressText(p.state);
-    const attention = blocking ? `${blocking} waiting for you` : openQuestions.length ? `${openQuestions.length} can wait` : "";
+    const attention = questionAttentionSummary(openQuestions);
     s.summary = attention && p.state.tasks.length ? `${attention} · ${count}` : attention || count;
     if (p.closedAt !== null) {
       if (Date.now() >= p.closedAt && Date.now() - p.closedAt < COMPLETION_MS) s.rows = [{ text: `${p.state.tasks.some((t) => t.status === "done") ? "✓" : "–"} Plan finished · ${count} · saved in /tasks`, tone: "muted" }];
       return s;
     }
-    const open = dockRows(p.state, running); s.rows = open.slice(0, 12); s.more = open.length - s.rows.length;
+    const attentionRows = attentionDockRows(p.state, running, openQuestions, p.id);
+    s.rows = attentionRows.rows.slice(0, 12); s.more = attentionRows.rows.length - s.rows.length; s.hint = attentionRows.hint;
     const gaps = coverageGaps(p.requirements, p.state);
     // A closed task list is not a closed plan while accepted requests remain uncovered.
     if (!s.rows.length && gaps.length) s.rows = [{ text: `${gaps.length} request${gaps.length === 1 ? " needs" : "s need"} review · /tasks`, tone: "warning" }];
@@ -95,7 +100,7 @@ export default function tasks(pi: ExtensionAPI) {
       if (!current.rows.length) return [];
       const budget = Math.max(3, Math.min(7, Math.floor(tui.terminal.rows / 4)));
       const content = layoutDock(current, Math.max(1, width - 2), budget).map(r => th.fg(r.tone ?? "text", cleanText(r.text)));
-      return taskFrame(th, width, content, cleanText(current.title), current.summary ?? "");
+      return taskFrame(th, width, content, cleanText(current.title), current.summary ?? "", current.hint ?? "");
     } }), { placement: "aboveEditor" });
   }
   function publish() {
@@ -112,7 +117,14 @@ export default function tasks(pi: ExtensionAPI) {
   }
   function commit(next: PlanBook) {
     pi.appendEntry(BOOK_ENTRY, structuredClone(next)); // Persist before publishing/returning success.
+    const previous = book;
     book = next; fault = undefined; publish();
+    for (const p of next.plans) {
+      const before = previous.plans.find(x=>x.id === p.id);
+      const changed = p.state.tasks.filter(t=>!before?.state.tasks.some(old=>old.id===t.id && old.status===t.status));
+      if (!changed.length) continue;
+      pi.events.emit(ACTIVITY_EVENT, {version:1,session:sessionId(),key:`tasks:${next.revision}:${p.id}`,at:new Date().toISOString(),kind:"tasks",title:`Tasks updated: ${p.title}`,summary:changed.map(t=>`${t.status}: ${t.title}`).join("\n").slice(0,8000),sourceId:p.id});
+    }
   }
   function restore(context: ExtensionContext, preserveActivity = false) {
     ctx = context; questions = undefined;
@@ -128,7 +140,7 @@ export default function tasks(pi: ExtensionAPI) {
   function registerTool() {
     pi.registerTool({
       name: TOOL, label: "Plan", renderShell: "self", parameters: Params, exposure: enabled ? "direct" : "hidden", executionMode: "sequential",
-      description: ATOMIC_GUIDANCE + " All writes require the current library revision. requirements without inputs reads records; with inputs appends/remaps/supersedes them in the selected plan. create accepts requirements alongside tasks. Track named plans for substantial user requests. For a NEW substantial request use create with a concise title and optional pending items; preserve earlier plans. For a follow-up update the existing plan. plans browses history; list reads tasks and revision; add/update edit only the current plan. One active focus task per plan; inactive plans are paused. blocked requires reason; done requires a truthful note and available evidence references (not independent verification). Before finishing work on a plan, reconcile open tasks with actual results: complete only verified work, revise changed steps, block with reason, or cancel genuinely superseded steps. Continue only work already authorized; otherwise explain the remaining work or ask one consequential question. Preserve user edits and archives. Skip trivial requests. No broader scope from a task alone.",
+      description: ATOMIC_GUIDANCE + " All writes require the current library revision. requirements without inputs reads records; with inputs appends/remaps/supersedes them in the selected plan. create accepts requirements alongside tasks. Track named plans for substantial user requests. For a NEW substantial request use create with a concise title and optional pending items; preserve earlier plans. For a follow-up update the existing plan. plans browses history; list reads tasks and revision; add/update edit only the current plan. One active focus task per plan; inactive plans are paused. For blocked work, record reason, blockerOwner (user, agent or external), and unblockWhen: the concrete prerequisite that allows progress. Use dependsOn for waiting on other tasks. An obstacle you can investigate within authorized work is usually active work, not a handoff to the user. Ask for input or decisions that belong to the user, linking posted questions to the affected task and explaining what can continue meanwhile. After applying an answer or finishing a prerequisite, reassess affected tasks and update stale blockers; an answer is not task completion. Pending means not started, not independently verified ready. done requires a truthful note and available evidence references (not independent verification). Before finishing work on a plan, reconcile open tasks with actual results: complete only verified work, revise changed steps, block with reason, or cancel genuinely superseded steps. Continue only work already authorized; otherwise explain the remaining work or ask one consequential question. Preserve user edits and archives. Skip trivial requests. No broader scope from a task alone.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       async execute(_callId, params, signal, _onUpdate, context) {
         if (!enabled) throw new Error("Tasks are off. Only the user can enable them with /tasks on.");
@@ -302,7 +314,7 @@ export default function tasks(pi: ExtensionAPI) {
     if (!value) pi.setActiveTools(pi.getActiveTools().filter((name) => name !== TOOL));
     publish();
     await savePreferences(context);
-    context.ui.notify(value ? "Tasks on · saved plan library restored · no automatic continuation." : "Tasks off · tool, reminders, and UI disabled. All saved plans preserved. Workspace unchanged.", "info");
+    context.ui.notify(value ? "Tasks on · saved plan library restored · no automatic continuation." : "Tasks off · tool, reminders, and UI disabled. All saved plans preserved. Egregore unchanged.", "info");
   }
   async function userChange(context: ExtensionCommandContext, result: Exclude<PanelResult, undefined>, suppliedTitle?: string) {
     if (result === "off") return setEnabled(false, context);
@@ -380,7 +392,7 @@ export default function tasks(pi: ExtensionAPI) {
             : "Tasks dock visibility restored. Tasks remain off; /tasks on enables tracking.", "info");
           return;
         }
-        if (!enabled) { context.ui.notify("Tasks are off. /tasks on restores all saved plans. Workspace is independent.", "info"); return; }
+        if (!enabled) { context.ui.notify("Tasks are off. /tasks on restores all saved plans. Egregore is independent.", "info"); return; }
         if (command === "new" || command.startsWith("new ")) {
           if (!context.hasUI && command === "new") { context.ui.notify("Specify a name: /tasks new <name>", "info"); return; }
           await userChange(context, { op: "new", revision: book.revision }, command.slice(4).trim() || undefined); return;

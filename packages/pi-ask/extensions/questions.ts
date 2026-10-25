@@ -14,7 +14,8 @@ import {
 
 // Shared by both tools; guidance only, never an automatic Tasks mutation.
 const ANSWER_HANDOFF = [
-	"After an answer, apply it and its notes or caveats to the next action or understanding; explain material changes briefly. Drop questions made obsolete by the answer. Ask follow-ups only for consequential unresolved matters.",
+	"After an answer, apply it and its notes or caveats to the next action or understanding; explain material changes briefly. Reassess affected tasks: if the missing prerequisite is satisfied, update the stale blocker and continue authorized work without requiring the user to separately request unblocking. An answer is not evidence of task completion. Drop questions made obsolete by the answer. Ask follow-ups only for consequential unresolved matters.",
+	"Give each question a clear purpose: explore a thought together, invite perspective needed later, or obtain input/decision needed for a specific action. For work questions, explain why the answer matters, what waits and what you can continue independently. Investigate agent-resolvable obstacles rather than asking the user to do that investigation.",
 	"When an answer actually changes authorized scope or acceptance, reconcile the existing requirement through its owning tool if available; preserve the source and caveats, and supersede changed requirements rather than rewriting their history. Do not create a task for every answer.",
 	"Skipped, unanswered, cancelled, or unavailable questions are not agreement or consent. Keep consequential unknowns explicit; do not proceed across an unresolved approval boundary. Exploratory answers are not implementation authorization.",
 ];
