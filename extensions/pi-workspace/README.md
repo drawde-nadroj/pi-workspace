@@ -31,7 +31,7 @@ Sounds default on for macOS, Windows and Linux. Playback uses bundled 48 kHz ste
 | Platform | Native player and prerequisites |
 | --- | --- |
 | macOS | Built-in `/usr/bin/afplay` |
-| Windows | Built-in Windows PowerShell (`powershell.exe` on PATH), using .NET `System.Media.SoundPlayer`. No profile or visible console is opened; asset paths are passed as environment data, not interpolated into script source. |
+| Windows | Built-in Windows PowerShell (`powershell.exe` on PATH), calling WinMM `PlaySoundW` synchronously with its Boolean result checked. Rejected playback is an error, and a missing file cannot fall back to a system beep. No profile or visible console is opened; asset paths are passed as environment data, not interpolated into script source. |
 | Linux | `pw-play` (PipeWire), then `paplay` (PulseAudio), then `aplay` (ALSA). A working audio output is required. Debian/Ubuntu packages are `pipewire-bin`, `pulseaudio-utils`, or `alsa-utils`, respectively; install the one appropriate to your audio stack. |
 
 Linux advances to another player only when the executable is missing. Audio-server, device, permission or decoding failures are reported rather than retried through a different backend. A playback failure disables automatic cues with a warning; `/sounds on` re-enables them after the prerequisite is fixed. Mute, shutdown and reload stop owned players, including pending backend selection. Other operating systems default off and report unsupported playback if explicitly previewed.

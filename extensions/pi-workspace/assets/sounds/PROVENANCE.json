@@ -60,5 +60,5 @@
       "playbackGain": 1
     }
   ],
-  "playback": "Bundled files are 48 kHz stereo 16-bit PCM WAV. macOS uses afplay; Windows uses Windows PowerShell System.Media.SoundPlayer; Linux tries pw-play, paplay, then aplay, advancing only when an executable is missing. All players use unity gain; Hint attenuation is baked into its asset."
+  "playback": "Bundled files are 48 kHz stereo 16-bit PCM WAV. macOS uses afplay; Windows uses Windows PowerShell calling synchronous WinMM PlaySoundW with SND_FILENAME and SND_NODEFAULT, checking the Boolean result; Linux tries pw-play, paplay, then aplay, advancing only when an executable is missing. All players use unity gain; Hint attenuation is baked into its asset."
 }

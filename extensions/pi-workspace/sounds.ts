@@ -11,17 +11,24 @@ const SOUND_FILES: Record<WorkspaceSoundKind, string> = {
 // The asset path is data, never PowerShell source (spaces, quotes and Unicode are safe).
 const WINDOWS_PLAY = `
 $ErrorActionPreference = 'Stop'
-$player = $null
 try {
-  $player = New-Object System.Media.SoundPlayer
-  $player.SoundLocation = $env:PI_WORKSPACE_SOUND_FILE
-  $player.Load()
-  $player.PlaySync()
+  Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class WorkspaceAudio {
+  [DllImport("winmm.dll", EntryPoint = "PlaySoundW", CharSet = CharSet.Unicode)]
+  [return: MarshalAs(UnmanagedType.Bool)]
+  public static extern bool PlaySound(string file, IntPtr module, uint flags);
+}
+'@
+  # SND_FILENAME | SND_NODEFAULT, with synchronous playback (SND_SYNC = 0).
+  # NODEFAULT forbids a system beep from disguising an unreadable asset.
+  if (-not [WorkspaceAudio]::PlaySound($env:PI_WORKSPACE_SOUND_FILE, [IntPtr]::Zero, 0x00020002)) {
+    throw 'WinMM rejected WAV playback. Check that an audio output device is available and the sound asset is readable.'
+  }
 } catch {
   [Console]::Error.WriteLine($_.Exception.Message)
   exit 1
-} finally {
-  if ($null -ne $player) { $player.Dispose() }
 }`;
 
 interface Playback {

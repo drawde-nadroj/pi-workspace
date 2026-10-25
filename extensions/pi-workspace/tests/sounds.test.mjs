@@ -110,7 +110,7 @@ test("bundled sounds are playable standard PCM WAVs, not 24-bit or extensible Wi
   }
 });
 
-test("native Windows SoundPlayer loads and plays both packaged cues from a quoted Unicode path", { skip: process.platform !== "win32", timeout: 15000 }, async () => {
+test("native Windows WinMM accepts both packaged cues from a quoted Unicode path", { skip: process.platform !== "win32", timeout: 15000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), "pi sound ' $() 日本語 "));
   try {
     await mkdir(join(directory, "assets", "sounds"), { recursive: true });
@@ -119,6 +119,17 @@ test("native Windows SoundPlayer loads and plays both packaged cues from a quote
     const { WorkspaceSounds: NativeSounds } = await jiti.import(join(directory, "sounds.ts"));
     const sounds = new NativeSounds();
     try { await sounds.play("done"); await sounds.play("question"); }
+    finally { sounds.dispose(); }
+  } finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+test("native Windows reports rejected playback rather than a default beep or successful exit", { skip: process.platform !== "win32", timeout: 15000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pi-missing-sound-"));
+  try {
+    await copyFile(join(source, "sounds.ts"), join(directory, "sounds.ts"));
+    const { WorkspaceSounds: NativeSounds } = await jiti.import(join(directory, "sounds.ts"));
+    const sounds = new NativeSounds();
+    try { await assert.rejects(sounds.play("done"), /WinMM rejected WAV playback/); }
     finally { sounds.dispose(); }
   } finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });
