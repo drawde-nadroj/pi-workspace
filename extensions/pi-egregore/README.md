@@ -28,13 +28,23 @@ Use `/egregore` → **General** → **Session updates** to choose compact (lates
 
 ## Notification sounds
 
-On macOS, Egregore plays React Bits **Pluck** once when an interactive run settles successfully, after retries and queued work finish. A quieter **Hint** plays when a blocking `ask_questions` or `ask_user_question` form opens, once per tool call rather than once per nested dialog. Errors, cancellations, ordinary tools, settings dialogs and passive posted-question browsing are silent. Noninteractive modes never play automatic cues.
+On macOS, Windows and Linux, Egregore plays React Bits **Pluck** once when an interactive run settles successfully, after retries and queued work finish. A quieter **Hint** plays when a blocking `ask_questions` or `ask_user_question` form opens, once per tool call rather than once per nested dialog. Errors, cancellations (including settlement aborted after the final reply), ordinary tools, settings dialogs and passive posted-question browsing are silent. Noninteractive modes never play automatic cues.
 
 `/sounds off` mutes automatic cues and stops current playback; `/sounds on` enables them. `/sounds` reports the current state. `/sounds test` previews Pluck and `/sounds question` previews Hint, even while muted. These operational controls are session-only, independent of Composer appearance and `/egregore` Save; restarting or reloading restores the platform default. No saved settings are changed.
 
-Playback uses macOS `/usr/bin/afplay` and bundled WAV exports, without React, browser access or runtime downloads. Other platforms default off and report unsupported playback if explicitly previewed. Playback failure disables automatic cues with a warning; shutdown/reload stops owned players. Volume follows system output, with Hint played at 60% of its original amplitude.
+Sounds default on for macOS, Windows and Linux. Playback uses bundled 48 kHz stereo **16-bit PCM WAV** files, without React, browser access, runtime downloads or new npm dependencies. Hint's 60% amplitude is baked into its asset so every backend uses the same level; system volume still applies.
 
-The sounds are original exports from [React Bits Sound Lab](https://reactbits.dev/tools/sound-lab), pinned and attributed in `assets/sounds/PROVENANCE.json`. Their bundled `LICENSE.txt` is **MIT + Commons Clause**, distinct from this suite's MIT code license; application embedding is permitted, but standalone sound-pack redistribution is not.
+| Platform | Native player and prerequisites |
+| --- | --- |
+| macOS | Built-in `/usr/bin/afplay` |
+| Windows | Built-in Windows PowerShell (`powershell.exe` on PATH), calling WinMM `PlaySoundW` synchronously with its Boolean result checked. Rejected playback is an error, and a missing file cannot fall back to a system beep. No profile or visible console is opened; asset paths are passed as environment data, not interpolated into script source. |
+| Linux | `pw-play` (PipeWire), then `paplay` (PulseAudio), then `aplay` (ALSA). A working audio output is required. Debian/Ubuntu packages are `pipewire-bin`, `pulseaudio-utils`, or `alsa-utils`, respectively; install the one appropriate to your audio stack. |
+
+Linux advances to another player only when the executable is missing. Audio-server, device, permission or decoding failures are reported rather than retried through a different backend. A playback failure disables automatic cues with a warning; `/sounds on` re-enables them after the prerequisite is fixed. Mute, shutdown and reload stop owned players, including pending backend selection. Other operating systems default off and report unsupported playback if explicitly previewed.
+
+Playback occurs on the machine running Pi, not on an SSH client's speakers. WSL follows the Linux path and needs its Linux audio connection configured. These controls do not provision an audio server or forward remote sound.
+
+The sounds derive from original exports from [React Bits Sound Lab](https://reactbits.dev/tools/sound-lab), pinned and attributed in `assets/sounds/PROVENANCE.json`. That file records the original export hashes, portable PCM conversion, question attenuation and bundled hashes. Their `LICENSE.txt` is **MIT + Commons Clause**, distinct from this suite's MIT code license; application embedding is permitted, but standalone sound-pack redistribution is not.
 
 ## Dictation
 
@@ -73,7 +83,7 @@ The former standalone `/composer-preview` synthetic screen was retired because i
 | `/egregore` | Customize frame, footer, Tasks, Ask and Transcript visuals; narrow layouts show Rooms… and Ctrl+R opens all rooms |
 | `/activity` | Browse recent session updates and inspect their quest or task sources |
 | `/dictate` | Toggle microphone dictation from the keyboard; the fullscreen bottom-rail mic does the same |
-| `/sounds [on\|off\|test\|question]` | Session-only native notification controls and previews; macOS |
+| `/sounds [on\|off\|test\|question]` | Session-only native notification controls and previews; macOS, Windows, Linux |
 | `/recaps on`, `/recaps off`, `/recaps status` | Opt-in additional activity inference; also discoverable through `/composer` → Activity recaps |
 
 Supported Composer preferences are `enabled`, `look: "composer"`, `motion: "work" | "off"`, `icons`, `details` and `theme`. They are persisted in the configured Pi agent directory, not in the repository. `pi-egregore.json` is the visual settings authority (with read-only legacy fallback). Disabling Composer does not turn off Tasks or erase visual preferences. Manual edits to Pi resources require `/reload` or a cold start.

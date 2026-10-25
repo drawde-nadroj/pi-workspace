@@ -211,6 +211,7 @@ async function harness({ workspace = false, ask = false, order = "workspace-firs
   if (workspace && order !== "workspace-first") await workspaceFactory(api);
   const emit = async (name, value = {}) => { const results = []; for (const fn of handlers.get(name) ?? []) results.push(await fn({ type: name, ...value }, context)); return results; };
   const command = (name, args = "") => commands.get(name).handler(args, context);
+  if (workspace) await command("sounds", "off"); // Task fixtures do not require an audio device.
   const call = (params, signal) => tools.get("tasks").execute("task-test", params, signal, undefined, context);
   return { scratch, context, tools, handlers, entries, messages, widgets, notices, events, active, tui, emit, command, call,
     callQuestion: params => tools.get("question_queue").execute("question-test", params, undefined, undefined, context),

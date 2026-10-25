@@ -36,7 +36,7 @@ export default function workspace(pi: ExtensionAPI) {
   };
   let context: ExtensionContext | undefined;
   const sounds = new WorkspaceSounds();
-  let soundEnabled = process.platform === "darwin";
+  let soundEnabled = ["darwin", "win32", "linux"].includes(process.platform);
   let soundRun = false;
   const questionSounds = new Set<string>();
   function playSound(kind: "done" | "question", ctx: ExtensionContext) {
@@ -472,7 +472,7 @@ export default function workspace(pi: ExtensionAPI) {
   const recaps = registerRecaps(pi, () => state.prefs.enabled);
 
   pi.registerCommand("sounds", {
-    description: "Egregore audio: on, off, test, or question (session-only; macOS).",
+    description: "Egregore audio: on, off, test, or question (session-only; macOS, Windows, Linux).",
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") return;
       switch (args.trim()) {

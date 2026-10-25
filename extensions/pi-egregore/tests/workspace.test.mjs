@@ -274,6 +274,8 @@ async function harness(mode = "tui", savedComposerPrefs) {
     appendEntry(customType, data) { entries.push({ type: "custom", customType, data }); },
   };
   await factory(api);
+  // UI regressions must not require an audio device or spawn players.
+  await commands.get("sounds").handler("off", ctx);
   const emit = async (name, data = {}) => { for (const fn of handlers.get(name) ?? []) await fn({ type: name, ...data }, ctx); };
   const command = (text) => commands.get("composer").handler(text, ctx);
   return { ctx, tui, emit, command, entries, handlers, widgets, placements, events: api.events,
