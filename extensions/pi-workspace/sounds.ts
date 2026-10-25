@@ -89,7 +89,7 @@ export class WorkspaceSounds {
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk: string) => { diagnostic = (diagnostic + chunk).slice(-2048); });
     child.stderr?.on("error", (error: NodeJS.ErrnoException) => { failure = error; });
-    child.once("error", (error: NodeJS.ErrnoException) => { failure = error; });
+    child.on("error", (error: NodeJS.ErrnoException) => { failure = error; });
     child.once("close", (code, signal) => {
       this.active.delete(playback);
       if (playback.cancelled) {

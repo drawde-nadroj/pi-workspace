@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventEmitter } from "node:events";
+import { execFileSync } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { readFile, mkdtemp, mkdir, copyFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,6 +9,11 @@ import { join } from "node:path";
 import { jiti, source } from "./host.mjs";
 
 const { WorkspaceSounds } = await jiti.import(join(source, "sounds.ts"));
+const windowsOutputCount = process.platform === "win32" ? Number(execFileSync("powershell.exe", [
+  "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+  `Add-Type -MemberDefinition '[System.Runtime.InteropServices.DllImport("winmm.dll")] public static extern uint waveOutGetNumDevs();' -Name OutputDevices -Namespace WorkspaceTest; [WorkspaceTest.OutputDevices]::waveOutGetNumDevs()`,
+], { encoding: "utf8", windowsHide: true, timeout: 15000 }).trim()) : undefined;
+if (process.platform === "win32") assert.ok(Number.isInteger(windowsOutputCount), "native output-device enumeration must succeed");
 
 function players(steps) {
   const calls = [];
@@ -32,6 +38,18 @@ function players(steps) {
   };
   return { calls, spawn };
 }
+
+test("cancellation keeps child error handling alive until close", async () => {
+  const backend = players([{ hold: true }]);
+  const sounds = new WorkspaceSounds({ platform: "linux", spawn: backend.spawn });
+  const pending = sounds.play("done");
+  const child = backend.calls[0].child;
+  child.emit("error", Object.assign(new Error("spawn pending"), { code: "ENOENT" }));
+  sounds.dispose();
+  child.emit("error", Object.assign(new Error("spawn failed during cancellation"), { code: "ENOENT" }));
+  await pending;
+  assert.equal(backend.calls.length, 1);
+});
 
 test("Linux falls through missing executables, but never replays after a device failure", async () => {
   const backend = players([{ error: "ENOENT" }, { error: "ENOENT" }, {}]);
@@ -110,7 +128,10 @@ test("bundled sounds are playable standard PCM WAVs, not 24-bit or extensible Wi
   }
 });
 
-test("native Windows WinMM accepts both packaged cues from a quoted Unicode path", { skip: process.platform !== "win32", timeout: 15000 }, async () => {
+test("native Windows WinMM accepts both packaged cues from a quoted Unicode path", {
+  skip: process.platform !== "win32" ? "Windows only" : windowsOutputCount === 0 ? "No Windows audio output devices; acceptance cannot be verified" : false,
+  timeout: 15000,
+}, async () => {
   const directory = await mkdtemp(join(tmpdir(), "pi sound ' $() 日本語 "));
   try {
     await mkdir(join(directory, "assets", "sounds"), { recursive: true });
@@ -132,4 +153,15 @@ test("native Windows reports rejected playback rather than a default beep or suc
     try { await assert.rejects(sounds.play("done"), /WinMM rejected WAV playback/); }
     finally { sounds.dispose(); }
   } finally { await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+});
+
+test("native Windows without output devices reports failure for both real cues", {
+  skip: process.platform !== "win32" ? "Windows only" : windowsOutputCount !== 0 ? "Requires a Windows host without audio output devices" : false,
+  timeout: 15000,
+}, async () => {
+  const sounds = new WorkspaceSounds();
+  try {
+    await assert.rejects(sounds.play("done"), /WinMM rejected WAV playback/);
+    await assert.rejects(sounds.play("question"), /WinMM rejected WAV playback/);
+  } finally { sounds.dispose(); }
 });
