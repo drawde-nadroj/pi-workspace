@@ -73,7 +73,9 @@ export function frameRows({ theme, width, rows, corners = {}, color, textColor, 
   return motion?.active ? paintFramePerimeter(result, { theme, width, bottom: result.length - 1, color, ...motion, surface }) : result;
 }
 
-/** Recolor only border glyphs of an existing frame. Does not move or edit content. */
+/** Recolor only the two horizontal rails of an existing frame. Does not move or edit
+ * content: every body row keeps its bytes, so a host's changed-line diff rewrites two
+ * lines per tick instead of every row that carries a side rail. */
 export function paintFramePerimeter(rows, { theme, width, bottom = rows.length - 1, color, accent, active = false, now = 0, startAt = 0, periodMs = 3000, quiet = false, intensity = 1, direction = "clockwise", effect = "shimmer", surface } = {}) {
   if (!active || width < 4 || bottom < 1 || !accent) return rows;
   periodMs = Number.isFinite(periodMs) && periodMs > 0 ? periodMs : 3000;
@@ -106,9 +108,8 @@ export function paintFramePerimeter(rows, { theme, width, bottom = rows.length -
         return paint(glyph, x, y) + "\x1b[0m" + (prefix.match(/\x1b\[[0-9;:]*m/g) ?? []).join("");
       }), width, surface);
     }
-    const first = row.indexOf("│"), last = row.lastIndexOf("│");
-    if (first < 0 || last <= first || visibleWidth(row.slice(0, first)) !== 0 || visibleWidth(row.slice(0, last)) !== width - 1) return row;
-    const restore = offset => "\x1b[0m" + (row.slice(0, offset).match(/\x1b\[[0-9;:]*m/g) ?? []).join("");
-    return cover(row.slice(0, first) + paint("│", 0, y) + restore(first) + row.slice(first + 1, last) + paint("│", width - 1, y) + restore(last) + row.slice(last + 1), width, surface);
+    // Side rails keep the base colour. Repainting one rewrites the row that carries
+    // it, so the host would erase and resend every content row on each tick.
+    return row;
   });
 }

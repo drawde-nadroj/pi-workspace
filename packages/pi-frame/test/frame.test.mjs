@@ -110,5 +110,16 @@ test("motion is opt-in, stable in geometry and never paints content", () => {
   assert.deepEqual(moving.map(visibleWidth), fixed.map(visibleWidth));
   assert.equal(moving[1].includes("editor content"), true);
   assert.equal(plain(moving[1]), plain(fixed[1]));
+  // Body rows stay byte-identical so a host's changed-line diff touches only the rails.
+  assert.deepEqual(moving.slice(1, -1), fixed.slice(1, -1));
+  // A shade-sensitive theme proves the horizontal rails still carry the travelling light.
+  const channels = color => color?.kind === "rgb" ? `${color.r},${color.g},${color.b}`
+    : color?.kind === "indexed" ? `i${color.index}` : `o${color.l},${color.c},${color.h}`;
+  const shade = { style: (text, { fg, bold }) => `\x1b[38;2;${channels(fg)};${bold ? 1 : 0}m${text}\x1b[39m` };
+  const first = paintFramePerimeter(fixed, { theme: shade, width: 36, bottom: 2, color: "#333333", accent: "#ffffff", active: true, now: 500 });
+  const later = paintFramePerimeter(fixed, { theme: shade, width: 36, bottom: 2, color: "#333333", accent: "#ffffff", active: true, now: 900 });
+  assert.deepEqual(later.slice(1, -1), fixed.slice(1, -1), "no tick rewrites a content row");
+  assert.notEqual(later[0], first[0], "the top rail still travels");
+  assert.notEqual(later.at(-1), first.at(-1), "the bottom rail still travels");
   assert.deepEqual(paintFramePerimeter(fixed, { theme, width: 36, active: false, accent: "#ffffff" }), fixed);
 });
