@@ -274,9 +274,12 @@ async function harness(mode = "tui", savedComposerPrefs) {
     appendEntry(customType, data) { entries.push({ type: "custom", customType, data }); },
   };
   await factory(api);
+  // UI regressions must not require an audio device or spawn players.
+  await commands.get("sounds").handler("off", ctx);
   const emit = async (name, data = {}) => { for (const fn of handlers.get(name) ?? []) await fn({ type: name, ...data }, ctx); };
   const command = (text) => commands.get("composer").handler(text, ctx);
   return { ctx, tui, emit, command, entries, handlers, widgets, placements, events: api.events,
+    soundCommand: text => commands.get("sounds").handler(text, ctx),
     completions(prefix) { return commands.get("composer").getArgumentCompletions(prefix).map(item => item.value); },
     rename(value) { name = value; },
     get picker() { return picker; },
@@ -290,6 +293,55 @@ async function harness(mode = "tui", savedComposerPrefs) {
     },
   };
 }
+
+test("completion audio follows settled success and question cues do not repeat for nested dialogs", async t => {
+  const { WorkspaceSounds } = await jiti.import(join(source, "sounds.ts"));
+  const played = [];
+  t.mock.method(WorkspaceSounds.prototype, "play", async kind => { played.push(kind); });
+  const h = await harness();
+  try {
+    await h.emit("session_start");
+    await h.soundCommand("on");
+    await h.emit("agent_settled");
+    assert.deepEqual(played, [], "loading an idle session is silent");
+    await h.emit("agent_start");
+    await h.emit("agent_start");
+    await h.emit("tool_execution_start", { toolCallId: "q", toolName: "ask_questions" });
+    await h.emit("ui_prompt_start", { kind: "custom" });
+    await h.emit("ui_prompt_start", { kind: "custom" });
+    assert.deepEqual(played, ["question"]);
+    await h.emit("ui_prompt_end");
+    await h.emit("ui_prompt_end");
+    await h.emit("tool_execution_end", { toolCallId: "q" });
+    await h.emit("message_end", { message: { role: "assistant", stopReason: "stop", content: [] } });
+    assert.deepEqual(played, ["question"], "message end is not completion");
+    await h.emit("agent_settled");
+    await h.emit("agent_settled");
+    assert.deepEqual(played, ["question", "done"], "one cue for the settled run");
+    for (const stopReason of ["error", "aborted"]) {
+      await h.emit("agent_start");
+      await h.emit("message_end", { message: { role: "assistant", stopReason, content: [] } });
+      await h.emit("agent_settled");
+    }
+    await h.emit("agent_start");
+    await h.emit("message_end", { message: { role: "assistant", stopReason: "stop", content: [] } });
+    await h.emit("agent_settled", { aborted: true });
+    assert.deepEqual(played, ["question", "done"], "cancellation after the final assistant message is silent");
+    await h.emit("ui_prompt_start", { kind: "select" });
+    await h.emit("ui_prompt_end");
+    assert.deepEqual(played, ["question", "done"], "errors, cancellation and settings are silent");
+    await h.soundCommand("off");
+    await h.emit("agent_start");
+    await h.emit("agent_settled");
+    assert.deepEqual(played, ["question", "done"], "mute suppresses automatic audio");
+  } finally { await h.close(); }
+  const rpc = await harness("rpc");
+  try {
+    await rpc.emit("agent_start");
+    await rpc.emit("agent_settled");
+    assert.deepEqual(played, ["question", "done"], "noninteractive runs are silent");
+  } finally { await rpc.close(); }
+});
 
 test("fresh and retired Workspace preferences render only Composer, with migration deferred until an explicit save", async () => {
   const legacy = { enabled: true, look: "biolume", motion: "ambient", scene: false, gaze: "mouse", theme: true, icons: "plain" };

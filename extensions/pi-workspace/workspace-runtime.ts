@@ -20,6 +20,7 @@ import { registerWorkspaceAppearance } from "./footer.ts";
 import { registerComposerControls } from "./composer-controls.ts";
 import { loadComposerPreferences, saveComposerPreferences, COMPOSER_SETTINGS } from "./composer-preferences.ts";
 import { SurfaceScope } from "./surface-lifecycle.ts";
+import { WorkspaceSounds } from "./sounds.ts";
 import {
   DEFAULTS, TIMING_ENTRY, RunClock, shouldAnimate,
   type WorkspaceState, type Outcome, type Preferences,
@@ -34,6 +35,17 @@ export default function workspace(pi: ExtensionAPI) {
     promptDepth: 0, blockingPromptDepth: 0, compacting: false, lastInputAt: 0, thinkingLevel: () => pi.getThinkingLevel(),
   };
   let context: ExtensionContext | undefined;
+  const sounds = new WorkspaceSounds();
+  let soundEnabled = ["darwin", "win32", "linux"].includes(process.platform);
+  let soundRun = false;
+  const questionSounds = new Set<string>();
+  function playSound(kind: "done" | "question", ctx: ExtensionContext) {
+    if (!soundEnabled || ctx.mode !== "tui") return;
+    void sounds.play(kind).catch(error => {
+      soundEnabled = false;
+      ctx.ui.notify(`Workspace sounds disabled: ${String(error)}`, "warning");
+    });
+  }
   const passiveDialogs = new Set<string>(), promptPauses: boolean[] = [];
   pi.events.on(POSTED.interaction, (event: any) => {
     if (event?.version !== 1 || event.sessionId !== context?.sessionManager.getSessionId() || !["pi-tasks:browser", "pi-ask:posted"].includes(event.id) || typeof event.active !== "boolean") return;
@@ -316,6 +328,7 @@ export default function workspace(pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     passiveDialogs.clear(); promptPauses.length = 0; state.promptDepth = 0; state.blockingPromptDepth = 0;
+    soundRun = false; questionSounds.clear(); sounds.dispose();
     if (ctx.mode !== "tui") return;
     context = ctx;
     state.chronomancerDay = undefined;
@@ -332,6 +345,7 @@ export default function workspace(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", () => {
     passiveDialogs.clear(); promptPauses.length = 0; state.promptDepth = 0; state.blockingPromptDepth = 0;
+    soundRun = false; questionSounds.clear(); sounds.dispose();
     // A settings preview can decorate native input even while Composer is off.
     // Dispose it synchronously; don't wait for an aborted dialog's async finally.
     for (const dispose of [...previews]) dispose();
@@ -355,6 +369,7 @@ export default function workspace(pi: ExtensionAPI) {
   pi.on("agent_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     context = ctx;
+    soundRun = true;
     if (state.clock.begin(Date.now())) pi.appendEntry(TIMING_ENTRY, { ...state.clock.timing });
     state.phase = "working";
     if (installed) ctx.ui.setWorkingVisible(false);
@@ -363,11 +378,14 @@ export default function workspace(pi: ExtensionAPI) {
     outcome = "done";
     wake();
   });
-  pi.on("agent_settled", (_event, ctx) => {
+  pi.on("agent_settled", (event, ctx) => {
     if (ctx.mode !== "tui") return;
     context = ctx;
     const timing = state.clock.settle(Date.now(), outcome);
     if (timing) pi.appendEntry(TIMING_ENTRY, timing);
+    if (soundRun && !event.aborted && outcome === "done") playSound("done", ctx);
+    soundRun = false;
+    questionSounds.clear();
     state.tools.clear();
     state.compacting = false;
     wake();
@@ -394,6 +412,7 @@ export default function workspace(pi: ExtensionAPI) {
     if (ctx.mode !== "tui") return;
     activityBlocks.finish(event.toolCallId, event.parentToolCallId, event.isError);
     state.tools.delete(event.toolCallId);
+    questionSounds.delete(event.toolCallId);
     state.phase = "working";
     wake();
   });
@@ -403,6 +422,14 @@ export default function workspace(pi: ExtensionAPI) {
     dictation?.cancel("prompt");
     const pauses = state.promptBlocksWork!(event.kind);
     promptPauses.push(pauses);
+    if (pauses) {
+      const pending = [...state.tools].filter(([id, name]) =>
+        (name === "ask_questions" || name === "ask_user_question") && !questionSounds.has(id));
+      if (pending.length) {
+        for (const [id] of pending) questionSounds.add(id);
+        playSound("question", ctx);
+      }
+    }
     if (pauses) { state.clock.pause(Date.now()); state.blockingPromptDepth = (state.blockingPromptDepth ?? 0) + 1; }
     state.promptDepth++;
     if (installed) mountWorkspace(ctx);
@@ -444,6 +471,24 @@ export default function workspace(pi: ExtensionAPI) {
 
   const recaps = registerRecaps(pi, () => state.prefs.enabled);
 
+  pi.registerCommand("sounds", {
+    description: "Workspace audio: on, off, test, or question (session-only; macOS, Windows, Linux).",
+    handler: async (args, ctx) => {
+      if (ctx.mode !== "tui") return;
+      switch (args.trim()) {
+        case "on": soundEnabled = true; break;
+        case "off": soundEnabled = false; sounds.dispose(); break;
+        case "test":
+        case "question":
+          try { await sounds.play(args.trim() === "question" ? "question" : "done"); }
+          catch (error) { ctx.ui.notify(`Workspace sound failed: ${String(error)}`, "warning"); }
+          return;
+        case "": break;
+        default: ctx.ui.notify("Usage: /sounds [on|off|test|question]", "info"); return;
+      }
+      ctx.ui.notify(`Workspace sounds ${soundEnabled ? "on" : "off"} for this session.`, "info");
+    },
+  });
   pi.registerCommand("dictate", {
     description: "Toggle microphone dictation; in fullscreen the Composer bottom-rail mic does the same.",
     handler: async (_args, ctx) => {

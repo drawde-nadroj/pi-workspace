@@ -20,6 +20,26 @@ Composer is the fresh-install default. `/composer on` re-enables it; `/composer 
 
 The optional Tasks extension publishes a data-only plan snapshot to Workspace. A compact sourced checklist can appear above the input, with a bold, softly highlighted active row and explicit Working/Paused wording. Fresh Tasks presentation defaults to a brief 1200 ms highlight on focus/completion changes rather than continuous border motion; saved presentation choices remain authoritative. `/tasks` opens the work list and plan library. Workspace never starts or completes a task, and Tasks retains its standalone fallback. See [DOCK.md](DOCK.md) and the [Tasks README](../pi-tasks/README.md).
 
+## Notification sounds
+
+On macOS, Windows and Linux, Workspace plays React Bits **Pluck** once when an interactive run settles successfully, after retries and queued work finish. A quieter **Hint** plays when a blocking `ask_questions` or `ask_user_question` form opens, once per tool call rather than once per nested dialog. Errors, cancellations (including settlement aborted after the final reply), ordinary tools, settings dialogs and passive posted-question browsing are silent. Noninteractive modes never play automatic cues.
+
+`/sounds off` mutes automatic cues and stops current playback; `/sounds on` enables them. `/sounds` reports the current state. `/sounds test` previews Pluck and `/sounds question` previews Hint, even while muted. These operational controls are session-only, independent of Composer appearance and `/workspace` Save; restarting or reloading restores the platform default. No saved settings are changed.
+
+Sounds default on for macOS, Windows and Linux. Playback uses bundled 48 kHz stereo **16-bit PCM WAV** files, without React, browser access, runtime downloads or new npm dependencies. Hint's 60% amplitude is baked into its asset so every backend uses the same level; system volume still applies.
+
+| Platform | Native player and prerequisites |
+| --- | --- |
+| macOS | Built-in `/usr/bin/afplay` |
+| Windows | Built-in Windows PowerShell (`powershell.exe` on PATH), using .NET `System.Media.SoundPlayer`. No profile or visible console is opened; asset paths are passed as environment data, not interpolated into script source. |
+| Linux | `pw-play` (PipeWire), then `paplay` (PulseAudio), then `aplay` (ALSA). A working audio output is required. Debian/Ubuntu packages are `pipewire-bin`, `pulseaudio-utils`, or `alsa-utils`, respectively; install the one appropriate to your audio stack. |
+
+Linux advances to another player only when the executable is missing. Audio-server, device, permission or decoding failures are reported rather than retried through a different backend. A playback failure disables automatic cues with a warning; `/sounds on` re-enables them after the prerequisite is fixed. Mute, shutdown and reload stop owned players, including pending backend selection. Other operating systems default off and report unsupported playback if explicitly previewed.
+
+Playback occurs on the machine running Pi, not on an SSH client's speakers. WSL follows the Linux path and needs its Linux audio connection configured. These controls do not provision an audio server or forward remote sound.
+
+The sounds derive from original exports from [React Bits Sound Lab](https://reactbits.dev/tools/sound-lab), pinned and attributed in `assets/sounds/PROVENANCE.json`. That file records the original export hashes, portable PCM conversion, question attenuation and bundled hashes. Their `LICENSE.txt` is **MIT + Commons Clause**, distinct from this suite's MIT code license; application embedding is permitted, but standalone sound-pack redistribution is not.
+
 ## Dictation
 
 `/dictate`, or the bottom-rail mic in a fullscreen TUI, records from the default system microphone, shows `REC <n>s`, and inserts the local transcript at the editor cursor on the second press. Capture is one `ffmpeg` child process at 16 kHz mono; transcription is one `whisper-cli` run. Nothing is uploaded and no npm dependency is added. A recording is capped at five minutes, a prompt closing cancels it, and Composer off disposes it.
@@ -56,6 +76,7 @@ The former standalone `/composer-preview` synthetic screen was retired because i
 | `/composer output raw`, `/composer output readable` | Change expanded tool-card output for this session |
 | `/workspace` | Customize frame, footer, Tasks, Ask and Transcript visuals; narrow layouts show Rooms… and Ctrl+R opens all rooms |
 | `/dictate` | Toggle microphone dictation from the keyboard; the fullscreen bottom-rail mic does the same |
+| `/sounds [on\|off\|test\|question]` | Session-only native notification controls and previews; macOS, Windows, Linux |
 | `/recaps on`, `/recaps off`, `/recaps status` | Opt-in additional activity inference; also discoverable through `/composer` → Activity recaps |
 
 Supported Composer preferences are `enabled`, `look: "composer"`, `motion: "work" | "off"`, `icons`, `details` and `theme`. They are persisted in the configured Pi agent directory, not in the repository. `pi-workspace.json` is the visual settings authority (with read-only legacy fallback). Disabling Composer does not turn off Tasks or erase visual preferences. Manual edits to Pi resources require `/reload` or a cold start.

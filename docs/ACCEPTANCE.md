@@ -1,5 +1,17 @@
 # Isolated workspace acceptance (Pi 1.0.0)
 
+## Cross-platform notification sounds (2026-10-25)
+
+Implemented in the `drawde-nadroj/cross-platform-sounds` worktree, based on `3b0046c` plus the isolated sound changes. The original checkout and its unrelated work were left untouched; no live Pi settings were changed.
+
+- **Automated:** full `npm test` and `npm run pack:check` passed locally on macOS. Workspace includes regressions for final-settlement notification (including late abort), question deduplication, mute, noninteractive silence, missing-player fallback, device/permission errors, cancellation during fallback, instance reuse, safe Windows path transport, and portable WAV decoding headers. General UI fixtures explicitly mute audio rather than requiring a device.
+- **macOS native smoke:** the changed module played both converted cues through `afplay`; cancellation and subsequent reuse completed successfully.
+- **Linux native smoke:** Node 24.19.0 on Debian x86-64 ran the actual playback module, fell through absent PipeWire/PulseAudio executables, and completed both cues through ALSA `aplay` 1.2.14. Cancellation and reuse also passed. The player and libasound were extracted into a disposable directory, not installed system-wide. A temporary ALSA null PCM sink exercised actual player/decoder execution; this does **not** establish audible hardware output or PipeWire/PulseAudio server connectivity.
+- **Windows boundary:** deterministic routing, script-path isolation, failure and cancellation tests passed on macOS. A Windows-only regression runs the real PowerShell/SoundPlayer path on both assets from a directory containing spaces, quotes and Unicode in the existing `windows-latest` CI job. It was skipped locally; no Windows execution or new remote CI run is claimed here.
+- **Assets:** original React Bits exports were converted to standard 16-bit PCM for Windows compatibility; question attenuation is baked into the asset. Source/export hashes, conversion details and resulting hashes are recorded in bundled provenance.
+
+Human loudness/notification preference checks and Windows native playback remain unverified in this session. These results are not evidence of remote-audio forwarding; sounds play on Pi's execution host.
+
 ## Share-ready primitives (2026-10-21)
 
 Decomposability and truthfulness work; no rendering or interaction behavior of Workspace, Tasks or Ask changed in this increment, and no live preference file was written.

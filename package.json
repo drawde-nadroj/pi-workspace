@@ -15,6 +15,7 @@
   "workspaces": ["packages/pi-frame", "packages/pi-ask", "packages/pi-agent-contracts"],
   "files": [
     "extensions/pi-workspace/*.ts",
+    "extensions/pi-workspace/assets/sounds/*",
     "extensions/pi-tasks/*.ts",
     "lib/*.ts",
     "packages/pi-ask/extensions/**/*.ts",
