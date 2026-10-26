@@ -60,7 +60,7 @@ export function createQuestSelector(theme: Theme, title: string, choices: string
       wrapped = title.split("\n").flatMap(line => wrapTextWithAnsi(line, inner));
       textOffset = Math.min(textOffset, Math.max(0, wrapped.length - bodyBudget));
       const body = wrapped.slice(textOffset, textOffset + bodyBudget).map(line =>
-        /^(QUESTIONS|EVIDENCE|DISCOVERIES|CONNECTIONS|Open question:|Discovery \/ evidence:|Linked quests:)/.test(line) ? paint(line, "gold") : /^(NOW|WORK|FIRST MOVE|SOURCE|PURPOSE|NEXT MOVE|GOAL|DEVELOPMENTS|LINKED TASKS|ORIGIN|PURSUIT|ACTIONS|HISTORY)/.test(line) ? paint(line, "jade", true) : theme.fg("text", line));
+        /^(QUESTIONS|EVIDENCE|DISCOVERIES|CONNECTIONS|Open question:|Discovery \/ evidence:|Linked quests:)/.test(line) ? paint(line, "gold") : /^(POSSIBLE DIRECTIONS|INTENT|NOW|WORK|FIRST MOVE|SOURCE|PURPOSE|NEXT MOVE|GOAL|DEVELOPMENTS|LINKED TASKS|ORIGIN|PURSUIT|ACTIONS|HISTORY)/.test(line) ? paint(line, "jade", true) : theme.fg("text", line));
       return frameRows({ theme, width, inset:1, rows:[...body, "", ...optionRows], color:parseColor(palette().jade),
         corners: { topLeft:paint(` ${identity} `, "jade", true), topRight: width > 35 ? paint(identity === "Quests" ? " Explore · Connect " : " History · Sources ", "gold") : "",
           bottomLeft: theme.fg("muted", wrapped.length > bodyBudget ? " ↑↓ choose · PgUp/PgDn read · Esc back " : " ↑↓ choose · Enter open · Esc back ") },

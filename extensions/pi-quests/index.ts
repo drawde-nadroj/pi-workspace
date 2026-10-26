@@ -4,8 +4,9 @@ import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent"
 import { Type } from "typebox";
 import { Text, truncateToWidth } from "@earendil-works/pi-tui";
 import { directionLabel, handoffPaths, handoffRows, handoffText, isHandoff } from "./handoff.ts";
-import { QuestStore, STATES, type Quest } from "./store.ts";
+import { QuestStore, STATES, INTENTS, type Quest } from "./store.ts";
 import { questSelect } from "./surface.ts";
+import { possibilityMarkdown } from "./possibility-markdown.ts";
 import { questJournal } from "./journal.ts";
 import { pursuitSource, taskLinks, questionLinks } from "./context.ts";
 import { CONTEXT_KINDS, resumeContext } from "./continuity.ts";
@@ -21,10 +22,12 @@ export async function pursuitResume(q: Quest, ctx: ExtensionContext): Promise<st
 }
 import { ACTIVITY_EVENT } from "../../lib/session-activity.ts";
 
-export const GUIDANCE = `Pi Quests is a persistent landscape of possibilities, available through quests and /quests. At meaningful conversational milestones and user cues, develop grounded depth (deepen this idea) and breadth (connect it elsewhere) paths. Present depth as Deepen and breadth as Connect: foreground a meaningful name, value, concrete first move and a concise From line identifying the actual conversation, observation or supplied material that inspired it. The source explains why this path appeared; distinguish a proposed connection from a discovered fact. Usually one or two substantial paths are enough; offer more only when the conversation genuinely branches. Use quests present for one shared Where next? handoff, passing existing path IDs or unsaved inline paths. The rendered handoff is the invitation; continue with a brief conversational bridge only when it adds substance. When presentation is unavailable, use the same labelled structure in ordinary prose. Offer worthwhile paths without requiring a Tasks plan or scanning other sessions/files. Use an affirmative thought-partner voice. Save offers with quests only when they add substance; list relevant existing paths first to reuse rather than duplicate them. Offered paths are possibilities. A user's explicit request to pursue one in conversation counts as acceptance: record state active with requestMessageId and exact requestQuote, without sending another request or restarting work. Interpret the request honestly; source validation proves the quote exists, not its meaning. /quests also offers Continue in chat and Keep for later. Record meaningful progress, questions and discoveries as work develops; link the Tasks plan with planId. Define goal before recording completion and include fresh evidence against it. Present the substance of a new path, not merely a creation announcement. Develop thoughts, titles, discoveries, evidence and linked open questions through conversation. Keep factual evidence distinct from interpretation. Buffered quest questions are exploratory invitations, not obligations or execution blockers. Develop them in conversation when useful. For input or decisions needed by work, use Ask and explain why the answer matters, when it is needed, what waits and what can continue. Keep firstMove as the original invitation; record nextMove separately as the current meaningful step, refreshing it after progress or a decision instead of presenting completed work as next. Tasks owns authorized execution checklists. When Tasks supplies its completion follow-up, use that same Where next? handoff rather than a separate announcement. Respect user format and desire to finish. Quests never requires an extra model run. Maintain pursuit continuity at meaningful changes: record source-linked understanding, uncertainty, observations, decisions and artifacts with stable keys; correct a record with a new key and supersedes. These are agent reports, not independent verification. Use sync after a linked Ask answer is applied or work changes to capture current-branch consequences and Tasks snapshots; sync never applies answers or changes tasks. Resume reads a bounded orientation; focus selects a pursuit for this branch's subsequent runs without accepting or starting it. Keep nextMove current after decisions and results. Use get/history for complete evidence and answer caveats, and verify current branch prerequisites before resuming action.`;
+export const GUIDANCE = `Pi Quests preserves developing pursuits through quests and /quests. Keep the user's actual question and chosen direction central. Weave genuinely useful possibilities naturally into the main response; depth (Deepen) and breadth (Connect) are optional thinking lenses, not mandatory headings or a pair to fill. A task completion does not call for a second suggestions message. For a useful possibility within the main answer, write an explicit standalone bold Markdown title in this exact readable form: **Possibility · A short plain-text title**. Follow it with normal conversational prose. Supporting hosts color only that labelled title green; unsupported hosts retain the readable label. Use the marker only for actual invitations, not code examples or incidental mentions. An occasional separate compact presentation is available through quests present with presentation possibility, but keep the main response primary. Use the full presentation handoff only when the user asks to explore directions. Presentation saves nothing and starts no work. Favor preserving substantial ideas developed together or met with explicit interest; occasional agent-noticed possibilities must stay clearly offered. List relevant paths first to reuse them. Capture name, value, source and a possible first move, then link related paths with link; /quests shows offered/saved linked paths under Possible directions. Identical offers are retry-safe; semantic deduplication remains your judgment. No unrelated-session scans are needed. Interpret intent explicitly: keep preserves a possibility (state saved, intent keep); explore develops an inquiry (state active, intent explore); make undertakes only specifically authorized work (state active, intent make). Conversational intent needs requestMessageId and an exact requestQuote on this branch. Source validation establishes provenance, not semantic consent. Discussing an idea does not authorize implementation. Record intent without resending the user's request or restarting work. A stored make intent is historical context, not blanket or renewed authorization. The journal also offers Explore in chat and Keep for later. Use an affirmative thought-partner voice. Record meaningful progress, questions and discoveries as work develops; link concrete Tasks plans with planId only within authorized scope. Define goal before completion and include fresh evidence. Exploratory questions are invitations, not execution blockers. Ask owns consequential work decisions and answer delivery; explain purpose, timing, affected work and independent progress. Tasks owns execution checklists. Keep firstMove as the original invitation and nextMove as the current step, refreshing it after progress and decisions. Respect user format and desire to finish. Quests adds no model run or background exploration. Record sourced understanding, uncertainty, observations, decisions and artifacts with stable keys; corrections use a new key and supersedes. These remain agent reports. Sync captures current-branch linked Tasks/Ask snapshots without applying answers or mutating tasks. Resume is bounded read-only orientation; focus selects branch-local context without accepting or starting a pursuit. Inspect complete evidence and caveats with get/history and current Ask before acting.`;
 const text = (maxLength = 4000) => Type.String({ minLength: 1, maxLength });
 const Params = Type.Object({
   op: StringEnum(["list", "get", "offer", "update", "history", "context", "present", "record", "sync", "resume", "focus"] as const),
+  intent: Type.Optional(StringEnum(INTENTS)),
+  presentation: Type.Optional(StringEnum(["handoff", "possibility"] as const)),
   contextKind: Type.Optional(StringEnum(CONTEXT_KINDS)), key: Type.Optional(text(200)), statement: Type.Optional(text()),
   sourceEntryId: Type.Optional(text(200)), supersedes: Type.Optional(text(200)),
   paths: Type.Optional(Type.Array(Type.Object({
@@ -43,7 +46,7 @@ const Params = Type.Object({
   requestMessageId: Type.Optional(text(200)), requestQuote: Type.Optional(text()), planId: Type.Optional(text(100)),
 });
 export function questDetail(q: Quest, related: Quest[] = []): string {
-  const sections = [q.title, `Status: ${q.state} · ${q.kind}`, `Visibility: ${q.global ? "All workspaces" : `This workspace · ${q.workspace}`}`,
+  const sections = [q.title, `Status: ${q.state} · ${q.kind}\nIntent: ${q.intent ?? "not recorded"}`, `Visibility: ${q.global ? "All workspaces" : `This workspace · ${q.workspace}`}`,
     `PURPOSE\n${q.why}`, `NEXT MOVE\n${q.nextMove ?? "Develop the next step together."}\nOriginal first move: ${q.firstMove}`, `GOAL\n${q.goal ?? "Still developing — define an outcome before completing this quest."}`,
     `QUESTIONS\n${q.questions.length ? q.questions.map(x=>`${x.answer ? "Answered" : "Open question"}: ${x.text}${x.answer ? `\nAnswer: ${x.answer}` : ""}`).join("\n") : "No questions recorded yet."}`,
     `DEVELOPMENTS\n${q.progress?.length ? q.progress.slice(-5).join("\n") : "No progress recorded yet."}`,
@@ -52,22 +55,30 @@ export function questDetail(q: Quest, related: Quest[] = []): string {
     `CONNECTIONS\n${q.links.length ? q.links.map(id=>{const other=related.find(x=>x.id===id); return other ? `${other.title} · ${other.state}\n${other.why}` : id;}).join("\n") : "No connected paths recorded yet."}`,
     `ORIGIN\n${q.origin.source}\nSession: ${q.origin.session}\nWorkspace: ${q.workspace}`,
     q.pursuit ? `PURSUIT\n${q.pursuit.quote}\nSource: ${q.pursuit.session} / ${q.pursuit.messageId}` : "",
-    "ACTIONS\nContinue sends a new chat request. Keep for later saves quietly. Visibility changes where this appears, not its origin."];
+    "ACTIONS\nExplore in chat sends a conversational inquiry, not an implementation request. Keep for later saves quietly. Visibility changes where this appears, not its origin."];
   return sections.filter(Boolean).join("\n\n");
 }
 export default function quests(pi: ExtensionAPI) {
   const store = new QuestStore(join(getAgentDir(), "quests", "journal.sqlite"));
+  // Optional public host capability; older hosts keep the same readable Markdown.
+  let displayTheme: (() => import("@earendil-works/pi-coding-agent").Theme | undefined) | undefined;
+  const markdownHost = pi as ExtensionAPI & {registerMarkdownTransformer?: (fn:(markdown:string,context:{messageType:string})=>string)=>void};
+  if (typeof markdownHost.registerMarkdownTransformer === "function") {
+    markdownHost.registerMarkdownTransformer((markdown,context)=>possibilityMarkdown(markdown,context,displayTheme?.()));
+    pi.on("session_start",(_event,ctx)=>{displayTheme=()=>ctx.ui?.theme;});
+    pi.on("session_shutdown",()=>{displayTheme=undefined;});
+  }
   const publish = (q: Quest, session: string, label: string, discovery = false) => {
     pi.events.emit(ACTIVITY_EVENT, {version:1,session,key:`quest:${q.id}:${q.revision}`,at:q.updatedAt,kind:discovery ? "discovery" : "quest",title:`${label}: ${q.title}`,summary:q.why,sourceId:q.id});
     return q;
   };
   pi.registerTool({
-    name: "quests", label: "Quests", description: `${GUIDANCE} list returns 20 summaries and revisions; get reads detail; offer requires title/why/firstMove/source and always creates an offered path. update requires id/revision and can refine, link another quest, add evidence or buffer/answer a question. context returns the current branch's recent user messages with IDs and Tasks plans, for source linking. Conversational pursuit uses state active plus requestMessageId and requestQuote from an explicit user request on this branch. planId links a current-session Tasks plan. goal defines closure; progress records developments; nextMove records the current next step separately from the original firstMove; completion needs fresh evidence. Keep-for-later/Decline remain user actions in /quests. history reads 20 snapshots per page. present displays one to four paths in a shared jade/gold Where next? surface: paths contain existing id-only references or unsaved title/why/firstMove/source with optional kind. It is read-only, adds no journal/activity records, and starts no work. Call present directly so its own renderer can display the handoff. record requires id/revision/key/contextKind/statement/source; sourceEntryId optionally references an existing branch entry. References are agent-supplied unless an entry is validated; validation establishes existence, not truth. Reusing the same key and exact content is a safe no-op; supersedes preserves corrections. sync requires id/revision and snapshots only already-linked current-branch Tasks and Ask records. resume requires id, reads bounded context without writes or work; focus also selects that pursuit as branch-local context, without changing quest state or sending a request; focus without id clears that selection.`,
+    name: "quests", label: "Quests", description: `${GUIDANCE} list returns 20 summaries and revisions; get reads detail; offer requires title/why/firstMove/source and creates an offered path; exact same-session/workspace/source/input retries reuse its record without events. update requires id/revision and can refine, link another quest, add evidence or buffer/answer a question. context returns the current branch's recent user messages with IDs and Tasks plans, for source linking. Conversational intent uses intent keep with state saved, or intent explore/make with state active, plus requestMessageId and requestQuote from an explicit user request on this branch. Without intent, a new sourced active transition defaults conservatively to exploration; legacy records retain unspecified intent. planId links a current-session Tasks plan. goal defines closure; progress records developments; nextMove records the current next step separately from the original firstMove; completion needs fresh evidence. Keep can also be recorded from an explicit sourced request; Decline remains a user action in /quests. history reads 20 snapshots per page. present defaults to the full handoff (one to four paths); presentation possibility shows one compact unframed green label/title with neutral prose: paths contain existing id-only references or unsaved title/why/firstMove/source with optional kind. It is read-only, adds no journal/activity records, and starts no work. Call present directly so its own renderer can display the handoff. record requires id/revision/key/contextKind/statement/source; sourceEntryId optionally references an existing branch entry. References are agent-supplied unless an entry is validated; validation establishes existence, not truth. Reusing the same key and exact content is a safe no-op; supersedes preserves corrections. sync requires id/revision and snapshots only already-linked current-branch Tasks and Ask records. resume requires id, reads bounded context without writes or work; focus also selects that pursuit as branch-local context, without changing quest state or sending a request; focus without id clears that selection.`,
     parameters: Params,
     async execute(_id, p, _signal, _update, ctx) {
-      let result: unknown;
+      let result: unknown, changed = true;
       if (p.op === "present") {
-        const handoff = handoffPaths(p.paths, id => store.get(id));
+        const handoff = handoffPaths(p.paths, id => store.get(id), p.presentation);
         return {content:[{type:"text",text:handoffText(handoff)}],details:handoff};
       }
       if (["record","sync","resume","focus"].includes(p.op)) {
@@ -99,10 +110,11 @@ export default function quests(pi: ExtensionAPI) {
         result = {session:ctx.sessionManager.getSessionId(),plans:taskLinks(ctx),requests:ctx.sessionManager.getBranch().filter(e=>e.type === "message" && e.message.role === "user").slice(-10).map(e=>({id:e.id,...(e.type === "message" && e.message.role === "user" ? {content:e.message.content} : {})}))};
       } else if (p.op === "list") {
         const all = store.list(p.view === "all" ? undefined : ctx.cwd), offset = p.offset ?? 0;
-        result = { total: all.length, offset, quests: all.slice(offset, offset + 20).map(q => ({ id: q.id, revision: q.revision, title: q.title, kind: q.kind, state: q.state, global: q.global, openQuestions: q.questions.filter(x => !x.answer).length })) };
+        result = { total: all.length, offset, quests: all.slice(offset, offset + 20).map(q => ({ id: q.id, revision: q.revision, title: q.title, kind: q.kind, state: q.state, intent: q.intent, global: q.global, openQuestions: q.questions.filter(x => !x.answer).length })) };
       } else if (p.op === "offer") {
         if (!p.title || !p.why || !p.firstMove || !p.source) throw new Error("Offer needs title, why, firstMove and source");
-        result = store.offer({ title:p.title, why:p.why, firstMove:p.firstMove, source:p.source, kind:p.kind, global:p.global, goal:p.goal }, ctx.cwd, ctx.sessionManager.getSessionId());
+        const offered = store.offerResult({ title:p.title, why:p.why, firstMove:p.firstMove, source:p.source, kind:p.kind, global:p.global, goal:p.goal }, ctx.cwd, ctx.sessionManager.getSessionId());
+        result = offered.quest; changed = offered.changed;
       } else {
         if (!p.id) throw new Error("Quest id required");
         if (p.op === "get") result = store.get(p.id);
@@ -112,10 +124,12 @@ export default function quests(pi: ExtensionAPI) {
           const pursuit = p.requestMessageId && p.requestQuote ? pursuitSource(ctx, p.requestMessageId, p.requestQuote) : undefined;
           const taskLink = p.planId ? taskLinks(ctx).find(x=>x.planId === p.planId) : undefined;
           if (p.planId && !taskLink) throw new Error("Plan not found on this session branch.");
+          const before = store.get(p.id);
           result = store.update(p.id, p.revision, {...p, pursuit, taskLink}, "agent");
+          changed = (result as Quest).revision !== before.revision;
         }
       }
-      if (p.op === "offer" || p.op === "update") publish(result as Quest, ctx.sessionManager.getSessionId(), p.op === "offer" ? "Path offered" : p.question ? "Question added" : p.answer ? "Question answered" : p.evidence ? "Evidence recorded" : p.state === "active" ? "Quest underway" : p.state === "completed" ? "Quest completed" : "Quest updated", !!(p.question || p.answer || p.evidence || p.link));
+      if (changed && (p.op === "offer" || p.op === "update")) publish(result as Quest, ctx.sessionManager.getSessionId(), p.op === "offer" ? "Path offered" : p.question ? "Question added" : p.answer ? "Question answered" : p.evidence ? "Evidence recorded" : p.state === "active" ? "Quest underway" : p.state === "completed" ? "Quest completed" : "Quest updated", !!(p.question || p.answer || p.evidence || p.link));
       return { content: [{ type:"text", text:JSON.stringify(result) }], details: undefined };
     },
     renderCall(args, theme) {
@@ -134,6 +148,7 @@ export default function quests(pi: ExtensionAPI) {
     },
   });
   pi.on("before_agent_start", async (_event,ctx) => {
+    if (typeof markdownHost.registerMarkdownTransformer === "function") displayTheme=()=>ctx.ui?.theme;
     let orientation="";
     const focused=ctx.sessionManager.getBranch().filter(e=>e.type === "custom" && e.customType === FOCUS_ENTRY).at(-1);
     if (focused?.type === "custom") {
@@ -204,14 +219,14 @@ export default function quests(pi: ExtensionAPI) {
             }
             continue;
           }
-          if (action === "Continue in chat") {
+          if (action === "Explore in chat") {
             if (!ctx.isIdle()) { ctx.ui.notify("Start this path once the current run finishes.", "info"); continue; }
-            q = publish(store.update(q.id, q.revision, { state:"active" }, "user"), session, "Quest underway");
+            q = publish(store.update(q.id, q.revision, { state:"active", intent:"explore" }, "user"), session, "Exploration underway");
             pi.appendEntry(FOCUS_ENTRY,{version:1,id:q.id});
-            pi.sendUserMessage(`Continue this quest with me. Use quests resume for its current position, inspect relevant evidence and linked work, then develop the next useful move without repeating completed work.\nQuest: ${q.id}\nTitle: ${q.title}`);
+            pi.sendUserMessage(`Explore this quest with me in conversation. This chooses inquiry, not implementation; agree on concrete work before building or changing artifacts. Use quests resume for its current position, inspect relevant evidence and linked work, then develop understanding without repeating completed work.\nQuest: ${q.id}\nTitle: ${q.title}`);
             return;
           }
-          publish(store.update(q.id, q.revision, action === "Show in all workspaces" || action === "Show only in original workspace" ? { global:action === "Show in all workspaces" } : { state: action === "Keep for later" ? "saved" : action === "Pause" ? "paused" : "declined" }, "user"), session, "Quest updated");
+          publish(store.update(q.id, q.revision, action === "Show in all workspaces" || action === "Show only in original workspace" ? { global:action === "Show in all workspaces" } : { state: action === "Keep for later" ? "saved" : action === "Pause" ? "paused" : "declined", ...(action === "Keep for later" ? {intent:"keep" as const} : {}) }, "user"), session, "Quest updated");
         }
       } catch (error) { ctx.ui.notify(`Quests: ${error instanceof Error ? error.message : String(error)}`, "error"); }
     },

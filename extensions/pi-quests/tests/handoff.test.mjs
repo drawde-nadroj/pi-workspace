@@ -57,6 +57,6 @@ test('present is a non-persisting invitation and existing references are immutab
   const native=new ToolExecutionComponent('quests','fixture',{op:'present',paths},undefined,tool,{requestRender:()=>{}},dir);
   native.setArgsComplete();native.updateResult({...result,isError:false});
   for(const width of [24,64,100]){const lines=native.render(width);assert.ok(lines.every(l=>visibleWidth(l)<=width));assert.match(plain(lines.join('\n')),/Where next/);}
-  assert.match(GUIDANCE,/Deepen.*Connect/);assert.match(GUIDANCE,/From line/);assert.match(GUIDANCE,/same Where next\? handoff/);
+  assert.match(GUIDANCE,/Deepen.*Connect/);assert.match(GUIDANCE,/name, value, source and a possible first move/);assert.match(GUIDANCE,/does not call for a second suggestions message/);
  }finally{if(old===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=old;await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
 });

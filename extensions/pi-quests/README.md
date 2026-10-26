@@ -49,9 +49,9 @@ Start a fresh Pi process after updating the suite. Bring a passage, transcript, 
 
 Open `/quests` to browse paths belonging to the current working directory plus globally promoted paths. `/quests all` shows the entire landscape. Choose a path and:
 
-The selected quest opens with its state, workspace, latest development (or purpose), current next move and up to two recorded blockers. Counted **Work**, **Questions**, **History**, **Evidence** and **Connections** disclosures reveal more; **Purpose** retains the goal and original first move, and **Source** retains full provenance. Enter toggles a disclosure; Page Down/Page Up scroll the detail while arrows select sections or actions. Browsing does not mutate the quest. History counts event snapshots, not unique discoveries or completed tasks.
+The selected quest opens with its state, workspace, latest development (or purpose), current next move and up to two recorded blockers. Counted **Possible directions**, **Work**, **Questions**, **History**, **Evidence** and **Connections** disclosures reveal more; **Purpose** retains the goal and original first move, and **Source** retains full provenance. Enter toggles a disclosure; Page Down/Page Up scroll the detail while arrows select sections or actions. Browsing does not mutate the quest. History counts event snapshots, not unique discoveries or completed tasks.
 
-- **Continue in chat** marks it active and sends a request to develop the next useful move, accounting for work already done. It requires an idle agent. If sending fails, inspect the record before continuing again.
+- **Explore in chat** marks it active with exploratory intent and sends a request to develop understanding, accounting for work already done. It explicitly asks for separate agreement before implementation. It requires an idle agent. If sending fails, inspect the record before continuing again.
 - **Resume overview** reads a bounded orientation: purpose, current position, understanding, uncertainty, next move, linked work and decision consequences. It does not change the journal or send a message.
 - **Understanding** and **Linked decisions** disclose current source-linked statements and dated Ask snapshots, including answer notes and application consequences.
 - **Keep for later** saves it without sending a message or starting work.
@@ -63,15 +63,33 @@ The selected quest opens with its state, workspace, latest development (or purpo
 
 Escape closes the browser. In TUI mode the browser uses a focused overlay bounded to 90% of terminal height; its actions and closing rail stay within that budget while detail text scrolls. Very small terminals use an unframed compact fallback. Quests has jade framing and focused selections, restrained warm-gold discovery/connection accents, and neutral body text. Light themes use deeper jade and gold for contrast. Arrow keys navigate, Enter selects, and Page Up/Page Down scroll long details. Selection uses Pi's native SelectList inside shared Frame chrome; text-entry dialogs and RPC selections remain native. Existing Composer draft, Vim and unrelated appearance settings remain unchanged. The browser currently supports keyboard navigation; it does not add pointer hit targets.
 
-## Where next: Deepen and Connect
+## Possibilities within the conversation
 
-The handoff borrows the feel of a field journal and a constellation: origins make a path intelligible, and connections show where a discovery could travel. **Deepen** uses jade for continuity and growing understanding; **Connect** uses warm gold for a new relationship. Both have equal visual prominence, with strong readable titles and neutral body text. Gold indicates connection, not priority or urgency. Stored kinds remain `depth`, `breadth` and `exploration`; the latter displays as **Explore**.
+The user's question and chosen direction stay primary. Depth (**Deepen**) and breadth (**Connect**) are optional ways for the agent to think, not required headings or a second completion message. Guidance favors retaining substantial ideas developed together or met with explicit interest; occasional agent-noticed ideas stay clearly offered.
 
-Each path shows its value, **First move**, and **From** source. The agent should name the actual observation, conversation or supplied material that inspired the path, distinguishing a proposed connection from an established fact. Usually one or two substantial paths are enough. The same handoff can arise during conversation or Tasks' existing completion review.
+For an invitation within the main response, the agent can write an explicit standalone Markdown title:
 
-`quests present` renders one shared jade-framed handoff in the tool transcript. It accepts either existing IDs or inline ideas; presentation itself does not save, accept or start paths. Inline ideas are labelled **Conversation only · not saved**; existing paths show their recorded state. Native tool expansion reveals long text; narrow terminals use an unframed labelled version. Plain-text results retain the same content for non-TUI clients and exports. Call the tool directly for its own visual renderer; a nested codemode call returns text to its caller rather than displaying a separate tool card.
+```markdown
+**Possibility · A return page for a pursuit**
 
-There are no new timers, input controls, background model runs or appearance settings. Continue by talking about a path; saving a substantial offer and recognizing acceptance remain separate journal actions. Model guidance asks for one handoff rather than restating the same paths in another message; actual adherence remains model behavior.
+This could help us recover the thread when we revisit a note.
+```
+
+On hosts exposing the public `registerMarkdownTransformer` capability (verified with Pi 1.4.0), `possibility-markdown.ts` colors only this explicit label/title jade green. Explanation remains ordinary prose. The display transform leaves stored messages and model context unchanged, skips fenced examples, quotes, indented code and comments, and waits for a complete marked title during streaming. Titles use plain text rather than nested links/emphasis. It does not classify arbitrary sentences as suggestions. Hosts without the capability, noninteractive output and exports without that transform keep readable bold Markdown. The journal remains the persistent home; merely rendering a possibility does not save it.
+
+For an occasional separate compact invitation, `quests present` with `presentation: possibility` displays **one** path with a green title and neutral body, without its own frame. Native expansion reveals source and first move. This is a tool-transcript element, not an insertion into an existing assistant paragraph.
+
+### Where next: an explicit exploration view
+
+The existing jade/gold **Deepen / Connect** presentation remains available when the user asks to explore directions. `quests present` defaults to `presentation: handoff`, accepting one to four existing IDs or inline paths. It retains source, first move, recorded state and plain fallback. Inline ideas say **Conversation only · not saved**. Stored kinds stay `depth`, `breadth` and `exploration`.
+
+Neither presentation writes records, accepts a pursuit, sends a request or starts work. Call directly for the tool renderer; nested codemode calls return text to their caller. There are no additional timers, activity panels or model requests. Actual relevance and conversational timing remain agent behavior.
+
+### Possible directions in the journal
+
+A quest's **Possible directions** disclosure lists its linked offered/saved quests, with count, name, value, original first move and source. Other linked states remain under **Connections**. This is a view over existing directional links, not a second store or a rigid parent/child hierarchy. Reuse an existing path and link it with `update.link`; semantic duplication across conversations remains the agent's judgment.
+
+Exact same-session/workspace offer retries reuse a record and create no history or activity event. New records preserve an original-input fingerprint through later edits. Older records can deduplicate against their current fields; the implementation does not invent their missing original input. Repeating an unchanged link or intent update at the current revision is also a no-op.
 
 ## Tool reference
 
@@ -81,13 +99,21 @@ There are no new timers, input controls, background model runs or appearance set
 | --- | --- |
 | `list` | `view: workspace` (default) or `all`; `offset`; 20 summaries per page |
 | `get` | `id`; full record and revision |
-| `offer` | `title`, `why`, `firstMove`, `source`; optional `kind: depth/breadth/exploration`, `global`; creates an **offered** path |
+| `offer` | `title`, `why`, `firstMove`, `source`; optional `kind: depth/breadth/exploration`, `global`; creates an **offered** path, or reuses an exact retry |
 | `update` | `id`, current `revision`; refine title/value/first move, promote via `global`, `link` another quest ID, append `evidence`, add `question`, or record `answer` with `questionId` |
 | `history` | `id`, optional `offset`; 20 newest event snapshots per page |
 | `context` | Current branch's last ten user messages with source IDs, plus Tasks plan summaries for linking |
-| `present` | `paths`: 1–4 objects, each either `{id}` alone or `{title, why, firstMove, source, kind?}`; read-only Where next presentation. Existing paths use `nextMove` where recorded, their original first move while offered/saved, or invite developing the next step for ongoing/closed pursuits. |
+| `present` | `paths`: 1–4 objects, each either `{id}` alone or `{title, why, firstMove, source, kind?}`; optional `presentation: handoff` (default) or `possibility` (exactly one path); read-only presentation. Existing paths use `nextMove` where recorded, their original first move while offered/saved, or invite developing the next step for ongoing/closed pursuits. |
 
-An explicit conversational request can record pursuit through `update` with `state: active`, `requestMessageId` and exact `requestQuote`. The tool verifies the user message exists on the current branch and contains the quote; interpreting its meaning remains the agent's responsibility. This records recognition and sends no additional request. Keep-for-later and Decline remain manual choices.
+Conversational intent is explicit metadata on `update`:
+
+| Intent | State | Meaning |
+| --- | --- | --- |
+| `keep` | `saved` | Preserve interest without beginning work |
+| `explore` | `active` | Develop an inquiry; implementation needs separate agreement |
+| `make` | `active` | Undertake only the specifically authorized work |
+
+Agent-recorded intent requires `requestMessageId` and an exact `requestQuote` on the current branch. The tool validates provenance and state/intent consistency; interpreting consent remains the agent's responsibility, not a keyword classifier. Updates send no request and create no Tasks plan. Sourced active transitions without an explicit intent default conservatively to exploration; older records remain unspecified until updated. `make` records the historical scope, not blanket or renewed authorization. History preserves earlier intent and its source. Decline remains manual. Journal Keep records `keep`; Explore in chat records `explore`.
 
 Optional `goal` defines closure, `progress` appends a development, `nextMove` records the current meaningful step separately from the original `firstMove`, and `planId` links a real Tasks plan from the current branch. Existing active records without `nextMove` invite developing the next step in chat rather than presenting a potentially completed first move as current. The agent maintains this wording; the renderer does not infer a next action. Completion needs a goal and fresh `evidence`; it remains an agent report, not independent verification. Linked tasks show current branch data when available and dated snapshots otherwise, never inferred live cross-session status. Links between quests are directional. Questions have stable IDs. History retains earlier answers, formulations and outcomes. These additive fields preserve older quest records without rewriting their origins.
 
@@ -101,7 +127,7 @@ After applying an Ask answer or changing linked Tasks, use `sync` to capture the
 
 `resume` supplies a read-only orientation capped at 16,000 characters, with bounded sections and pointers to `get`/`history`. It refreshes available current-branch work and questions for display without saving them. Full answer caveats remain in the linked question snapshot and Ask record; inspect those before acting. It reads no other session files and performs no inference or network call.
 
-`focus` selects one quest as context for subsequent runs on the current branch; omit `id` to clear focus. The selection uses a `pi-quests:focus-v1` session entry, while the quest itself remains cross-session. Focus does not accept a possibility, activate a quest or send a message. **Continue in chat** also selects focus while performing its existing explicit continuation action. The existing before-run guidance includes the selected pursuit's bounded orientation; there is no extra model request, timer or automatic work replay. Missing/unreadable context produces a warning in the guidance rather than resetting records.
+`focus` selects one quest as context for subsequent runs on the current branch; omit `id` to clear focus. The selection uses a `pi-quests:focus-v1` session entry, while the quest itself remains cross-session. Focus does not accept a possibility, activate a quest or send a message. **Explore in chat** also selects focus while sending its explicit inquiry. The existing before-run guidance includes the selected pursuit's bounded orientation; there is no extra model request, timer or automatic work replay. Missing/unreadable context produces a warning in the guidance rather than resetting records.
 
 | Operation | Required fields and effects |
 | --- | --- |
@@ -118,7 +144,7 @@ Context statements are limited to 200 per quest and the full quest record to 2 M
 
 Egregore identity is the resolved working-directory path, not an inferred Git repository root. Opening different subdirectories creates distinct local views; the entire landscape still shows everything. Session IDs and source descriptions preserve origins. The journal is global to this Pi agent directory and does not rewind with session branching. It is local plaintext storage; use normal filesystem protections and backups. No embeddings, remote memory service, background research or vault scanning are introduced.
 
-Quests owns paths and exploratory questions. Tasks owns execution plans. Ask owns immediate question interaction and approval/application semantics. Quests adds guidance to existing runs and **does not request another model turn**. Tasks retains its existing single completion checkpoint, whose Where next? guidance is reused. Suggestions and automatic capture remain model behavior, not a deterministic guarantee.
+Quests owns paths and exploratory questions. Tasks owns execution plans. Ask owns immediate question interaction and approval/application semantics. Quests adds guidance to existing runs and **does not request another model turn**. Tasks retains its existing single completion checkpoint, with main-response priority and no required suggestion handoff. Suggestions and automatic capture remain model behavior, not a deterministic guarantee.
 
 This first slice has no Obsidian sync, Mnemosyne dependency, cross-session replay of Ask answers, reminders, automatic task creation, or separate mastery/story renderer. Evidence, origins, links and history provide the foundation for those future experiences.
 

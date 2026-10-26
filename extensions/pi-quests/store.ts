@@ -1,13 +1,15 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { contextRecord, type ContextInput, type ContextRecord } from "./continuity.ts";
 
 export interface QuestionLink { version: 1; session: string; entryId: string; id: string; revision: number; question: string; state: string; planId: string; taskIds: string[]; response?: unknown; consequence?: string; capturedAt: string }
 
 export const STATES = ["offered", "saved", "active", "paused", "completed", "declined"] as const;
 export type State = typeof STATES[number];
+export const INTENTS = ["keep", "explore", "make"] as const;
+export type Intent = typeof INTENTS[number];
 export interface Question { id: string; text: string; answer?: string }
 export interface TaskLink { session: string; planId: string; title: string; capturedAt: string; tasks: { id: string; title: string; status: string; reason?: string; blockerOwner?: string; unblockWhen?: string }[] }
 export interface Pursuit { session: string; messageId: string; quote: string }
@@ -16,12 +18,13 @@ export interface Quest {
   kind: "depth" | "breadth" | "exploration"; state: State; global: boolean;
   workspace: string; origin: { session: string; source: string };
   links: string[]; evidence: string[]; questions: Question[];
-  goal?: string; nextMove?: string; pursuit?: Pursuit; taskLinks?: TaskLink[]; progress?: string[];
+  goal?: string; nextMove?: string; intent?: Intent; pursuit?: Pursuit; taskLinks?: TaskLink[]; progress?: string[];
   contextRecords?: ContextRecord[]; questionLinks?: QuestionLink[]; reviewNextMove?: boolean;
+  offerFingerprint?: string;
   createdAt: string; updatedAt: string;
 }
 export interface Offer { title: string; why: string; firstMove: string; kind?: Quest["kind"]; source: string; global?: boolean; goal?: string }
-export interface Patch { title?: string; why?: string; firstMove?: string; state?: State; global?: boolean; link?: string; evidence?: string; question?: string; questionId?: string; answer?: string; goal?: string; nextMove?: string; pursuit?: Pursuit; taskLink?: TaskLink; progress?: string }
+export interface Patch { intent?: Intent; title?: string; why?: string; firstMove?: string; state?: State; global?: boolean; link?: string; evidence?: string; question?: string; questionId?: string; answer?: string; goal?: string; nextMove?: string; pursuit?: Pursuit; taskLink?: TaskLink; progress?: string }
 const clean = (s: string, max = 4000) => {
   if (typeof s !== "string" || !s.trim() || s.length > max || /[\x00-\x08\x0b-\x1f\x7f]/.test(s)) throw new Error(`Expected nonempty text up to ${max} characters without terminal control codes`);
   return s.trim();
@@ -57,13 +60,21 @@ export class QuestStore {
     db.prepare("INSERT INTO quests(id,body) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body").run(q.id, JSON.stringify(q));
     db.prepare("INSERT INTO events(quest_id,at,actor,body) VALUES (?,?,?,?)").run(q.id, q.updatedAt, actor, JSON.stringify(q));
   }
-  offer(input: Offer, workspace: string, session: string): Quest {
+  offer(input: Offer, workspace: string, session: string): Quest { return this.offerResult(input,workspace,session).quest; }
+  offerResult(input: Offer, workspace: string, session: string): {quest: Quest; changed: boolean} {
     const now = new Date().toISOString();
     const q: Quest = { id: randomUUID(), revision: 1, title: clean(input.title, 200), why: clean(input.why), firstMove: clean(input.firstMove),
       kind: input.kind ?? "exploration", state: "offered", global: input.global ?? false,
       workspace: workspaceKey(workspace), origin: { session, source: clean(input.source) }, links: [], evidence: [], questions: [], createdAt: now, updatedAt: now, ...(input.goal ? {goal:clean(input.goal)} : {}) };
     if (!["depth", "breadth", "exploration"].includes(q.kind)) throw new Error("Unknown quest kind");
-    return this.use(db => { db.exec("BEGIN IMMEDIATE"); try { this.save(db, q, "agent:offer"); db.exec("COMMIT"); return q; } catch (e) { db.exec("ROLLBACK"); throw e; } });
+    return this.use(db => { db.exec("BEGIN IMMEDIATE"); try {
+      // Exact retries reuse the original invitation even after its state develops.
+      const identity = (x: Quest) => createHash("sha256").update(JSON.stringify([x.workspace,x.origin,x.title,x.why,x.firstMove,x.kind,x.global,x.goal])).digest("hex");
+      q.offerFingerprint=identity(q);
+      const existing = (db.prepare("SELECT body FROM quests").all() as {body:string}[]).map(r=>JSON.parse(r.body) as Quest).find(x=>(x.offerFingerprint ?? identity(x))===q.offerFingerprint);
+      if (existing) { db.exec("COMMIT"); return {quest:existing,changed:false}; }
+      this.save(db, q, "agent:offer"); db.exec("COMMIT"); return {quest:q,changed:true};
+    } catch (e) { db.exec("ROLLBACK"); throw e; } });
   }
   update(id: string, revision: number, patch: Patch, actor: "user" | "agent"): Quest {
     return this.use(db => {
@@ -71,13 +82,20 @@ export class QuestStore {
       try {
         const q = this.read(db, id);
         if (q.revision !== revision) throw new Error("Quest changed. Read it again before updating.");
+        if (patch.intent !== undefined) {
+          if (!INTENTS.includes(patch.intent)) throw new Error("Unknown quest intent");
+          if (patch.state !== (patch.intent === "keep" ? "saved" : "active")) throw new Error("Intent needs matching saved/active state");
+          if (actor === "agent" && !patch.pursuit) throw new Error("Intent needs an explicit user request source");
+          q.intent = patch.intent;
+        }
         if (patch.pursuit) {
-          if (patch.state !== "active") throw new Error("Pursuit records an active direction");
+          if (patch.state !== "active" && !(patch.state === "saved" && patch.intent === "keep")) throw new Error("Pursuit records active exploration/work or an explicit keep request");
+          if (patch.state === "active" && !patch.intent) q.intent = "explore";
           q.pursuit = { session: clean(patch.pursuit.session, 200), messageId: clean(patch.pursuit.messageId, 200), quote: clean(patch.pursuit.quote) };
         }
         if (patch.state !== undefined) {
           if (!STATES.includes(patch.state)) throw new Error("Unknown quest state");
-          if (actor !== "user" && ["saved", "active", "declined"].includes(patch.state) && !(patch.state === "active" && patch.pursuit)) throw new Error("Use /quests to Start, Save or Decline; these choices belong to the user.");
+          if (actor !== "user" && ["saved", "active", "declined"].includes(patch.state) && !(patch.pursuit && (patch.state === "active" || (patch.state === "saved" && patch.intent === "keep")))) throw new Error("Use /quests to Start, Save or Decline; these choices belong to the user.");
           if (actor === "agent" && q.state === "offered" && patch.state !== "offered" && !patch.pursuit) throw new Error("An offered quest awaits the user's choice in /quests.");
           if (patch.state === "completed" && !(patch.goal ?? q.goal)) throw new Error("Completion needs a defined goal.");
           if (patch.state === "completed" && !patch.evidence) throw new Error("Completion needs fresh evidence of the result against the goal.");
@@ -99,6 +117,8 @@ export class QuestStore {
           if (!question) throw new Error("Question not found");
           question.answer = clean(patch.answer);
         }
+        // Identical retries (including links and intent) need no extra history event.
+        if (JSON.stringify(q) === JSON.stringify(this.read(db,id))) { db.exec("COMMIT"); return q; }
         q.revision++; q.updatedAt = new Date().toISOString();
         this.save(db, q, actor); db.exec("COMMIT"); return q;
       } catch (e) { db.exec("ROLLBACK"); throw e; }

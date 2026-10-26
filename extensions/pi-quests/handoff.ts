@@ -7,18 +7,20 @@ import type { Quest } from "./store.ts";
 
 export type Invitation = { kind: Quest["kind"]; title: string; why: string; firstMove: string; source: string; questId?: string; state?: string };
 export type PathInput = { id?: string; kind?: Quest["kind"]; title?: string; why?: string; firstMove?: string; source?: string };
-export type Handoff = { presentation: "pi-quests:where-next-v1"; paths: Invitation[] };
+export type Handoff = { presentation: "pi-quests:where-next-v1"; style?: "possibility"; paths: Invitation[] };
 export const directionLabel = (kind: string) => kind === "depth" ? "Deepen" : kind === "breadth" ? "Connect" : "Explore";
 
 /** Resolve snapshots, never write records, send messages or schedule another turn. */
-export function handoffPaths(inputs: PathInput[] | undefined, get: (id: string) => Quest): Handoff {
+export function handoffPaths(inputs: PathInput[] | undefined, get: (id: string) => Quest, style?: "handoff" | "possibility"): Handoff {
+  if (style && !["handoff","possibility"].includes(style)) throw new Error("Unknown presentation style");
+  if (style === "possibility" && inputs?.length !== 1) throw new Error("A compact possibility presents one path");
   if (!Array.isArray(inputs) || !inputs.length || inputs.length > 4) throw new Error("Present needs one to four paths; use an existing id or title/why/firstMove/source.");
   const ids = new Set<string>();
   const required = (value: unknown, name: string, max = 4000) => {
     if (typeof value !== "string" || !value.trim() || value.length > max) throw new Error(`Path needs ${name} (1–${max} characters).`);
     return value.trim();
   };
-  return { presentation: "pi-quests:where-next-v1", paths: inputs.map(input => {
+  return { presentation: "pi-quests:where-next-v1", ...(style === "possibility" ? {style} : {}), paths: inputs.map(input => {
     if (!input || typeof input !== "object") throw new Error("Path must be an object.");
     if (input.id !== undefined) {
       const id = required(input.id, "id", 100);
@@ -38,16 +40,39 @@ export function handoffPaths(inputs: PathInput[] | undefined, get: (id: string) 
 export function isHandoff(value: unknown): value is Handoff {
   if (!value || typeof value !== "object") return false;
   const h = value as Handoff;
-  return h.presentation === "pi-quests:where-next-v1" && Array.isArray(h.paths) && h.paths.length > 0 && h.paths.length <= 4 && h.paths.every(p => p && ["depth","breadth","exploration"].includes(p.kind) && [p.title,p.why,p.firstMove,p.source].every(s => typeof s === "string" && s.length > 0 && s.length <= 4000));
+  return h.presentation === "pi-quests:where-next-v1" && (h.style === undefined || h.style === "possibility") && (h.style !== "possibility" || h.paths?.length === 1) && Array.isArray(h.paths) && h.paths.length > 0 && h.paths.length <= 4 && h.paths.every(p => p && ["depth","breadth","exploration"].includes(p.kind) && [p.title,p.why,p.firstMove,p.source].every(s => typeof s === "string" && s.length > 0 && s.length <= 4000));
 }
 const clean = (s: string) => stripVTControlCharacters(s).replace(/[\x00-\x1f\x7f-\x9f]/g," ").replace(/\s+/g," ").trim();
 export function handoffText(h: Handoff): string {
-  return "Where next?\n\n" + h.paths.map(p => `${directionLabel(p.kind)} · ${clean(p.title)}\n${clean(p.why)}\nFirst move: ${clean(p.firstMove)}\nFrom: ${clean(p.source)}${p.questId ? `\nJournal: ${p.questId} · ${p.state}` : "\nConversation only · not saved"}`).join("\n\n");
+  return (h.style === "possibility" ? "" : "Where next?\n\n") + h.paths.map(p => `${h.style === "possibility" ? "Possibility" : directionLabel(p.kind)} · ${clean(p.title)}\n${clean(p.why)}\nFirst move: ${clean(p.firstMove)}\nFrom: ${clean(p.source)}${p.questId ? `\nJournal: ${p.questId} · ${p.state}` : "\nConversation only · not saved"}`).join("\n\n");
+}
+
+/** Explicit compact invitation; never identifies or recolors arbitrary assistant prose. */
+function possibilityRows(theme: Theme, width: number, p: Invitation, expanded: boolean): string[] {
+  const palette=QUEST_PALETTES[theme.appearance === "light" ? "light" : "dark"];
+  const rows: string[]=[];
+  const add=(value:string,limit:number,style:(s:string)=>string)=>{
+    let wrapped=wrapTextWithAnsi(clean(value),width);
+    if (!expanded && wrapped.length>limit) {
+      wrapped=wrapped.slice(0,limit);
+      wrapped[limit-1]=truncateToWidth(wrapped[limit-1],Math.max(0,width-1),"")+"…";
+    }
+    rows.push(...wrapped.map(style));
+  };
+  add(`Possibility · ${p.title}`,2,s=>theme.style(s,{fg:parseColor(palette.jade),bold:true}));
+  add(p.why,3,s=>theme.fg("text",s));
+  if (expanded) {
+    add(`First move: ${p.firstMove}`,3,s=>theme.fg("text",s));
+    add(`From: ${p.source}`,3,s=>theme.fg("muted",s));
+  }
+  add(`${p.questId ? `In journal · ${p.state ?? "recorded"}` : "Conversation only · not saved"}${expanded ? "" : " · expand for details"}`,2,s=>theme.fg("muted",s));
+  return rows.map(s=>truncateToWidth(s,width));
 }
 
 /** Static transcript surface: native expansion, scrolling and selection stay with Pi. */
 export function handoffRows(theme: Theme, width: number, h: Handoff, expanded = false): string[] {
   if (width <= 0) return [];
+  if (h.style === "possibility") return possibilityRows(theme,width,h.paths[0],expanded);
   const framed = width >= 24, inner = Math.max(1, width - (framed ? 4 : 0));
   const palette = QUEST_PALETTES[theme.appearance === "light" ? "light" : "dark"];
   const paint = (s: string, tone: "jade" | "gold", bold = false) => theme.style(s, {fg:parseColor(palette[tone]),bold});

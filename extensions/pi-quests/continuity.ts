@@ -27,7 +27,7 @@ export function resumeContext(q: Quest, currentQuestionSources: ReadonlySet<stri
     const entries=records.filter(r=>r.kind===kind);
     return entries.length ? `${kind.toUpperCase()} (${entries.length})\n${entries.slice(-3).map(r=>`${brief(r.text)}\nSource: ${brief(r.source.reference,200)} · ${r.source.session}${r.source.entryId ? ` / ${r.source.entryId}` : ""}`).join("\n")}` : "";
   });
-  const orientation = [ `${q.title} · ${q.state} · revision ${q.revision}`, `PURPOSE\n${brief(q.why)}`,
+  const orientation = [ `${q.title} · ${q.state} · revision ${q.revision}`, `INTENT\n${q.intent === "keep" ? "Kept for later; no work started." : q.intent === "explore" ? "Exploring in conversation; implementation needs separate agreement." : q.intent === "make" ? "Making within the sourced request's scope; this record is not renewed authorization." : "Not recorded. Clarify current intent before inferring implementation scope."}`, `PURPOSE\n${brief(q.why)}`,
     `CURRENT POSITION\n${brief(q.progress?.at(-1) ?? "No development recorded yet.")}`,
     ...sections,
     ...(q.reviewNextMove ? ["REASSESS NEXT MOVE\nLinked work or decisions changed after the next move was recorded. Review it before continuing."] : []),
