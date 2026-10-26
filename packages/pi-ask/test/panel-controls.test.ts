@@ -415,20 +415,25 @@ test("Something else keeps the earlier options and a capped editor on screen", (
 	assert.equal(crampedRender.join("").split(CURSOR_MARKER).length - 1, 1);
 	assert.match(crampedPlain.join("\n"), /Alt\+↑\/↓ Options/);
 
-	for (const [rows, clipped] of [[24, true], [32, false]] as const) {
+	// A taller panel keeps every choice and needs no scroll marker; a short one clips.
+	for (const [rows, clipped] of [[20, true], [32, false]] as const) {
 		const h = setup([many], rows);
 		h.form.handleInput("7");
 		for (const line of ["one", "two", "three"]) { h.form.handleInput(line); if (line !== "three") h.form.handleInput(keys.newline); }
 		const rendered = h.form.render(80);
 		const plain = rendered.map(sanitizeDisplayText);
-		assert.ok(plain.some(row => row.includes("1. First option")), `the first option stays visible at ${rows} rows`);
-		assert.ok(plain.some(row => row.includes("2. Second option")), `the second option stays visible at ${rows} rows`);
+		const shown = many.options.filter((_option, index) => plain.some(row => row.includes(`${index + 1}. `))).length;
 		const capped = editorRows(rendered);
 		assert.ok(capped > 1 && capped <= 3, `the inline editor is capped (${capped})`);
 		assert.equal(rendered.join("").split(CURSOR_MARKER).length - 1, 1, "exactly one cursor marker");
 		assert.ok(rendered.every(row => visibleWidth(row) <= 80));
-		if (clipped) assert.match(plain.join("\n"), /↓ more · Alt\+↓/, "a clipped option window says how to reach it");
-		else assert.doesNotMatch(plain.join("\n"), /more · Alt/, "a complete option window needs no scroll marker");
+		if (clipped) {
+			assert.ok(shown > 0 && shown < many.options.length, `a clipped window still shows choices (${shown} at ${rows} rows)`);
+			assert.match(plain.join("\n"), /↓ \d+ more · Alt\+↓/, "a clipped option window says how many it hides");
+		} else {
+			assert.equal(shown, many.options.length, `every choice fits at ${rows} rows`);
+			assert.doesNotMatch(plain.join("\n"), /more · Alt/, "a complete option window needs no scroll marker");
+		}
 
 		if (!clipped) continue;
 		// Alt+arrows move the option window; the editor and cursor do not move.
@@ -436,9 +441,10 @@ test("Something else keeps the earlier options and a capped editor on screen", (
 		const scrolled = h.form.render(80);
 		const scrolledPlain = scrolled.map(sanitizeDisplayText);
 		assert.ok(!scrolledPlain.some(row => row.includes("1. First option")), "Alt+Down reaches the later options");
-		assert.ok(scrolledPlain.some(row => row.includes("↑ more · Alt+↑")));
+		assert.match(scrolledPlain.join("\n"), /↑ \d+ more · Alt\+↑/);
 		assert.equal(editorRows(scrolled), capped);
 		assert.equal(scrolled.join("").split(CURSOR_MARKER).length - 1, 1);
+		assert.equal(scrolled.length, rendered.length, "scrolling the options keeps the region height");
 		h.form.handleInput(keys.altUp);
 		assert.deepEqual(h.form.render(80).map(sanitizeDisplayText), plain, "Alt+Up restores the first options");
 	}

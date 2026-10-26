@@ -379,6 +379,22 @@ export interface ChoiceListRenderOptions {
 	availableLines?: number;
 }
 
+/** Line counts for one list at one width; the host reserves the difference from its panel. */
+export interface ChoiceListMeasure {
+	/** Every item with its description and suggestion rationale. */
+	full: number;
+	/** Focused item in full, every other item as one label row. */
+	compressed: number;
+	/** Pinned inline-editor block, which is chrome rather than a row inside the window. */
+	tail: number;
+}
+
+/** Tallest "focused in full, everything else one label row" arrangement. */
+function compressedHeight(full: string[][], label: string[][]): number {
+	const labelTotal = label.reduce((sum, rows) => sum + rows.length, 0);
+	return full.reduce((best, rows, focused) => Math.max(best, labelTotal - label[focused].length + rows.length), 0);
+}
+
 /**
  * Owns every coupled piece of option-list behavior: cursor movement, the
  * item-count window, and ANSI-aware multiline rendering. Keeping those rules
@@ -479,8 +495,11 @@ export class WrappedChoiceList {
 		return `${cursorPrefix}${this.theme.fg(color, `${selectionPrefix}${item.index}. `)}`;
 	}
 
-	/** One row group: the choice, its description, and any bounded suggestion rationale. */
-	private renderItem(itemIndex: number, width: number, selectedAnswers: ReadonlyMap<string, AskAnswer> | undefined, showCheckboxes: boolean, showRadio: boolean, customActive: boolean): string[] {
+	/**
+	 * One row group. `full` keeps the description and the suggestion rationale;
+	 * `label` is the single-row-per-item form used when the region is tight.
+	 */
+	private renderItem(itemIndex: number, width: number, selectedAnswers: ReadonlyMap<string, AskAnswer> | undefined, showCheckboxes: boolean, showRadio: boolean, customActive: boolean, detail: "full" | "label" = "full"): string[] {
 		const lines: string[] = [];
 		const item = this.items[itemIndex];
 		const hasCursor = itemIndex === this.selectedIndex;
@@ -495,13 +514,18 @@ export class WrappedChoiceList {
 			if (otherAnswer?.type === "other") label += this.theme.fg("muted", ` — ${sanitizeDisplayText(otherAnswer.label)}`);
 			addWrappedWithPrefix(lines, prefix, label, width);
 			// The inline editor replaces the generic description line beneath this row.
-			if (customActive) return lines;
+			if (customActive || detail === "label") return lines;
 			const descriptionPrefix = " ".repeat(Math.min(visibleWidth(prefix), Math.max(0, width - 4)));
 			const descriptionWidth = Math.max(0, width - visibleWidth(descriptionPrefix));
 			lines.push(truncateToWidth(
 				`${descriptionPrefix}${truncateToWidth(this.theme.fg("muted", item.description ?? ""), descriptionWidth)}`,
 				width,
 			));
+			return lines;
+		}
+
+		if (detail === "label") {
+			addWrappedWithPrefix(lines, prefix, label, width);
 			return lines;
 		}
 
@@ -516,6 +540,16 @@ export class WrappedChoiceList {
 			if (suggestion.caveat) addWrappedWithPrefix(lines, wrappedPrefix, this.theme.fg("muted", `Caveat: ${sanitizeDisplayText(suggestion.caveat)}`), width, wrappedPrefix);
 		}
 		return lines;
+	}
+
+	/** Both renderings of every item, computed once so counts and output agree. */
+	private blocks(width: number, options: ChoiceListRenderOptions): { full: string[][]; label: string[][] } {
+		const { selectedAnswers, showRadio = false } = options;
+		const showCheckboxes = selectedAnswers !== undefined && !showRadio;
+		return {
+			full: this.items.map((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false, "full")),
+			label: this.items.map((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false, "label")),
+		};
 	}
 
 	/** The custom answer's editor is pinned chrome, not a row inside the choice window. */
@@ -540,6 +574,35 @@ export class WrappedChoiceList {
 		return [...this.renderItem(this.items.length - 1, width, selectedAnswers, showCheckboxes, showRadio, true), ...lines];
 	}
 
+	/**
+	 * Line counts for each rendering, so a host can reserve chrome before it renders.
+	 * Pure: unlike `render` it never clamps `optionScroll`.
+	 */
+	measure(width: number, options: ChoiceListRenderOptions = {}): ChoiceListMeasure {
+		const { full, label } = this.blocks(width, options);
+		const inlineOtherEditor = options.inlineOtherEditor;
+		if (inlineOtherEditor) {
+			// The Other row lives in the pinned tail, so only the options above it count.
+			const { selectedAnswers, showRadio = false } = options;
+			const showCheckboxes = selectedAnswers !== undefined && !showRadio;
+			const tail = this.renderInlineEditor(inlineOtherEditor, width, showCheckboxes, showRadio, selectedAnswers).length;
+			return {
+				full: full.slice(0, -1).reduce((sum, rows) => sum + rows.length, 0),
+				compressed: label.slice(0, -1).reduce((sum, rows) => sum + rows.length, 0),
+				tail,
+			};
+		}
+		const fullTotal = full.reduce((sum, rows) => sum + rows.length, 0);
+		return { full: fullTotal, compressed: compressedHeight(full, label), tail: 0 };
+	}
+
+	/**
+	 * Render inside a host-computed row budget:
+	 * 1. every item in full;
+	 * 2. the focused item in full and the rest as label rows;
+	 * 3. a block window that keeps the focused item whole;
+	 * 4. a line window when the focused item alone exceeds the region.
+	 */
 	render(width: number, options: ChoiceListRenderOptions = {}): string[] {
 		const { selectedAnswers, inlineOtherEditor, showRadio = false } = options;
 		const showCheckboxes = selectedAnswers !== undefined && !showRadio;
@@ -552,21 +615,30 @@ export class WrappedChoiceList {
 		if (inlineOtherEditor) {
 			const tail = this.renderInlineEditor(inlineOtherEditor, width, showCheckboxes, showRadio, selectedAnswers);
 			const budget = Math.max(0, maxRenderedLines - tail.length);
-			const optionLines = this.items.slice(0, -1)
-				.flatMap((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false));
-			const maxOffset = Math.max(0, optionLines.length - budget);
-			this.optionScroll = Math.max(0, Math.min(this.optionScroll, maxOffset));
-			const window = optionLines.slice(this.optionScroll, this.optionScroll + budget);
-			const clippedAbove = this.optionScroll > 0;
-			const clippedBelow = this.optionScroll + window.length < optionLines.length;
-			// A marker may never consume the last readable option: at one or two rows the
-			// window shows content instead, and the action bar still names Alt+↑/↓.
-			const markerRows = (clippedAbove ? 1 : 0) + (clippedBelow ? 1 : 0);
-			if (markerRows <= window.length - 1) {
-				if (clippedAbove) window[0] = truncateToWidth(this.theme.fg("dim", "  ↑ more · Alt+↑"), width);
-				if (clippedBelow) window[window.length - 1] = truncateToWidth(this.theme.fg("dim", "  ↓ more · Alt+↓"), width);
-			}
-			return [...window, ...tail];
+			const choices = this.items.slice(0, -1);
+			const full = choices.flatMap((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false, "full"));
+			// Roomy: the options keep their descriptions and rationale above the editor.
+			if (full.length <= budget) return [...full, ...tail];
+			const optionLines = choices.flatMap((_item, index) => this.renderItem(index, width, selectedAnswers, showCheckboxes, showRadio, false, "label"));
+			const window = fitLineWindow(optionLines.length, budget, this.optionScroll);
+			this.optionScroll = window.start;
+			const rows = optionLines.slice(window.start, window.start + window.count);
+			if (window.above) rows.unshift(truncateToWidth(this.theme.fg("dim", `  ↑ ${window.start} more · Alt+↑`), width));
+			if (window.below) rows.push(truncateToWidth(this.theme.fg("dim", `  ↓ ${optionLines.length - window.start - window.count} more · Alt+↓`), width));
+			return [...rows, ...tail];
+		}
+
+		if (maxRenderedLines !== Number.POSITIVE_INFINITY) {
+			if (maxRenderedLines === 0) return [];
+			const { full, label } = this.blocks(width, options);
+			const fullTotal = full.reduce((sum, rows) => sum + rows.length, 0);
+			if (fullTotal <= maxRenderedLines) return full.flat();
+			const compressed = compressedHeight(full, label);
+			const rows = compressed <= maxRenderedLines
+				? this.promoteToFull(full, label, maxRenderedLines)
+				: this.windowBlocks(full, label, width, maxRenderedLines);
+			while (rows.length < maxRenderedLines) rows.push("");
+			return rows;
 		}
 
 		const lines: string[] = [];
@@ -587,23 +659,105 @@ export class WrappedChoiceList {
 			addWrappedWithPrefix(lines, "  ", this.theme.fg("dim", `(${this.selectedIndex + 1}/${this.items.length})`), width);
 		}
 
-		if (lines.length > maxRenderedLines) {
-			if (maxRenderedLines === 0) return [];
-			const selectedLine = lines.findIndex((line) => line.includes("→"));
-			const cursorLine = Math.max(0, selectedLine);
-			const start = Math.max(0, Math.min(cursorLine - Math.floor(maxRenderedLines / 2), lines.length - maxRenderedLines));
-			const visible = lines.slice(start, start + maxRenderedLines);
-			if (start > 0 && start !== cursorLine) {
-				visible[0] = truncateToWidth(this.theme.fg("dim", "  ↑ more"), width);
-			}
-			if (start + maxRenderedLines < lines.length && start + maxRenderedLines - 1 !== cursorLine) {
-				visible[visible.length - 1] = truncateToWidth(this.theme.fg("dim", "  ↓ more"), width);
-			}
-			return visible;
-		}
-
 		return lines;
 	}
+
+	/** Focused item in full, the rest as label rows, plus neighbours promoted while they fit. */
+	private promoteToFull(full: string[][], label: string[][], budget: number): string[] {
+		const detailed = this.items.map((_item, index) => index === this.selectedIndex);
+		const assemble = () => detailed.flatMap((isFull, index) => (isFull ? full[index] : label[index]));
+		let rows = assemble();
+		// Nearest to the cursor first, below before above: the next choice is the likelier target.
+		for (let distance = 1; distance < this.items.length; distance++) {
+			for (const index of [this.selectedIndex + distance, this.selectedIndex - distance]) {
+				if (index < 0 || index >= this.items.length || detailed[index]) continue;
+				const gain = full[index].length - label[index].length;
+				if (gain <= 0 || rows.length + gain > budget) continue;
+				detailed[index] = true;
+				rows = assemble();
+			}
+		}
+		return rows;
+	}
+
+	/** Keep the focused block whole; count every hidden item with a marker on its own side. */
+	private windowBlocks(full: string[][], label: string[][], width: number, budget: number): string[] {
+		const marker = (text: string) => truncateToWidth(this.theme.fg("dim", text), width);
+		for (let markers = 0; markers <= 2; markers++) {
+			const visible = budget - markers;
+			if (visible <= 0) break;
+			let start = this.selectedIndex, end = this.selectedIndex + 1;
+			let used = full[this.selectedIndex].length;
+			if (used > visible) break;
+			while (end < this.items.length && used + full[end].length <= visible) { used += full[end].length; end++; }
+			while (start > 0 && used + full[start - 1].length <= visible) { used += full[start - 1].length; start--; }
+			const fullStart = start, fullEnd = end;
+			// A row a neighbouring full block cannot use still fits that choice's label:
+			// spend it there instead of padding, nearest to the cursor first.
+			while (end < this.items.length && used + label[end].length <= visible) { used += label[end].length; end++; }
+			while (start > 0 && used + label[start - 1].length <= visible) { used += label[start - 1].length; start--; }
+			const above = start > 0, below = end < this.items.length;
+			if ((above ? 1 : 0) + (below ? 1 : 0) !== markers) continue;
+			const rows: string[] = [];
+			if (above) rows.push(marker(`  ↑ ${start} more`));
+			for (let index = start; index < fullStart; index++) rows.push(...label[index]);
+			for (let index = fullStart; index < fullEnd; index++) rows.push(...full[index]);
+			for (let index = fullEnd; index < end; index++) rows.push(...label[index]);
+			if (below) rows.push(marker(`  ↓ ${this.items.length - end} more`));
+			return rows;
+		}
+		// One block taller than the region: head the region with the focused block so the
+		// cursor stays readable, and count the lines it cannot show.
+		const ordered = [
+			...full[this.selectedIndex],
+			...this.items.flatMap((_item, index) => (index === this.selectedIndex ? [] : label[index])),
+		];
+		const window = fitLineWindow(ordered.length, budget, 0);
+		const rows = ordered.slice(window.start, window.start + window.count);
+		if (window.above) rows.unshift(marker(`  ↑ ${window.start} more lines`));
+		if (window.below) rows.push(marker(`  ↓ ${ordered.length - window.start - window.count} more lines`));
+		return rows;
+	}
+}
+
+export interface LineWindow {
+	/** Index of the first content row shown. */
+	start: number;
+	/** Content rows shown; a marker never replaces one of these. */
+	count: number;
+	/** The caller prints one marker row above the content. */
+	above: boolean;
+	/** The caller prints one marker row below the content. */
+	below: boolean;
+}
+
+/**
+ * Fit `total` content rows into a region `rows` tall, where every clipped side is
+ * named by a marker that spends one of the region's own rows.
+ *
+ * `requested` is the caller's scroll offset. The largest window whose hidden sides
+ * are all accounted for wins, so `count + markers <= rows` always holds and no
+ * content row is ever overwritten. A region too short for a marker beside content
+ * (`rows` <= 2 with rows hidden on both sides) slides without markers; the host's
+ * own key hints name those rows.
+ */
+export function fitLineWindow(total: number, rows: number, requested: number): LineWindow {
+	const content = Math.max(0, Math.floor(total));
+	const region = Math.max(0, Math.floor(rows));
+	const offset = Math.max(0, Math.floor(requested));
+	if (region === 0 || content === 0) return { start: 0, count: 0, above: false, below: false };
+	if (content <= region) return { start: 0, count: content, above: false, below: false };
+	const slide = (count: number) => Math.min(offset, Math.max(0, content - count));
+	for (let markers = 0; markers <= 2; markers++) {
+		const visible = region - markers;
+		if (visible <= 0) continue;
+		const start = slide(visible);
+		const above = start > 0;
+		const below = start + visible < content;
+		if ((above ? 1 : 0) + (below ? 1 : 0) === markers) return { start, count: visible, above, below };
+	}
+	const count = Math.min(content, region);
+	return { start: slide(count), count, above: false, below: false };
 }
 
 export function constrainFrameHeight(lines: string[], terminalRows: number | undefined, tailLines = 2): void {

@@ -3,11 +3,16 @@ import { matchesKey, Text, SelectList, wrapTextWithAnsi, truncateToWidth } from 
 import { frameRows } from './frame.ts';
 import { questionAccent } from './question-surface.ts';
 import { TabbedQuestions, type BatchUIResult, type QuestionDraft } from './batch-ui.ts';
-import { questionTheme, questionViewport, frameQuestion } from './question-surface.ts';
+import { questionHeight, questionTheme, questionViewport, frameQuestion } from './question-surface.ts';
 import { savedAskAppearance } from './appearance.ts';
 import { sanitizeDisplayText } from './tui-primitives.ts';
 import { questionStatus } from 'pi-agent-contracts/posted';
 import type { PostedQuestion } from './posted-state.ts';
+
+/** Ask's posted overlays and the frame's own budget read one height cap. */
+const OVERLAY_MAX_HEIGHT = 0.85;
+const overlayMaxHeight: `${number}%` = `${Math.round(OVERLAY_MAX_HEIGHT * 100)}%`;
+const overlayRows = (tui: any) => Math.max(1, Math.floor((tui.terminal?.rows ?? 30) * OVERLAY_MAX_HEIGHT));
 
 /** The inbox shares Ask's frame, appearance and native selection instead of Pi's generic dialog. */
 export async function postedInboxUI(ctx: ExtensionContext, questions: () => PostedQuestion[], bindClose: (close?: () => void) => void): Promise<string | undefined> {
@@ -16,7 +21,7 @@ export async function postedInboxUI(ctx: ExtensionContext, questions: () => Post
     let list: SelectList | undefined, signature="", selected: string | undefined;
     const refresh=()=> {
       const rows=questions();
-      const height=Math.max(1,questionViewport(tui).terminal.rows-4);
+      const height=Math.max(1,questionViewport(tui, overlayRows(tui)).terminal.rows-4);
       const next=JSON.stringify([height,rows.map(q=>[q.id,q.revision,q.definition.question,q.state,q.urgency])]);
       if (next===signature && list) return list;
       selected=list?.getSelectedItem()?.value ?? selected;
@@ -35,8 +40,8 @@ export async function postedInboxUI(ctx: ExtensionContext, questions: () => Post
       handleMouse(event:any) {const result=refresh().handleMouse({...event,y:event.y-1});if(result)tui.requestRender();return result;},
       invalidate() {signature="";},getHeaderLabel(){return 'Question inbox';},getMoreActions(){return [{label:'Close inbox',run:()=>done(undefined)}];},
     };
-    return frameQuestion(component,palette,tui,undefined,true);
-  },{overlay:true,overlayOptions:{width:'90%',maxHeight:'85%',anchor:'bottom-center'}}).finally(()=>bindClose(undefined));
+    return frameQuestion(component,palette,tui,{raised:true,maxRows:overlayRows(tui)});
+  },{overlay:true,overlayOptions:{width:'90%',maxHeight:overlayMaxHeight,anchor:'bottom-center'}}).finally(()=>bindClose(undefined));
 }
 
 /** Reuse Ask's editors/choice/review machinery. Only the temporary overlay/back contract differs. */
@@ -49,7 +54,7 @@ export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion,
     const palette = questionTheme(theme, savedAskAppearance());
     const contextDetails = () => [q.definition.details, ...workContext(), `Why: ${q.why}`, q.boundary, ...(q.neededNow ? [`Needed now: ${q.neededNow}`] : []),
       q.urgency === 'blocking' ? 'Only the stated boundary waits. Independent authorized work may continue.' : 'Can wait until this boundary needs the answer.'].filter(Boolean).join('\n\n');
-    const form = new TabbedQuestions([{ ...q.definition, details: contextDetails() }], questionViewport(tui), palette, kb, finish, ctx.cwd, q.draft, false);
+    const form = new TabbedQuestions([{ ...q.definition, details: contextDetails() }], questionViewport(tui, overlayRows(tui)), palette, kb, finish, ctx.cwd, q.draft, false);
     // A posted question is not a submission: an explicit close retains the draft.
     form.preserveDraftOnDismiss = true;
     bindClose(() => finish(null));
@@ -68,8 +73,8 @@ export async function postedQuestionUI(ctx: ExtensionContext, q: PostedQuestion,
       getHeaderLabel() { return q.urgency === 'blocking' ? q.taskIds.length ? 'Blocks linked work' : 'Blocks stated boundary' : 'Can wait'; },
       getMoreActions() { return [{ label: 'Close and keep draft', run: () => finish(null) }, ...form.getMoreActions()]; },
     };
-    return frameQuestion(component, palette, tui, undefined, true);
-  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'bottom-center' } }).finally(() => bindClose(undefined));
+    return frameQuestion(component, palette, tui, { raised: true, maxRows: overlayRows(tui) });
+  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: overlayMaxHeight, anchor: 'bottom-center' } }).finally(() => bindClose(undefined));
   return { result, draft };
 }
 export async function postedOutcomeUI(ctx: ExtensionContext, q: PostedQuestion, bindClose: (close?: () => void) => void) {
@@ -93,12 +98,12 @@ export async function postedOutcomeUI(ctx: ExtensionContext, q: PostedQuestion, 
         if (matchesKey(data, 'up') || matchesKey(data, 'down')) scroll = Math.max(0, scroll + (matchesKey(data, 'up') ? -1 : 1)); tui.requestRender(); },
       render(width: number) {
         const lines = body.flatMap(s => s.split('\n').flatMap(line => wrapTextWithAnsi(palette.fg('text', sanitizeDisplayText(line)), Math.max(1, width))));
-        const room = Math.max(1, (questionViewport(tui).terminal.rows ?? 20) - 2); scroll = Math.min(scroll, Math.max(0, lines.length - room));
+        const room = Math.max(1, questionHeight(tui, overlayRows(tui)) - 4); scroll = Math.min(scroll, Math.max(0, lines.length - room));
         return [...lines.slice(scroll, scroll + room), palette.fg('muted', '↑↓ scroll · Esc back')].map(line => truncateToWidth(line, Math.max(0, width), ''));
       }, getHeaderLabel() { return questionStatus(q); }, invalidate() {},
     };
-    return frameQuestion(component, palette, tui, undefined, true);
-  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: '85%', anchor: 'center' } }).finally(() => bindClose(undefined));
+    return frameQuestion(component, palette, tui, { raised: true, maxRows: overlayRows(tui) });
+  }, { overlay: true, overlayOptions: { width: '75%', maxHeight: overlayMaxHeight, anchor: 'center' } }).finally(() => bindClose(undefined));
 }
 export function questionEventCard(details: any, theme: any, expanded = false) {
   return { invalidate() {}, render(width: number) {

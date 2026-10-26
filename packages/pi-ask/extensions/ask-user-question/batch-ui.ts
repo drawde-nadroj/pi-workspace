@@ -2,7 +2,7 @@ import { Key, type KeybindingsManager, matchesKey, truncateToWidth, visibleWidth
 import type { AskAnswer, OtherAnswer, OptionAnswer, QuestionDef, TabAnswer, TabState } from "./domain.ts";
 import { getOtherLabel } from "./domain.ts";
 import type { MoreAction } from "./question-surface.ts";
-import { addActionHints, countSummary, renderDismissBanner, handleFileCompletion, addWrapped, addWrappedWithPrefix, constrainFrameHeight, createNoteEditor, createQuestionEditor, isAskAgentKey, isSubmitEnter, normalizeFocusCycleKey, renderOptionalNote, sanitizeDisplayText, sanitizeEditorDisplay, WrappedChoiceList, type HintToken, type WrappedChoiceItem } from "./tui-primitives.ts";
+import { addActionHints, countSummary, renderDismissBanner, handleFileCompletion, addWrapped, addWrappedWithPrefix, constrainFrameHeight, createNoteEditor, createQuestionEditor, fitLineWindow, isAskAgentKey, isSubmitEnter, normalizeFocusCycleKey, renderOptionalNote, sanitizeDisplayText, sanitizeEditorDisplay, WrappedChoiceList, type HintToken, type WrappedChoiceItem } from "./tui-primitives.ts";
 
 export type BatchUIResult = TabAnswer[] | { action: "regenerate"; answers: TabAnswer[] } | { action: "clarification"; clarification: string; answers: TabAnswer[]; activeQuestionIndex: number } | null;
 
@@ -41,6 +41,10 @@ export class TabbedQuestions {
 	private reviewing: boolean;
 	private partialReview: boolean;
 	private reviewScroll: number;
+	/** First visible question row; the prompt keeps its own counted window. */
+	private promptScroll = 0;
+	/** Rows the prompt can still reveal below its window; zero means Alt+↑/↓ do nothing. */
+	private promptMaxScroll = 0;
 	private reviewEditDigits: string;
 	private feedback: string;
 	private clarificationEditor: ReturnType<typeof createQuestionEditor>;
@@ -332,6 +336,8 @@ export class TabbedQuestions {
 		this.reviewing = false;
 		this.partialReview = false;
 		this.activeTab = index;
+		this.promptScroll = 0;
+		this.promptMaxScroll = 0;
 		this.editMode = false;
 		this.noteFocused = false;
 		this.noteActionFocused = false;
@@ -730,6 +736,18 @@ export class TabbedQuestions {
 			return;
 		}
 
+		// A clipped question is the only Alt+↑/↓ target outside the custom-answer editor:
+		// the choices below keep their own cursor keys.
+		if (this.promptMaxScroll > 0 && (matchesKey(data, Key.alt("up")) || matchesKey(data, Key.alt("down")))) {
+			const next = Math.max(0, Math.min(this.promptMaxScroll, this.promptScroll + (matchesKey(data, Key.alt("up")) ? -1 : 1)));
+			if (next !== this.promptScroll) {
+				this.promptScroll = next;
+				this.invalidate();
+				this.tui.requestRender();
+			}
+			return;
+		}
+
 		const tab = this.getActiveTab();
 		if (!tab) return;
 		if (this.feedback && !matchesKey(data, Key.ctrl("enter")) && !matchesKey(data, Key.alt("enter"))) {
@@ -1045,9 +1063,8 @@ export class TabbedQuestions {
 		// The frame shows the current position; Review carries the full overview.
 		if (width < 10) add(th.fg("muted", `${this.reviewing ? "Review" : `${this.activeTab + 1} of ${this.tabs.length}`}`));
 
-		if (!compactHeight) lines.push("");
-
 		if (this.reviewing) {
+			if (!compactHeight) lines.push("");
 			const answeredCount = this.tabs.filter((candidate) => this.isAnswered(candidate)).length;
 			const skippedCount = this.tabs.filter((tab) => tab.skipped).length;
 			const pendingCount = this.tabs.length - answeredCount - skippedCount;
@@ -1076,12 +1093,11 @@ export class TabbedQuestions {
 			});
 			const actionLines = this.renderActionBar(width);
 			const budget = Math.max(0, (this.tui.terminal?.rows ?? 40) - lines.length - actionLines.length - 2);
-			const maxScroll = Math.max(0, summaryLines.length - budget);
-			this.reviewScroll = Math.min(this.reviewScroll, maxScroll);
-			const visible = summaryLines.slice(this.reviewScroll, this.reviewScroll + budget);
-			if (visible.length > 0 && this.reviewScroll > 0) visible[0] = th.fg("dim", " ↑ more");
-			if (visible.length > 0 && this.reviewScroll < maxScroll) visible[visible.length - 1] = th.fg("dim", " ↓ more");
-			lines.push(...visible);
+			const window = fitLineWindow(summaryLines.length, budget, this.reviewScroll);
+			this.reviewScroll = window.start;
+			if (window.above) add(th.fg("dim", ` ↑ ${window.start} more`));
+			lines.push(...summaryLines.slice(window.start, window.start + window.count));
+			if (window.below) add(th.fg("dim", ` ↓ ${summaryLines.length - window.start - window.count} more`));
 			add(th.fg("borderMuted", "─".repeat(width)));
 			lines.push(...actionLines);
 			add(th.fg("accent", "─".repeat(width)));
@@ -1096,6 +1112,7 @@ export class TabbedQuestions {
 		const q = this.questions[this.activeTab];
 
 		if (this.clarificationMode) {
+			if (!compactHeight) lines.push("");
 			addWrapped(lines, th.fg("text", th.bold("What are you wondering about?")), width);
 			lines.push("");
 			for (const line of this.clarificationEditor.render(Math.max(1, width - 2))) add(` ${sanitizeEditorDisplay(line)}`);
@@ -1109,34 +1126,90 @@ export class TabbedQuestions {
 			return lines;
 		}
 
-		// Question header
-		addWrapped(lines, th.fg("text", th.askAppearance?.questionText === "normal" ? sanitizeDisplayText(q.question) : th.bold(sanitizeDisplayText(q.question))), width);
-		if (q.details) addWrapped(lines, th.fg("muted", ` ${sanitizeDisplayText(q.details)}`), width);
+		// The question is its own region: it never borrows the choices' rows, and the
+		// host decides each region's height from the measured chrome once.
+		const promptLines: string[] = [];
+		addWrapped(promptLines, th.fg("text", th.askAppearance?.questionText === "normal" ? sanitizeDisplayText(q.question) : th.bold(sanitizeDisplayText(q.question))), width);
+		if (q.details) addWrapped(promptLines, th.fg("muted", ` ${sanitizeDisplayText(q.details)}`), width);
+
+		const statusLines: string[] = [];
+		if (tab.skipped) addWrapped(statusLines, th.fg("warning", "Skipped · answer and note not sent. Ctrl+S restores."), width);
+		else if (tab.mode === "text" && tab.textBuffer.trim() && !tab.committed) addWrapped(statusLines, th.fg("muted", "Draft · press Enter to use this answer."), width);
+		if (this.feedback) statusLines.push(truncateToWidth(th.fg("warning", ` ${this.feedback}`), width));
+
+		// A native one-line note action, not a second bordered editor panel.
+		const noteLines: string[] = [];
+		renderOptionalNote(noteLines, width, th, this.noteEditor, this.noteFocused, tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 10 : 2, this.noteActionFocused);
+		const actionLines = this.renderActionBar(width);
+
+		// Text answers hold a fixed editor region instead of a measured choice list.
+		const choiceList = tab.mode === "text" ? null : this.getOrCreateChoiceList(q);
+		const measured = choiceList?.measure(Math.max(1, tab.mode === "single-select" ? width - 1 : width), {
+			selectedAnswers: tab.mode === "multi-select" ? this.selected : tab.selected,
+			inlineOtherEditor: this.editMode ? this.otherEditor : undefined,
+			showRadio: tab.mode === "single-select",
+		});
+		const headerRows = tab.mode === "multi-select" ? 2 : 0;
+		const fullNeed = (measured ? measured.full + measured.tail : 5) + headerRows;
+		const compressedNeed = (measured ? measured.compressed + measured.tail : 5) + headerRows;
+
+		const totalRows = this.tui.terminal?.rows ?? Number.POSITIVE_INFINITY;
+		// Blank A precedes the question, B separates it from the choices, C and D close
+		// the body. Tight chrome keeps only B so the question and choices can stay whole.
+		const chromeRows = (spacedBlanks: boolean) => 1 + (width < 10 ? 1 : 0)
+			+ (compactHeight ? 0 : spacedBlanks ? 4 : 1)
+			+ statusLines.length + noteLines.length + 1 + actionLines.length + 1;
+		const spacedContent = Math.max(0, totalRows - chromeRows(true));
+		const tightContent = Math.max(0, totalRows - chromeRows(false));
+		// Spaced chrome with full detail wins; each step below trades decoration, then
+		// detail, then the question's height — the last resort keeps two prompt rows.
+		let spaced = true;
+		let windowed = false;
+		let optionRows = fullNeed;
+		if (promptLines.length + fullNeed > spacedContent) {
+			if (promptLines.length + compressedNeed <= spacedContent) {
+				optionRows = compressedNeed;
+			} else if (promptLines.length + fullNeed <= tightContent) {
+				spaced = false;
+			} else if (promptLines.length + compressedNeed <= tightContent) {
+				spaced = false;
+				optionRows = compressedNeed;
+			} else {
+				spaced = false;
+				windowed = true;
+				optionRows = Math.min(compressedNeed, Math.max(0, tightContent - Math.min(promptLines.length, 2)));
+			}
+		}
+		const promptRows = windowed ? Math.max(0, tightContent - optionRows) : promptLines.length;
+
+		// Blank A belongs to the spaced layout only: tight chrome keeps just the
+		// separator between the question and its choices, and the budget knows it.
+		if (spaced && !compactHeight) lines.push("");
+
+		const promptWindow = fitLineWindow(promptLines.length, promptRows, this.promptScroll);
+		this.promptScroll = promptWindow.start;
+		// No row to scroll into means no scroll: the keys stay inert rather than move
+		// an offset nothing can show.
+		this.promptMaxScroll = promptWindow.count === 0 ? 0 : Math.max(0, promptLines.length - promptWindow.count);
+		if (promptWindow.above) add(th.fg("dim", `↑ ${promptWindow.start} more lines · Alt+↑`));
+		lines.push(...promptLines.slice(promptWindow.start, promptWindow.start + promptWindow.count));
+		if (promptWindow.below) add(th.fg("dim", `↓ ${promptLines.length - promptWindow.start - promptWindow.count} more lines · Alt+↓`));
+
 		if (!compactHeight) lines.push("");
 
-		const notePreview: string[] = [];
-		renderOptionalNote(notePreview, width, th, this.noteEditor, this.noteFocused, tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 10 : 2, this.noteActionFocused);
-		const actionLines = this.renderActionBar(width);
-		const reservedTailLines = notePreview.length + (compactHeight ? 0 : 2) + actionLines.length + 2;
-		const availableBodyLines = Math.max(0, (this.tui.terminal?.rows ?? Number.POSITIVE_INFINITY) - lines.length - reservedTailLines);
 		if (tab.mode === "text") {
 			this.renderTextTab(width, lines, add, th);
 		} else if (tab.mode === "single-select") {
-			this.renderSingleSelectTab(width, lines, add, th, tab, q, availableBodyLines);
+			this.renderSingleSelectTab(width, lines, add, th, tab, q, optionRows);
 		} else if (tab.mode === "multi-select") {
-			this.renderMultiSelectTab(width, lines, add, th, q, availableBodyLines);
+			this.renderMultiSelectTab(width, lines, add, th, q, optionRows);
 		}
 
-		if (tab.skipped) addWrapped(lines, th.fg("warning", "Skipped · answer and note not sent. Ctrl+S restores."), width);
-		else if (tab.mode === "text" && tab.textBuffer.trim() && !tab.committed) addWrapped(lines, th.fg("muted", "Draft · press Enter to use this answer."), width);
-		if (this.feedback) add(th.fg("warning", ` ${this.feedback}`));
-		if (!compactHeight) lines.push("");
+		lines.push(...statusLines);
+		if (spaced && !compactHeight) lines.push("");
 
-		// A native one-line note action, not a second bordered editor panel.
-		const noteIndent = tab.mode === "multi-select" ? 9 : tab.mode === "single-select" ? 10 : 2;
-		renderOptionalNote(lines, width, th, this.noteEditor, this.noteFocused, noteIndent, this.noteActionFocused);
-
-		if (!compactHeight) lines.push("");
+		lines.push(...noteLines);
+		if (spaced && !compactHeight) lines.push("");
 
 		add(th.fg("borderMuted", "─".repeat(width)));
 		lines.push(...actionLines);

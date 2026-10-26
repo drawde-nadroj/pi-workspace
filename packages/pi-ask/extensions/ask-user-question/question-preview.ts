@@ -18,7 +18,7 @@ export function questionPreview(theme: any, width: number, appearance: AskAppear
       "", palette.fg(appearance.hints, hint),
     ].map(line => truncateToWidth(line, Math.max(0, innerWidth), "")),
   };
-  const shell = frameQuestion(component, palette, { terminal: { rows: 26 }, requestRender() {} }, appearance);
+  const shell = frameQuestion(component, palette, { terminal: { rows: 26 }, requestRender() {} }, { appearance });
   const rows = shell.render(width);
   shell.dispose();
   if (width < 10) return { rows, hits: [] };

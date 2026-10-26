@@ -51,15 +51,19 @@ function surface(theme: any, text: string, width: number, raised = false): strin
   return fg + bg + inherited + "\x1b[49m\x1b[39m";
 }
 
-export function questionHeight(tui: any): number {
-  return Math.max(1, Math.min(26, (tui.terminal?.rows ?? 30) - 4));
+/**
+ * The panel may use the whole screen except the two rows the host keeps for its own
+ * chrome; `maxRows` narrows it further when an overlay applies its own cap.
+ */
+export function questionHeight(tui: any, maxRows?: number): number {
+  return Math.max(1, Math.min((tui.terminal?.rows ?? 30) - 2, maxRows ?? Number.POSITIVE_INFINITY));
 }
 
 /** Keep the existing question state machine and editors; supply only a bounded viewport. */
-export function questionViewport(tui: any): any {
+export function questionViewport(tui: any, maxRows?: number): any {
   const terminal = new Proxy(tui.terminal ?? {}, {
     get(target, property) {
-      if (property === "rows") return Math.max(1, questionHeight(tui) - 2);
+      if (property === "rows") return Math.max(1, questionHeight(tui, maxRows) - 2);
       return Reflect.get(target, property);
     },
   });
@@ -78,12 +82,22 @@ export interface MoreAction { label: string; key?: string; hint?: string; danger
 /** Session-only presentation state; never written to preferences. Live frames only. */
 let panelPinned = true;
 
-export function frameQuestion(component: any, theme: any, tui: any, previewAppearance?: AskAppearance, raised = false): any {
+export interface QuestionFrameOptions {
+  /** Display-only appearance override; live frames read their own settings once. */
+  appearance?: AskAppearance;
+  /** Overlay hosts raise the surface off the terminal background. */
+  raised?: boolean;
+  /** Host cap on the frame's rows, already reduced for the host's own overlay chrome. */
+  maxRows?: number;
+}
+
+export function frameQuestion(component: any, theme: any, tui: any, options: QuestionFrameOptions = {}): any {
   // Preview injection is display-only; live interactions read their own settings once.
   const saved = savedWorkspaceVisuals();
-  const appearance = previewAppearance ?? theme.askAppearance ?? saved.appearance;
+  const appearance = options.appearance ?? theme.askAppearance ?? saved.appearance;
   const density = saved.density;
-  const preview = previewAppearance !== undefined;
+  const raised = options.raised ?? false;
+  const preview = options.appearance !== undefined;
   let disposed = false, framed = false, removedHeader = false;
   let menu: MoreAction[] | undefined, selected = 0, focused = false;
   // A preview always shows the full panel and never reads or writes the live pin.
@@ -130,7 +144,7 @@ export function frameQuestion(component: any, theme: any, tui: any, previewAppea
   };
   const menuLines = (width: number) => {
     const rows: string[] = [];
-    const budget = Math.max(1, questionHeight(tui) - 5);
+    const budget = Math.max(1, questionHeight(tui, options.maxRows) - 5);
     // A destructive row keeps its own tone; the cursor is the only selection cue.
     const entries = menu!.map((action, index) => wrapTextWithAnsi(
       action.danger ? theme.fg("error", `${index === selected ? "›" : " "} ${action.label}${action.hint ? ` · ${action.hint}` : ""}`)
@@ -227,15 +241,15 @@ export function frameQuestion(component: any, theme: any, tui: any, previewAppea
     render(width: number): string[] {
       if (width <= 0) return [];
       if (!expanded) { pinHit = undefined; return compactBar(width); }
-      framed = width >= 10 && questionHeight(tui) >= 5;
-      if (!framed) { pinHit = undefined; return menu ? menuLines(width).slice(0, questionHeight(tui)) : component.render(width); }
+      framed = width >= 10 && questionHeight(tui, options.maxRows) >= 5;
+      if (!framed) { pinHit = undefined; return menu ? menuLines(width).slice(0, questionHeight(tui, options.maxRows)) : component.render(width); }
       const inner = width - 4;
       const lines: string[] = menu ? menuLines(inner) : [...component.render(inner)];
       const rule = (line: string | undefined) => !!line && /^\s*[─━]+\s*$/.test(stripVTControlCharacters(line));
       removedHeader = rule(lines[0]);
       if (removedHeader) lines.shift();
       if (rule(lines.at(-1))) lines.pop();
-      const limit = Math.max(0, questionHeight(tui) - 2);
+      const limit = Math.max(0, questionHeight(tui, options.maxRows) - 2);
       // A small stable body avoids jumps between short tabs. Pad after content, never move the cursor.
       if (density === "spaced") while (lines.length < Math.min(12, limit)) lines.push("");
       const title = truncateToWidth(menu ? " More actions " : ` ${appearance.title} `, Math.max(0, width - 2), "");
