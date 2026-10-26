@@ -38,13 +38,11 @@ export function reconciliationMessage(plan: SavedPlan): string {
     ].join("\n"),
     "## User-facing response",
     [
-      "- After the completion review, make the next user-facing reply about quests. Open with 'Where next?' and lead directly with a depth quest (Deepen) and a breadth quest (Connect) grounded in the work just performed.",
-      "- Treat the work's actual results, available evidence, and known limitations as the starting point for useful next projects. Account for any newly discovered material gap where it affects the proposed direction.",
-      "- Depth quest — go deeper into the same problem: richer understanding, a meaningful experiment, or a stronger capability. Breadth quest — branch outward by applying what was learned or built to another problem, domain, or creative project.",
-      "- Give each quest a short name, why the work makes it useful now, one concrete first move, and a concise From line naming the actual observation, conversation or supplied material that inspired it. Investigations and creative projects count, not just implementation. Present worthwhile directions; when only one direction has substance, offer that one.",
-      "- When quests present is available, call it directly for one shared Where next? handoff using existing path IDs or unsaved inline paths. Its Deepen/Connect presentation is the invitation; add a conversational bridge only when it adds substance. Presentation alone saves no paths and starts no work. Without that operation, use the same labelled structure in prose.",
-      "- Keep quests grounded in observed work, distinct from each other, fresh, and concise. Follow the user's requested format and preferences for suggestions.",
-      "- Quests are invitations, not accepted requirements: do not create tasks or plans, start work, or ask a blocking question to make the user choose. Wait for explicit user authorization before undertaking a quest.",
+      "- Keep the user's actual request and chosen conversational direction primary. Report material outcomes, changed conclusions or unresolved gaps clearly. When the existing response already covers the outcome and this review only reconciles records, finish without another user-facing recap or suggestion message.",
+      "- Weave a genuinely useful possibility naturally into the main response only when it advances the current conversation. Depth (Deepen) and breadth (Connect) are optional thinking lenses, not required headings or a pair to fill.",
+      "- Preserve substantial ideas developed together or met with explicit interest in the quest journal, reusing relevant paths. Name their value, source and possible first move. Offered possibilities remain distinct from chosen pursuits.",
+      "- Use the full quests present handoff when the user asks to explore directions. For an occasional compact green possibility use quests present with presentation possibility; ordinary prose is the fallback. Presentation alone saves nothing and starts no work. A completion review does not require any presentation call.",
+      "- Interpret keep, explore and make separately: preserve interest, develop an inquiry, or undertake the specifically authorized work. Exploration does not authorize implementation. Follow the user's requested format and preference to finish; leave unrelated possibilities available in the journal rather than redirecting the conversation.",
     ].join("\n"),
   ].join("\n\n");
 }

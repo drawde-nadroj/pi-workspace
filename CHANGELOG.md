@@ -10,6 +10,8 @@ This file records source-workspace increments. It is not a published-release ann
 
 - Added Quests' contextual possibility presentation: explicit green `Possibility · Title` Markdown rendering through the optional public host transformer, a compact unframed presentation alternative, counted journal directions, sourced keep/explore/make intent, and retry-safe offer/link capture. Legacy records and plain Markdown remain readable; no side conversation, Obsidian integration, new activity panel or background run is introduced.
 
+- Kept the requested response primary in Tasks' completion review: the mandatory Where next suggestion reply is gone, Deepen/Connect are optional lenses, and a record-only reconciliation finishes quietly. This changes guidance only; checkpoint eligibility, guards and schemas are unchanged.
+
 - Added pursuit continuity: immutable source-linked understanding/uncertainty/decision/artifact/observation records with explicit corrections and idempotent keys; current-branch Tasks/Ask snapshot synchronization; bounded read-only resume orientation and branch-local focus through existing before-run guidance. Answer notes and reported consequences remain inspectable; syncing never applies answers, completes tasks or grants authorization.
 - Replaced `/questions`' generic selector with a bounded inbox using Ask's shared frame, appearance, pin controls and native selection. Corrected the posted-answer validator to use the normal form's one-based option identity; real-form inbox → choice → note → Review → Submit regressions cover the formerly rejected valid selection.
 
